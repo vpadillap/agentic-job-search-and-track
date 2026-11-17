@@ -15,16 +15,16 @@ number.
 - Add the scoring rubric with stored per-component breakdowns and versioned
   weights.
 - Add evidence-gated salary suggestions.
-- Add the first provider files: LinkedIn, Indeed, Bumeran, Computrabajo (jobs)
-  and Glassdoor, Indeed (salary), plus per-user provider state. Each file comes
-  from its own study of the live site, read logged out; the agent never uses
-  the user's logged-in session on a job site.
+- Add the provider mechanism: provider-file validation and per-user provider
+  state. Provider files themselves are not part of this change.
 
 ## Non-goals
 
 - Applying to jobs, messaging recruiters, or changing anything in the user's
   accounts on job sites.
 - Scheduled or unattended background searches.
+- Any provider file or any decision on how a specific site is accessed. Each
+  provider is added by its own change after an individual study.
 - Learning-based score adjustments (the history component stays neutral until
   `add-learning-loop`).
 
@@ -46,11 +46,9 @@ None.
 
 ## Impact
 
-- New: `.claude/skills/job-search/`, `providers/*.md` (six files), scoring and
+- New: `.claude/skills/job-search/`, scoring and
   salary tables (migration), CLI commands `jobtracker run …`,
   `jobtracker postings import`, `jobtracker score set`, `jobtracker salary set`,
   `jobtracker providers …`.
-- Optional per-provider dependencies, decided by each provider's study (for example
-  Playwright).
 - Depends on `add-setup-onboarding` (profile) and `add-panel-search-tab`
   (postings model and board).

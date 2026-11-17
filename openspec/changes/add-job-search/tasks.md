@@ -2,12 +2,7 @@
 
 - [ ] 1.1 Provider file parser and validator; `jobtracker providers list|validate|enable|disable`
 - [ ] 1.2 Per-user provider state and per-provider dependency checks in `doctor`
-- [ ] 1.3 Study LinkedIn's public, logged-out job search (`https://www.linkedin.com/jobs/search`), including the intermittent sign-in pop-up, then write and hand-verify `providers/linkedin.md`
-- [ ] 1.4 Study, write, and hand-verify `providers/indeed.md` (jobs and salary), logged out
-- [ ] 1.5 Study, write, and hand-verify `providers/bumeran.md`, logged out
-- [ ] 1.6 Study, write, and hand-verify `providers/computrabajo.md`, logged out
-- [ ] 1.7 Study what Glassdoor shows logged out; write and hand-verify `providers/glassdoor.md` (salary) or document it as not usable
-- [ ] 1.8 Tests for every `provider-recipes` scenario
+- [ ] 1.3 Tests for every `provider-recipes` scenario
 
 ## 2. Run and import
 
@@ -40,4 +35,4 @@
 - [ ] 5.2 Scoring guide (how to judge each component, examples) as a skill reference file
 - [ ] 5.3 Salary research guide (what counts as comparable, what to record) as a skill reference file
 - [ ] 5.4 Spanish alias `buscar-empleos` (template exists in `i18n/skill-aliases/es/`; verify it installs once the skill is built)
-- [ ] 5.5 End-to-end run with the fictional persona against live providers; confirm the Search board matches the run report
+- [ ] 5.5 End-to-end run with the fictional persona using recorded fixture captures (live providers arrive with their own changes); confirm the Search board matches the run report

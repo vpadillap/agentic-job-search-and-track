@@ -116,9 +116,8 @@ them as rules and follows them from then on.
   setup.
 - Nothing is deleted by the tool. A reset moves your data into
   `user-data/archive/`.
-- The agent reads job sites as a logged-out visitor, read-only and at a slow
-  pace. It never signs in or uses your accounts on those sites. Be aware of
-  each site's terms of use; every site can be switched off.
+- How each job site is read is defined per site, and every site can be
+  switched off. Be aware of each site's terms of use.
 
 The exact layout of the private folder is documented in
 [`docs/workspace-layout.md`](docs/workspace-layout.md).
@@ -252,8 +251,6 @@ guarda como reglas y las respeta desde entonces.
 - No cambia el diseño de tu CV sin tu consentimiento.
 - Escribe los documentos en el idioma de cada aviso, sin importar el idioma del
   panel.
-- Lee los portales de empleo como visitante sin sesión. Nunca inicia sesión ni
-  usa tus cuentas en esos portales.
 - Las lecciones que aprende de tus resultados solo se aplican cuando las
   apruebas.
 

@@ -42,9 +42,7 @@ If it is unclear, ask.
 6. **Respect active rules.** Before any search, scoring, or document work, load
    the active rules (user preferences and approved lessons) and follow them.
 7. **Provider files are binding.** For each job site, follow
-   `providers/<name>.md` (access method, pacing, what not to do). Job sites
-   are read as a logged-out visitor: never sign in and never use the user's
-   logged-in browser session or cookies on them.
+   `providers/<name>.md` (access method, pacing, what not to do).
 8. **Language.** The panel language (en/es) is a UI setting. Documents and form
    answers are written in the language of each job posting.
 
@@ -68,6 +66,16 @@ If it is unclear, ask.
 - Spec-driven with OpenSpec: propose a change under `openspec/changes/<name>/`
   (proposal, design, spec deltas, tasks), get it approved, implement, archive.
   Validate with `openspec validate <name> --strict`.
+- One change at a time, in this order: implement with `/opsx:apply`, verify
+  with `/opsx:verify`, archive with `/opsx:archive`, commit, then merge into
+  `main`. Every change ends merged into `main` before the next one starts.
+- Stay inside the change being applied. Do only its tasks. Do not make
+  decisions that belong to another change, and do not edit other changes'
+  proposals, designs, specs, or tasks. If something outside the scope seems
+  necessary, stop and ask the project owner.
+- Providers are out of scope everywhere except in their own change: each job
+  site gets an individual study and its own change, and how it is accessed is
+  decided only there.
 - OpenSpec's generated skills/commands are gitignored on purpose. Install them
   locally with `openspec init --tools claude` if you want them.
 - After cloning: `git config core.hooksPath .githooks` to enable the privacy

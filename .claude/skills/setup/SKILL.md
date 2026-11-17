@@ -149,8 +149,7 @@ the user says so.
    version yet and that searching will become available with them; continue.
 3. Otherwise show the providers whose `regions` cover the user's country (or
    `global`), with a one-line note on how each is accessed (`access`,
-   `live_walk`). Sites are always read logged out, never with the user's
-   accounts; say so. Ask which to use.
+   `requires_login`, `live_walk`). Ask which to use.
 4. `jt providers disable <id>` for those not wanted.
 5. For each enabled provider with `dependencies`, tell the user what will be
    installed, ask, install, and confirm with `jt doctor` that its

@@ -3,6 +3,9 @@
 One Markdown file per job site or salary source. The agent reads the file for
 each enabled provider before touching that site and follows it literally.
 
+Each provider is added by its own OpenSpec change, after an individual study
+of that site. How a site is accessed is decided there, not in advance.
+
 - Copy `_template.md` to `<provider-id>.md` (lowercase, e.g. `linkedin.md`).
 - Keep instructions concrete and verified: which tool to use, exact URL
   patterns, what to extract, how fast to go, and what must not be done.

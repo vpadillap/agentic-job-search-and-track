@@ -3,8 +3,8 @@ id: example                      # lowercase, matches the file name
 name: Example Jobs
 kind: jobs                       # jobs | salary | both
 regions: [global]                # ISO country codes or "global"
-access: playwright               # playwright | scrapling | http | web-search | live-walk
-anonymous_only: true             # always true: never sign in or use the user's session
+access: chrome-extension         # chrome-extension | playwright | scrapling | http | web-search
+requires_login: false            # decided by this provider's own study
 live_walk: false                 # true = the user must be present; skip in unattended runs
 dependencies: []                 # e.g. [playwright], installed by /setup when this provider is enabled
 max_results_per_query: 50
@@ -16,16 +16,8 @@ last_verified: 2026-01-01
 
 ## Access method
 
-Which tool to use and why, as found by studying the live site as a logged-out
-visitor. State explicitly what does NOT work (for example "plain HTTP requests
-are blocked; use Playwright"). The site is always read without signing in and
-without the user's cookies.
-
-## Sign-in prompts and walls
-
-What the site shows to anonymous visitors, when a sign-in prompt appears, how
-to dismiss it if the content behind it is public, and when to stop and report
-the provider as skipped. Never sign in.
+Which tool to use and why, as decided by this provider's own study. State
+explicitly what does NOT work.
 
 ## Search recipe
 

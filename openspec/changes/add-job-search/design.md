@@ -73,43 +73,21 @@ confidence. Otherwise it stores "no reliable data" with what was tried, so the
 agent does not repeat fruitless research. Evidence is cached per company +
 role + location and reused for 60 days.
 
-### J6. Provider access: logged-out by default, studied one provider at a time
+### J6. Provider access is out of scope
 
-Principle: providers are read as an anonymous visitor, in a browser that does
-not carry the user's accounts or cookies. The agent never uses the user's
-logged-in session on a job site. Automated use of a logged-in account is
-against the terms of sites such as LinkedIn and can get the account
-restricted, and this tool is cloned by other people whose accounts would carry
-the same risk.
+This change delivers the provider mechanism only: reading provider files,
+validating them, and keeping per-user provider state. It does not decide how
+any site is accessed and does not add any provider file.
 
-How each site is read is not decided here. Each provider file is the result of
-its own study against the live site, done when that file is written: which
-public pages exist, what an anonymous visitor can see, how the site reacts to
-automation, and therefore which tool fits (plain page fetch, Playwright, a
-live walk with the user watching, or a mix). Sites behave inconsistently (a
-sign-in pop-up may or may not appear over LinkedIn's public job search, for
-example), so a recipe must describe what to do in each case and when to give
-up and report the provider as skipped.
+Each provider is added by its own change, after an individual study of that
+site, and that change decides the approach for that provider.
 
-Starting points only, to be confirmed by each study:
-
-| Provider | Kind | Starting point |
-|---|---|---|
-| LinkedIn | jobs | public job search at `https://www.linkedin.com/jobs/search`, logged out |
-| Indeed | jobs, salary | public search and salary pages |
-| Bumeran | jobs | public search |
-| Computrabajo | jobs | public search |
-| Glassdoor | salary | public salary pages; likely limited without an account |
-
-If a study finds that a site shows nothing useful without an account, the
-provider is documented as limited or left out. It is not switched to the
-user's session.
-
-Each recipe carries `last_verified`. Provider state per user: enabled, last
-run status, last error.
-
-*Alternative rejected:* reading through the user's logged-in browser session
-(more complete results, but puts the user's account at risk).
+Note recorded from the project owner for the future LinkedIn change: do not
+use the logged-in session; open a browser without a session, preferably after
+a full investigation of how the site behaves (a pop-up sometimes appears,
+sometimes not, so Playwright or a live walk through MCP may be needed).
+LinkedIn normally lets logged-out visitors use
+`https://www.linkedin.com/jobs/search`.
 
 ### J7. Form questions
 
@@ -119,13 +97,8 @@ answered later by `add-document-preparation`.
 
 ## Risks / Trade-offs
 
-- [Anti-bot measures] → anonymous access only, pacing from front matter, small
-  result caps, live-walk fallback; never circumvent blocks or sign-in walls.
-- [Terms of use] → logged-out, read-only, low-volume personal use; each
-  provider file states what its study found about the site's terms; a provider
-  can be disabled with one toggle.
-- [Less data without an account (fewer results, no form questions)] →
-  accepted; the run report says what could not be seen.
+- [Anti-bot measures and terms of use] → handled per provider, in each
+  provider's own change; a provider can be disabled with one toggle.
 - [Stale or wrong salary reports] → evidence older than 18 months is not
   comparable; every number links to its source.
 - [Scoring cost on large result sets] → filter and de-duplicate first; research
