@@ -1,0 +1,18 @@
+{
+  "ok": true,
+  "read": {
+    "provider": "bumeran",
+    "title": "Data Engineer",
+    "requests": 7,
+    "pages": 1,
+    "cards": 6,
+    "outside_window": 0,
+    "duplicate_in_run": 0,
+    "already_seen": 0,
+    "new": 6,
+    "unreadable": [],
+    "unknown_questions": 0,
+    "drafts_path": "C:\\Users\\Victor Padilla\\AppData\\Local\\Temp\\claude\\847f3809f550e2b2\\b225598a-244b-4a9f-9b05-a22a4b5625c2\\scratchpad\\dry\\searches\\20261117-1839\\bumeran-drafts-1.json",
+    "stopped": null
+  }
+}

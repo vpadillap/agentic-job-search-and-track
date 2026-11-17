@@ -164,3 +164,35 @@ def test_linkedin_is_read_logged_out_over_http():
     for forbidden in ("Playwright", "the browser extension", "jobs/search"):
         assert forbidden in text.split("## Search recipe")[0]  # named as forbidden
     assert "throttles or blocks requests from the user's IP address" in text
+
+
+def test_bumeran_is_read_in_a_real_browser_without_an_account():
+    from jobtracker.core import providers
+
+    listed = {p["id"]: p for p in providers.list_providers(TEMPLATE.parent)}
+    bumeran = listed["bumeran"]
+    assert bumeran["valid"], bumeran["problems"]
+    assert (bumeran["access"], bumeran["requires_login"], bumeran["live_walk"]) == (
+        "playwright", False, False)
+    assert bumeran["dependencies"] == ["playwright"] and bumeran["regions"] == ["PE"]
+    text = (TEMPLATE.parent / "bumeran.md").read_text(encoding="utf-8")
+    assert "jt providers read bumeran <run_id> --title" in text
+    assert "--readings" in text
+    access = text.split("## Search recipe")[0]
+    for forbidden in ("calling Bumeran's API directly", "curl_cffi", "stealth plugins",
+                      "proxies", "the user's Bumeran account", "postularV2"):
+        assert forbidden in access                         # named as forbidden
+    assert "A browser window opens" in access
+    assert "1.5.1" in text and "blocks the user's IP address" in text
+
+
+def test_doctor_names_playwright_for_an_enabled_bumeran(workspace, cli, monkeypatch):
+    monkeypatch.setenv("JOBTRACKER_PROVIDERS_DIR", str(TEMPLATE.parent))
+    cli("providers", "enable", "bumeran")
+    monkeypatch.setattr(doctor, "_tool_available", lambda name: name != "playwright")
+    monkeypatch.setattr(doctor.subprocess, "run",
+                        lambda *a, **k: subprocess.CompletedProcess(a, 0, ".githooks\n", ""))
+    _, out, _ = cli("doctor")
+    check = {c["id"]: c for c in out["checks"]}["provider:bumeran"]
+    assert check["status"] == "fail" and "playwright" in check["detail"]
+    assert "python -m playwright install chromium" in check["fix"]

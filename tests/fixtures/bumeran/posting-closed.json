@@ -1,0 +1,50 @@
+{
+ "aviso": {
+  "id": 900002,
+  "titulo": "Data Platform Engineer",
+  "estado": "finalizado",
+  "descripcion": "<p><strong>¿Qué buscamos?</strong></p><p>Una persona para el equipo de datos ficticio de Finlima S.A..</p><ul><li>Python y SQL</li><li>Airflow &amp; dbt</li></ul><p>Trabajo híbrido: 3 días en oficina.</p>",
+  "empresa": {
+   "denominacion": "Finlima S.A.",
+   "confidencial": false
+  },
+  "localizacion": {
+   "provinciaIdSemantico": "peru|lima",
+   "localidad": "Lima"
+  },
+  "fechaPublicacion": "{recent}",
+  "fechaFinalizacion": "15-02-2027",
+  "modalidadTrabajo": {
+   "id": 3,
+   "nombre": "Híbrido",
+   "idSemantico": "hibrido"
+  },
+  "tipoTrabajo": {
+   "id": 2,
+   "nombre": "Full-time",
+   "idSemantico": "full-time"
+  },
+  "tipoContratacion": {
+   "id": 1,
+   "nombre": "Indeterminado",
+   "idSemantico": "indeterminado"
+  },
+  "nivelLaboral": {
+   "nombre": "Senior",
+   "idSemantico": "senior"
+  },
+  "requisitos": {
+   "salario": {
+    "excluyente": false,
+    "salarioMinimo": null,
+    "salarioMaximo": null,
+    "frecuenciaPago": null,
+    "tipo": null,
+    "solicitarCandidato": true
+   }
+  },
+  "preguntas": null,
+  "seoFriendlyUrl": "/empleos/data-platform-engineer-finlima-900002.html"
+ },
+ "avisosSimilares": []
+}

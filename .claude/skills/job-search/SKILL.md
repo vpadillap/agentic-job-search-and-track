@@ -81,6 +81,12 @@ For each provider id in `to_search`, in order:
    writes the records as drafts: read them, write only your reading of each
    one, and import with `jt postings import <run_id> <drafts> --readings
    <file>` as the provider file says. Never retype a captured description.
+   Some readers add **hints** to each draft (fields starting with `site_`,
+   such as `site_work_mode` or `site_salary`): what the site itself states.
+   Start your reading from them, check them against the title and the
+   description, and when they disagree follow the description and add a
+   flag saying so (in the panel language). Hints are never imported as they
+   are; only your reading is.
 6. If the site errors, blocks you, or stops matching its recipe, record
    `jt run provider <run_id> <id> --status failed --reason error|blocked
    --detail "<what happened>"` and continue with the next provider. One

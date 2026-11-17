@@ -20,6 +20,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Job sites read through a real browser (Bumeran): installed only when enabled.
+browser = [
+    "playwright>=1.45",
+]
 dev = [
     "pytest>=8",
     "httpx>=0.27",
@@ -36,7 +40,10 @@ packages = ["src/jobtracker"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
-markers = ["browser: drives the panel in a real browser (needs `python -m playwright install chromium`)"]
+markers = [
+    "browser: drives the panel in a real browser (needs `python -m playwright install chromium`)",
+    "live: contacts a real job site; runs only with JOBTRACKER_LIVE=1",
+]
 
 [tool.ruff]
 line-length = 100

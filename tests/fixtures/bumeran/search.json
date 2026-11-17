@@ -1,0 +1,59 @@
+{
+ "number": 0,
+ "size": 20,
+ "total": 3,
+ "content": [
+  {
+   "id": 900001,
+   "titulo": "Senior Data Engineer",
+   "empresa": "Altamar Retail S.A.",
+   "localizacion": "Lima, Lima",
+   "fechaPublicacion": "{recent}",
+   "fechaHoraPublicacion": "{recent} 10:00:00",
+   "modalidadTrabajo": "Híbrido",
+   "tipoTrabajo": "Full-time",
+   "confidencial": false,
+   "tienePreguntas": true,
+   "salarioObligatorio": false,
+   "detalle": "Extracto ficticio del aviso.",
+   "idPais": 11
+  },
+  {
+   "id": 900002,
+   "titulo": "Data Platform Engineer",
+   "empresa": "Finlima S.A.",
+   "localizacion": "Lima, Lima",
+   "fechaPublicacion": "{recent}",
+   "fechaHoraPublicacion": "{recent} 10:00:00",
+   "modalidadTrabajo": "Remoto",
+   "tipoTrabajo": "Full-time",
+   "confidencial": false,
+   "tienePreguntas": false,
+   "salarioObligatorio": false,
+   "detalle": "Extracto ficticio del aviso.",
+   "idPais": 11
+  },
+  {
+   "id": 900003,
+   "titulo": "Data Engineer",
+   "empresa": "Nortia Seguros",
+   "localizacion": "Lima, Lima",
+   "fechaPublicacion": "01-01-2020",
+   "fechaHoraPublicacion": "01-01-2020 10:00:00",
+   "modalidadTrabajo": "Presencial",
+   "tipoTrabajo": "Full-time",
+   "confidencial": false,
+   "tienePreguntas": false,
+   "salarioObligatorio": false,
+   "detalle": "Extracto ficticio del aviso.",
+   "idPais": 11
+  }
+ ],
+ "filters": [],
+ "filtersApplied": [
+  {
+   "id": "query",
+   "value": "data engineer"
+  }
+ ]
+}
