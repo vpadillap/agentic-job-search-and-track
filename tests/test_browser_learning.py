@@ -107,3 +107,15 @@ def test_deeper_review_is_suggested_after_ten_outcomes(home, page):  # noqa: F81
     expect(page.get_by_text(re.compile(r"12 applications got an outcome since the last deeper"))
            ).to_be_visible()
     expect(page.locator(".level-review code")).to_have_text("/analyze-results")
+
+
+def test_offers_card_compares_offered_with_asked(home, page):  # noqa: F811
+    seed(home, "predictive")
+    with db.session(home) as conn:
+        compared = insights.summary(conn, "all")["offered_salary"]["vs_asked"]
+    assert compared["cases"] > 0
+    open_board(page, "learning")
+    page.get_by_role("button", name="All history").click()
+    note = page.locator('.kpi[data-kpi="offers"] .kpi-note')
+    expect(note).to_contain_text("Offered vs asked:")
+    expect(note).to_contain_text(f"{compared['median_pct']}%")

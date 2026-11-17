@@ -138,7 +138,7 @@ def test_custom_status_before_applying_leaves_no_applied_date(jobs, cli):
                        "Waiting for a referral", "--ends", "no")
     assert code == 0
     item = detail(jobs["home"], jobs["altamar"])
-    assert item["applied_on"] is None and item["snapshot"] is None
+    assert item["applied_on"] is None and item["at_application"] is None
     assert item["next_step"] == {"kind": "prepare_documents"}
     _, listed, _ = cli("applications", "list")
     assert jobs["altamar"] in listed["attention"]["missing_resume"]
@@ -157,7 +157,10 @@ def test_applied_date_entered_by_hand_makes_the_application_applied(jobs, cli, t
     code, out, _ = cli("applications", "update", job, str(path))
     assert code == 0, out
     item = detail(home, job)
-    assert item["snapshot"]["applied_on"] == "2026-11-10" and item["snapshot"]["score"] == 86
+    facts = item["at_application"]
+    assert facts["applied_on"] == "2026-11-10" and facts["score"] == 86
+    assert [h["data"]["on"] for h in item["history"] if h["kind"] == "applied"] == [
+        "2026-11-10"]
     assert item["next_step"]["kind"] in ("follow_up", "ghost")
     _, listed, _ = cli("applications", "list")
     assert job not in listed["attention"]["missing_resume"]
@@ -263,37 +266,131 @@ def test_invalid_details_are_rejected(jobs, cli, tmp_path, bad):
     assert code == 1 and out["error"]["code"] == "invalid_details"
 
 
-# ── snapshot ──────────────────────────────────────────────────────────────
+# ── facts at the time of applying ─────────────────────────────────────────
 
-def test_snapshot_is_taken_when_first_applying_and_keeps_its_facts(jobs, cli, tmp_path):
+def test_facts_at_application_time_come_from_history_and_current_data(jobs, cli, tmp_path):
     home, job = jobs["home"], jobs["altamar"]
     path = tmp_path / "d.json"
     path.write_text(json.dumps({"channel": "LinkedIn"}), encoding="utf-8")
     cli("applications", "update", job, str(path))
-    assert detail(home, job)["snapshot"] is None
+    assert detail(home, job)["at_application"] is None
     cli("applications", "set-status", job, "--to", "applied")
-    snap = detail(home, job)["snapshot"]
-    assert snap["score"] == 86 and snap["resume_kind"] == "base"
-    assert snap["channel"] == "LinkedIn" and snap["suggested_salary"]["amount"] == 15000
-    assert snap["applied_on"] == datetime.now().date().isoformat()
-    with db.session(home) as conn:      # later changes do not touch the captured facts
-        from jobtracker.core import scoring
+    facts = detail(home, job)["at_application"]
+    assert facts["score"] == 86 and facts["resume_kind"] == "base"
+    assert facts["channel"] == "LinkedIn" and facts["suggested_salary"]["amount"] == 15000
+    assert facts["applied_on"] == datetime.now().date().isoformat()
+    with db.session(home) as conn:  # rescored and suggestion revised after applying
+        from jobtracker.core import salary, scoring
 
-        scoring.set_score(conn, jobs["postings"]["A-100"], submission(title={"points": 5}))
+        posting_id = jobs["postings"]["A-100"]
+        scoring.set_score(conn, posting_id, submission(title={"points": 5}))
+        evidence = salary.add_evidence(conn, [
+            {**report(url="https://example.test/s/3"), "posting_id": posting_id},
+            {**report(url="https://example.test/s/4"), "posting_id": posting_id}])
+        salary.set_suggestion(conn, posting_id, {
+            "evidence_ids": [e["id"] for e in evidence], "criteria": {"currency": "PEN"}})
+        conn.execute("UPDATE salary_suggestions SET amount = 99000 WHERE is_current = 1"
+                     " AND posting_id = ?", (posting_id,))
     path.write_text(json.dumps({"channel": "Email", "applied_on": "2026-11-01",
                                 "asked_salary": {"amount": 16000, "currency": "PEN"}}),
                     encoding="utf-8")
     cli("applications", "update", job, str(path))
     cli("applications", "set-status", job, "--to", "interview")
-    snap = detail(home, job)["snapshot"]
-    assert snap["score"] == 86 and snap["channel"] == "LinkedIn"
-    assert snap["applied_on"] == "2026-11-01" and snap["asked_salary"]["amount"] == 16000
+    facts = detail(home, job)["at_application"]
+    assert facts["score"] == 86 and facts["suggested_salary"]["amount"] == 15000  # versions
+    assert facts["channel"] == "Email" and facts["applied_on"] == "2026-11-01"     # current
+    assert facts["asked_salary"]["amount"] == 16000
+    _, shown, _ = cli("score", "show", str(jobs["postings"]["A-100"]), "--history")
+    assert shown["at_application"]["total"] == 86
 
 
-def test_track_and_mark_applied_takes_the_snapshot(jobs):
+def test_the_moment_of_applying_is_recorded_once(jobs, cli, tmp_path):
+    job = jobs["altamar"]
+    cli("applications", "set-status", job, "--to", "applied")
+    path = tmp_path / "d.json"
+    for value in (None, "2026-11-05"):  # clearing and re-entering the date keeps the moment
+        path.write_text(json.dumps({"applied_on": value}), encoding="utf-8")
+        cli("applications", "update", job, str(path))
+    history = detail(jobs["home"], job)["history"]
+    assert len([h for h in history if h["kind"] == "applied"]) == 1
+
+
+def test_a_sent_resume_uploaded_after_applying_counts(jobs, client, cli):
+    job = jobs["altamar"]
+    cli("applications", "set-status", job, "--to", "applied")
+    client.post(f"/api/applications/{job}/resume-sent",
+                files={"file": ("cv.pdf", PDF, "application/pdf")})
+    assert detail(jobs["home"], job)["at_application"]["resume_kind"] == "sent"
+
+
+def test_track_and_mark_applied_records_the_moment(jobs):
     with db.session(jobs["home"]) as conn:
         application = tracking.track(conn, [jobs["postings"]["B-7"]], applied=True)[0]
-        assert applications.snapshot(conn, application["job_id"]) is not None
+        assert applications.applied_at(conn, application["job_id"]) is not None
+        assert applications.at_application(conn, application["job_id"]) is not None
+
+
+# ── offered salary ────────────────────────────────────────────────────────
+
+def test_recording_the_offered_salary(jobs, cli, tmp_path):
+    job = jobs["altamar"]
+    path = tmp_path / "d.json"
+    path.write_text(json.dumps({"asked_salary": {"amount": 15000, "currency": "PEN"},
+                                "offered_salary": {"amount": 14000, "currency": "PEN",
+                                                   "basis": "gross"}}), encoding="utf-8")
+    code, out, _ = cli("applications", "update", job, str(path))
+    assert code == 0, out
+    assert out["application"]["offered_salary"] == {"amount": 14000, "currency": "PEN",
+                                                    "basis": "gross", "period": "month"}
+    changes = [h["data"] for h in detail(jobs["home"], job)["history"]
+               if h["kind"] == "field_changed"]
+    assert {c["field"] for c in changes} == {"asked_salary", "offered_salary"}
+    offered = next(c for c in changes if c["field"] == "offered_salary")
+    assert offered["from"] is None and offered["to"]["amount"] == 14000
+    path.write_text(json.dumps({"offered_salary": {"amount": 14000, "currency": "USD"}}),
+                    encoding="utf-8")                      # only the currency changes
+    cli("applications", "update", job, str(path))
+    changes = [h for h in detail(jobs["home"], job)["history"] if h["kind"] == "field_changed"]
+    assert len(changes) == 3
+
+
+@pytest.mark.parametrize("bad", [{"amount": 0, "currency": "PEN"},
+                                 {"amount": 100, "currency": "soles"},
+                                 {"amount": 100, "currency": "PEN", "basis": "after tax"}])
+def test_invalid_offered_salary_is_rejected(jobs, cli, tmp_path, bad):
+    path = tmp_path / "d.json"
+    path.write_text(json.dumps({"offered_salary": bad}), encoding="utf-8")
+    code, out, _ = cli("applications", "update", jobs["altamar"], str(path))
+    assert code == 1 and out["error"]["details"]["field"] == "offered_salary"
+
+
+# ── migration 0013: snapshots become history ──────────────────────────────
+
+def test_migration_turns_snapshots_into_the_moment_of_applying(jobs, cli):
+    import sqlite3
+    from contextlib import closing
+
+    from jobtracker.core import scoring
+    from tests.migrations import rewind
+
+    home, job = jobs["home"], jobs["altamar"]
+    posting_id = jobs["postings"]["A-100"]
+    cli("applications", "set-status", job, "--to", "applied")
+    with db.session(home) as conn:
+        first = scoring.current(conn, posting_id)["id"]
+        scoring.set_score(conn, posting_id, submission(title={"points": 5}))
+    rewind(home.database, 12)
+    with closing(sqlite3.connect(home.database)) as conn:  # as an older version stored it
+        conn.execute("INSERT INTO application_snapshots (application_id, captured_at, data)"
+                     " VALUES (?, '2026-11-02T10:00:00Z', ?)",
+                     (job, json.dumps({"applied_on": "2026-11-02", "score_id": first,
+                                       "score": 86})))
+        conn.commit()
+    with db.session(home) as conn:
+        tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master")}
+        assert "application_snapshots" not in tables
+        assert applications.applied_at(conn, job) == "2026-11-02T10:00:00Z"
+        assert applications.at_application(conn, job)["score"] == 86
 
 
 # ── next step, follow-up, ghosting ────────────────────────────────────────

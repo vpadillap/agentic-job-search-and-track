@@ -5,8 +5,9 @@ says whether an application ended with it. Built-in statuses keep a fixed
 meaning through their key, read only where the system must act on a status
 (the applied date, the next step); a custom status is its name and whether it
 ends an application. An application counts as applied when it has an applied
-date. Every change writes an event. The facts known when the application first
-got an applied date are kept in a snapshot.
+date. Every change writes an event, including the moment the application first
+got an applied date (`applied`). The facts at the time of applying are derived
+from that history and the current data (`at_application`), never copied.
 """
 from __future__ import annotations
 
@@ -28,7 +29,8 @@ APPLIED_KEYS = ("applied", "interview", "offer", "accepted", "rejected", "ghoste
 DATED_KEYS = ("interview", "offer")
 FOLLOW_UP_DAYS = 7
 GHOST_DAYS = 21
-DETAIL_FIELDS = ("applied_on", "asked_salary", "channel", "contact", "notes", "next_step_on",
+SALARY_DETAILS = ("asked_salary", "offered_salary")
+DETAIL_FIELDS = ("applied_on", *SALARY_DETAILS, "channel", "contact", "notes", "next_step_on",
                  "next_step_note")
 SENT_RESUME_TYPES = {".pdf": b"%PDF", ".docx": b"PK"}
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -173,66 +175,101 @@ def thresholds(conn: sqlite3.Connection) -> dict:
     return result
 
 
-def _snapshot(conn: sqlite3.Connection, row: sqlite3.Row, when: str) -> None:
-    """The facts known when the application first got an applied date (training data
-    for prediction). Taken once; later changes do not replace it."""
-    if not row["applied_on"] or conn.execute(
-        "SELECT 1 FROM application_snapshots WHERE application_id = ?", (row["job_id"],)
-    ).fetchone():
+# ── the moment of applying and the facts at that time ─────────────────────
+
+def _mark_applied(conn: sqlite3.Connection, job_id: str, applied_on: str | None,
+                  when: str) -> None:
+    """Record, once, the moment the application first got an applied date, naming the
+    score and salary suggestion versions current then (both keep every version)."""
+    if not applied_on or _applied_event(conn, job_id):
         return
+    posting_id = _row(conn, job_id)["posting_id"]
+    current = {table: conn.execute(f"SELECT id FROM {table} WHERE posting_id = ?"  # noqa: S608
+                                   " AND is_current = 1", (posting_id,)).fetchone()
+               for table in ("scores", "salary_suggestions")}
+    _event(conn, job_id, "applied", {
+        "on": applied_on,
+        "score_id": current["scores"]["id"] if current["scores"] else None,
+        "salary_suggestion_id": current["salary_suggestions"]["id"]
+        if current["salary_suggestions"] else None,
+    }, when)
+
+
+def _applied_event(conn: sqlite3.Connection, job_id: str) -> dict | None:
+    row = conn.execute(
+        "SELECT data, created_at FROM events WHERE entity_type = 'application'"
+        " AND entity_id = ? AND kind = 'applied' ORDER BY created_at, id LIMIT 1",
+        (job_id,)).fetchone()
+    return {"at": row["created_at"], **json.loads(row["data"] or "{}")} if row else None
+
+
+def applied_at(conn: sqlite3.Connection, job_id: str) -> str | None:
+    """When the application first got an applied date (its `applied` event)."""
+    event = _applied_event(conn, job_id)
+    return event["at"] if event else None
+
+
+def _version_at(conn: sqlite3.Connection, table: str, posting_id: int,
+                moment: str | None, version_id: int | None = None) -> sqlite3.Row | None:
+    """The version (score or salary suggestion) current when applying: the one the
+    `applied` event names, else the latest at or before `moment`; the first one when
+    the posting got it only later."""
+    row = None
+    if version_id is not None:
+        row = conn.execute(f"SELECT * FROM {table} WHERE id = ?",  # noqa: S608
+                           (version_id,)).fetchone()
+    if row is None and moment:
+        row = conn.execute(
+            f"SELECT * FROM {table} WHERE posting_id = ? AND created_at <= ?"  # noqa: S608
+            " ORDER BY created_at DESC, id DESC LIMIT 1", (posting_id, moment)).fetchone()
+    return row or conn.execute(
+        f"SELECT * FROM {table} WHERE posting_id = ?"  # noqa: S608
+        " ORDER BY created_at, id LIMIT 1", (posting_id,)).fetchone()
+
+
+def at_application(conn: sqlite3.Connection, job_id: str) -> dict | None:
+    """The facts at the time of applying, derived from the history and the current
+    data: the score and salary suggestion current at that moment; resume, cover
+    letter, channel, dates, and salaries as recorded now. None until applied."""
+    row = _row(conn, job_id)
+    if not row["applied_on"]:
+        return None
+    event = _applied_event(conn, job_id) or {}
+    moment = event.get("at")
     posting = conn.execute("SELECT * FROM postings WHERE id = ?", (row["posting_id"],)
                            ).fetchone()
-    score = scoring.current(conn, row["posting_id"])
-    suggestion = salary.current(conn, row["posting_id"])
-    sent = _current_document(conn, row["id"], "resume_sent")
-    proposed = _current_document(conn, row["id"], "resume_proposed")
-    cover = _current_document(conn, row["id"], "cover_letter")
-    applied_on = row["applied_on"]
+    score = _version_at(conn, "scores", row["posting_id"], moment, event.get("score_id"))
+    components = json.loads(score["components"]) if score else []
+    suggestion = _version_at(conn, "salary_suggestions", row["posting_id"], moment,
+                             event.get("salary_suggestion_id"))
+    kinds = {d["kind"] for d in conn.execute(
+        "SELECT kind FROM documents WHERE application_id = ? AND is_current = 1", (row["id"],))}
     age = None
-    if applied_on and posting["posted_at"]:
-        age = (date.fromisoformat(applied_on) - date.fromisoformat(posting["posted_at"])).days
-    data = {
+    if posting["posted_at"]:
+        age = (date.fromisoformat(row["applied_on"])
+               - date.fromisoformat(posting["posted_at"])).days
+    return {
+        "applied_at": moment,
+        "applied_on": row["applied_on"],
         "score": score["total"] if score else None,
         "score_id": score["id"] if score else None,
-        "score_components": {c["component"]: c["points"] for c in score["components"]}
-        if score else None,
+        "score_components": {c["component"]: c["points"] for c in components} or None,
         "target_title": posting["title"],
         "provider": posting["provider"],
         "channel": row["channel"],
         "work_mode": posting["work_mode"],
         "contract_type": posting["contract_type"],
-        "resume_kind": "sent" if sent else ("tailored" if proposed else "base"),
-        "cover_letter": cover is not None,
+        "resume_kind": "sent" if "resume_sent" in kinds else (
+            "tailored" if "resume_proposed" in kinds else "base"),
+        "cover_letter": "cover_letter" in kinds,
         "posting_age_days": age,
-        "applied_on": applied_on,
-        "suggested_salary": {k: suggestion[k] for k in ("amount", "currency", "basis",
-                                                         "confidence")}
+        "suggested_salary": {"amount": suggestion["amount"], "currency": suggestion["currency"],
+                             "basis": suggestion["basis"],
+                             "confidence": suggestion["confidence"]}
         if suggestion and suggestion["status"] == "suggested" else None,
-        "asked_salary": _asked(row),
+        "asked_salary": _salary(row, "asked_salary"),
+        "offered_salary": _salary(row, "offered_salary"),
     }
-    conn.execute(
-        "INSERT INTO application_snapshots (application_id, captured_at, data) VALUES (?, ?, ?)",
-        (row["job_id"], when, json.dumps(data, ensure_ascii=False)),
-    )
-
-
-def snapshot(conn: sqlite3.Connection, job_id: str) -> dict | None:
-    row = conn.execute("SELECT * FROM application_snapshots WHERE application_id = ?",
-                       (job_id,)).fetchone()
-    if row is None:
-        return None
-    return {"captured_at": row["captured_at"], **json.loads(row["data"])}
-
-
-def _update_snapshot(conn: sqlite3.Connection, job_id: str, fields: dict) -> None:
-    """Applied date and asked salary stay editable in the snapshot; score does not."""
-    current = snapshot(conn, job_id)
-    if current is None:
-        return
-    current.pop("captured_at")
-    current.update(fields)
-    conn.execute("UPDATE application_snapshots SET data = ? WHERE application_id = ?",
-                 (json.dumps(current, ensure_ascii=False), job_id))
 
 
 def set_status(
@@ -276,7 +313,7 @@ def set_status(
             "to_name": {"en": target["name_en"], "es": target["name_es"]},
             "to_ends": bool(target["ends"]),
         }, now)
-        _snapshot(conn, _row(conn, row["job_id"]), now)
+        _mark_applied(conn, row["job_id"], applied_on, now)
     bump_changes(conn)
     return [row["job_id"] for row in rows]
 
@@ -313,11 +350,35 @@ def tags(conn: sqlite3.Connection, application_id: int) -> list[str]:
         (application_id,))]
 
 
-def _asked(row: sqlite3.Row) -> dict | None:
-    if row["asked_salary_amount"] is None:
+def _salary(row: sqlite3.Row, field: str) -> dict | None:
+    """A monthly salary the user recorded: `asked_salary` or `offered_salary`."""
+    if row[f"{field}_amount"] is None:
         return None
-    return {"amount": row["asked_salary_amount"], "currency": row["asked_salary_currency"],
-            "basis": row["asked_salary_basis"] or "gross", "period": "month"}
+    return {"amount": row[f"{field}_amount"], "currency": row[f"{field}_currency"],
+            "basis": row[f"{field}_basis"] or "gross", "period": "month"}
+
+
+def _asked(row: sqlite3.Row) -> dict | None:
+    return _salary(row, "asked_salary")
+
+
+def _salary_columns(field: str, value: object) -> dict:
+    """Validated columns of a salary detail; None clears it."""
+    if value is None:
+        return {f"{field}_amount": None, f"{field}_currency": None, f"{field}_basis": None}
+    amount = value.get("amount") if isinstance(value, dict) else None
+    currency = value.get("currency") if isinstance(value, dict) else None
+    basis = value.get("basis", "gross") if isinstance(value, dict) else None
+    if isinstance(amount, bool) or not isinstance(amount, int) or amount <= 0:
+        raise JobTrackerError("invalid_details", f"{field}.amount must be a positive whole number",
+                              field=field)
+    if not isinstance(currency, str) or not re.fullmatch(r"[A-Z]{3}", currency):
+        raise JobTrackerError("invalid_details", f"{field}.currency must be a code such as PEN",
+                              field=field)
+    if basis not in ("gross", "net"):
+        raise JobTrackerError("invalid_details", f"{field}.basis must be gross or net",
+                              field=field)
+    return {f"{field}_amount": amount, f"{field}_currency": currency, f"{field}_basis": basis}
 
 
 def _optional_date(field: str, value: object) -> str | None:
@@ -360,28 +421,9 @@ def update_details(conn: sqlite3.Connection, job_id: str, changes: object) -> di
                          ("next_step_note", 200)):
         if field in changes:
             columns[field] = _optional_text(field, changes[field], limit)
-    if "asked_salary" in changes:
-        asked = changes["asked_salary"]
-        if asked is None:
-            columns.update(asked_salary_amount=None, asked_salary_currency=None,
-                           asked_salary_basis=None)
-        else:
-            amount = asked.get("amount") if isinstance(asked, dict) else None
-            currency = asked.get("currency") if isinstance(asked, dict) else None
-            basis = asked.get("basis", "gross") if isinstance(asked, dict) else None
-            if isinstance(amount, bool) or not isinstance(amount, int) or amount <= 0:
-                raise JobTrackerError("invalid_details",
-                                      "asked_salary.amount must be a positive whole number",
-                                      field="asked_salary")
-            if not isinstance(currency, str) or not re.fullmatch(r"[A-Z]{3}", currency):
-                raise JobTrackerError("invalid_details",
-                                      "asked_salary.currency must be a code such as PEN",
-                                      field="asked_salary")
-            if basis not in ("gross", "net"):
-                raise JobTrackerError("invalid_details", "asked_salary.basis must be gross or net",
-                                      field="asked_salary")
-            columns.update(asked_salary_amount=amount, asked_salary_currency=currency,
-                           asked_salary_basis=basis)
+    for field in SALARY_DETAILS:
+        if field in changes:
+            columns.update(_salary_columns(field, changes[field]))
     changed = {key: value for key, value in columns.items() if row[key] != value}
     if not changed:
         return application(conn, job_id)
@@ -389,19 +431,16 @@ def update_details(conn: sqlite3.Connection, job_id: str, changes: object) -> di
     assignments = ", ".join(f"{key} = ?" for key in changed)
     conn.execute(f"UPDATE applications SET {assignments}, updated_at = ? WHERE id = ?",
                  (*changed.values(), now, row["id"]))
-    for key, value in changed.items():
-        if key.startswith("asked_salary_") and key != "asked_salary_amount":
-            continue
-        field = "asked_salary" if key == "asked_salary_amount" else key
-        _event(conn, job_id, "field_changed", {
-            "field": field,
-            "from": _asked(row) if field == "asked_salary" else row[key],
-            "to": _asked(_row(conn, job_id)) if field == "asked_salary" else value,
-        }, now)
     fresh = _row(conn, job_id)
-    _update_snapshot(conn, job_id, {"applied_on": fresh["applied_on"],
-                                    "asked_salary": _asked(fresh)})
-    _snapshot(conn, fresh, now)  # a date entered by hand makes the application applied
+    for field in SALARY_DETAILS:  # one event per salary, whichever of its parts changed
+        if any(key.startswith(field + "_") for key in changed):
+            _event(conn, job_id, "field_changed", {
+                "field": field, "from": _salary(row, field), "to": _salary(fresh, field)}, now)
+    for key, value in changed.items():
+        if not key.startswith(SALARY_DETAILS):
+            _event(conn, job_id, "field_changed", {"field": key, "from": row[key], "to": value},
+                   now)
+    _mark_applied(conn, job_id, fresh["applied_on"], now)  # a date entered by hand counts
     bump_changes(conn)
     return application(conn, job_id)
 
@@ -571,12 +610,13 @@ def application(conn: sqlite3.Connection, job_id: str, language: str = "en",
         "applied_on": row["applied_on"], "channel": row["channel"], "contact": row["contact"],
         "notes": row["notes"], "next_step_on": row["next_step_on"],
         "next_step_note": row["next_step_note"], "asked_salary": _asked(row),
+        "offered_salary": _salary(row, "offered_salary"),
         "created_at": row["created_at"], "updated_at": row["updated_at"],
         "status_changed_at": row["status_changed_at"],
         "posting": posting,
         "score": scoring.current(conn, row["posting_id"]),
         "salary": salary.current(conn, row["posting_id"]),
-        "snapshot": snapshot(conn, row["job_id"]),
+        "at_application": at_application(conn, row["job_id"]),
         "documents": {kind: docs[kind] for kind in ("resume_proposed", "resume_sent",
                                                     "cover_letter")},
         "cover_letter": documents_service.cover_letter(conn, row["id"]),

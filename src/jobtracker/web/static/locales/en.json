@@ -287,6 +287,7 @@
   "row.suggested": "sug. {amount}",
   "row.suggestedNone": "no reliable data",
   "row.diff": "{diff} vs suggested",
+  "row.offered": "offered {amount}",
   "next.prepare_documents": "Prepare documents",
   "next.prepare_documentsSub": "Command in “Need something”",
   "next.apply": "Apply",
@@ -333,6 +334,8 @@
   "field.applied_on": "Date applied",
   "field.asked": "Salary asked / month",
   "field.currency": "Currency",
+  "field.offered": "Salary offered / month",
+  "field.offeredCurrency": "Currency of the offered salary",
   "field.channel": "Channel",
   "field.contact": "Contact",
   "field.contactPlaceholder": "Recruiter or link",
@@ -351,6 +354,7 @@
   "history.salaryNone": "no reliable data",
   "history.status_changed": "Status: {to}",
   "history.field_changed": "{field} changed",
+  "history.applied": "Applied on {date}",
   "history.tag_added": "Tag added: {tag}",
   "history.tag_removed": "Tag removed: {tag}",
   "history.document_registered": "{kind} v{version} ({origin})",
@@ -619,6 +623,10 @@
   "kpi.offersSub": {
     "one": "from {count} application",
     "other": "from {count} applications"
+  },
+  "kpi.offeredVsAsked": {
+    "one": "Offered vs asked: {pct} (1 offer)",
+    "other": "Offered vs asked: {pct} (median of {count})"
   },
   "kpi.ghostingSub": "{count} without a response after {days} days",
   "kpi.median": "median",

@@ -12,7 +12,7 @@ import sqlite3
 from datetime import date, datetime
 from pathlib import Path
 
-from . import insights, learning, predict
+from . import config, insights, learning, predict
 from .db import bump_changes, now_iso
 from .paths import Paths
 
@@ -58,9 +58,10 @@ def write_history(conn: sqlite3.Connection, paths: Paths, posting_id: int | None
                       "terms": insights.terms(row["description"])}
     records: list[dict] = []
     applied = set()
-    for item in insights.outcomes(conn, today):
+    language = str(config.load(paths.config)["language"])
+    for item in insights.outcomes(conn, today, language):
         applied.add(item["posting_id"])
-        snap = item["snapshot"]
+        facts = item["at_application"]
         outcome = ("offer" if item["offer"] else "interview" if item["interview"]
                    else "response" if item["responded"] else "no_response" if item["resolved"]
                    else "pending")
@@ -70,12 +71,16 @@ def write_history(conn: sqlite3.Connection, paths: Paths, posting_id: int | None
             "work_mode": item["work_mode"],
             "work_mode_corrected": item["work_mode_source"] == "user",
             "provider": item["provider"], "status": item["status"],
+            "status_key": item["status_key"], "ended": item["ended"],
             "status_path": item["status_path"], "outcome": outcome,
             "applied_on": item["applied_on"], "days_to_response": item["days_to_response"],
-            "score": snap.get("score"), "score_components": snap.get("score_components"),
-            "resume_kind": snap.get("resume_kind"), "cover_letter": snap.get("cover_letter"),
-            "channel": snap.get("channel"), "asked_salary": snap.get("asked_salary"),
-            "suggested_salary": snap.get("suggested_salary"),
+            "applied_at": facts["applied_at"],
+            "score": facts["score"], "score_components": facts["score_components"],
+            "resume_kind": facts["resume_kind"], "cover_letter": facts["cover_letter"],
+            "channel": facts["channel"], "posting_age_days": facts["posting_age_days"],
+            "asked_salary": facts["asked_salary"],
+            "suggested_salary": facts["suggested_salary"],
+            "offered_salary": facts["offered_salary"],
             "similarity": _similarity(target, item, titles)})
     for item in insights.decisions(conn):
         if item["posting_id"] in applied:

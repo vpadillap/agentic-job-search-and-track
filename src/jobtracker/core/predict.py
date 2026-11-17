@@ -36,11 +36,12 @@ def feature_row(groups: dict[str, str], components: dict | None) -> dict[str, fl
     return row
 
 
-def _snapshot_components(conn: sqlite3.Connection, snap: dict) -> dict:
-    if not snap.get("score_id"):
+def _components_at(conn: sqlite3.Connection, facts: dict) -> dict:
+    """The components of the score the application had when it was applied to."""
+    if not facts.get("score_id"):
         return {}
     row = conn.execute("SELECT components FROM scores WHERE id = ?",
-                       (snap["score_id"],)).fetchone()
+                       (facts["score_id"],)).fetchone()
     if row is None:
         return {}
     return {c["component"]: (c["points"], c["max"]) for c in json.loads(row["components"])}
@@ -55,7 +56,7 @@ def _training(conn: sqlite3.Connection, today: date) -> tuple[list, list, list, 
     for item in items:
         groups = insights.features_of(item, titles)
         groups.pop("salary_delta")  # mostly unknown before applying; would leak
-        rows.append(feature_row(groups, _snapshot_components(conn, item["snapshot"])))
+        rows.append(feature_row(groups, _components_at(conn, item["at_application"])))
         labels.append(1 if item["interview"] else 0)
         age = (today - date.fromisoformat(item["applied_on"])).days if item["applied_on"] else 0
         weights.append(0.5 ** (max(age, 0) / HALF_LIFE_DAYS))
@@ -133,19 +134,19 @@ def fit(conn: sqlite3.Connection, today: date | None = None) -> dict:
 
 def _posting_groups(conn: sqlite3.Connection, posting_id: int, titles: list[str],
                     today: date) -> tuple[dict, dict]:
-    from . import scoring
+    from . import applications, scoring
 
     posting = conn.execute("SELECT * FROM postings WHERE id = ?", (posting_id,)).fetchone()
-    app = conn.execute("SELECT a.*, n.data AS snapshot FROM applications a LEFT JOIN"
-                       " application_snapshots n ON n.application_id = a.job_id"
-                       " WHERE a.posting_id = ?", (posting_id,)).fetchone()
+    app = conn.execute("SELECT * FROM applications WHERE posting_id = ?",
+                       (posting_id,)).fetchone()
     score = scoring.current(conn, posting_id)
-    snap = json.loads(app["snapshot"]) if app and app["snapshot"] else None
-    if snap:
-        item = {"snapshot": snap, "title": posting["title"], "provider": posting["provider"],
-                "work_mode": posting["work_mode"], "language": posting["language"]}
+    facts = applications.at_application(conn, app["job_id"]) if app else None
+    if facts:
+        item = {"at_application": facts, "title": posting["title"],
+                "provider": posting["provider"], "work_mode": posting["work_mode"],
+                "language": posting["language"]}
         groups = insights.features_of(item, titles)
-        components = _snapshot_components(conn, snap)
+        components = _components_at(conn, facts)
     else:
         docs = {r["kind"] for r in conn.execute(
             "SELECT kind FROM documents WHERE application_id = ? AND is_current = 1",
@@ -154,7 +155,7 @@ def _posting_groups(conn: sqlite3.Connection, posting_id: int, titles: list[str]
         age = (today - date.fromisoformat(posted)).days if posted else None
         item = {"title": posting["title"], "provider": posting["provider"],
                 "work_mode": posting["work_mode"], "language": posting["language"],
-                "snapshot": {
+                "at_application": {
             "score": score["total"] if score else None,
             "channel": app["channel"] if app else None, "provider": posting["provider"],
             "resume_kind": "sent" if "resume_sent" in docs else

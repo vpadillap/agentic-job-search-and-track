@@ -10,7 +10,13 @@ more than cleverness.
   closed, or got no response for longer than the no-response threshold. Until
   then it is `pending` and counts in no rate.
 - "Reached interview" is the main success measure; offers are too rare to
-  learn from.
+  learn from statistically. An application with an offered salary counts as
+  an offer. Read the offered salary next to the asked and suggested ones
+  (insights give the median difference) as a description of what happened,
+  never as a prediction.
+- Read statuses by their full names and the status path: a custom status
+  (for example "Technical test sent") tells you at which step something went
+  well or badly, even though the statistics only know the built-in steps.
 - Track and dismiss decisions describe the user's preferences, not success.
   "Fit to you" learns from them and is never a chance of success.
 

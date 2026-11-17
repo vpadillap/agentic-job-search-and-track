@@ -85,7 +85,8 @@ function Indicators({ summary, ghostDays }) {
       sub: t('kpi.responseSub', { count: summary.response.count, of: summary.response.of }) },
     { key: 'interview', value: none ? '–' : `${summary.interview.pct}%`,
       sub: t('kpi.of', { count: summary.interview.count, of: summary.interview.of }) },
-    { key: 'offers', value: summary.offers, sub: t('kpi.offersSub', { count: summary.applied }) },
+    { key: 'offers', value: summary.offers, sub: t('kpi.offersSub', { count: summary.applied }),
+      note: offeredVsAsked(t, summary.offered_salary) },
     { key: 'ghosting', value: none ? '–' : `${summary.ghosting.pct}%`,
       sub: t('kpi.ghostingSub', { count: summary.ghosting.count, days: ghostDays }) },
     { key: 'days', value: summary.median_days_to_response ?? '–', sub: t('kpi.median') },
@@ -96,7 +97,16 @@ function Indicators({ summary, ghostDays }) {
         <span class="kpi-label">${t('kpi.' + card.key)}</span>
         <span class="kpi-value">${card.value}</span>
         <span class="small">${card.sub}</span>
+        ${card.note && html`<span class="small kpi-note">${card.note}</span>`}
       </div>`)}</div>`;
+}
+
+/** The median difference between offered and asked salaries, when there are cases. */
+function offeredVsAsked(t, offered) {
+  const compared = offered && offered.vs_asked;
+  if (!compared || !compared.cases) return null;
+  const pct = compared.median_pct;
+  return t('kpi.offeredVsAsked', { pct: `${pct > 0 ? '+' : ''}${pct}%`, count: compared.cases });
 }
 
 function Lessons({ lessons, onDecide }) {

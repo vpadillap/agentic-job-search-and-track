@@ -237,14 +237,13 @@ def history(conn: sqlite3.Connection, posting_id: int) -> list[dict]:
 
 
 def at_application(conn: sqlite3.Connection, posting_id: int) -> dict | None:
-    """The score that was current when the user marked the posting as applied."""
-    found = conn.execute(
-        "SELECT s.data FROM application_snapshots s JOIN applications a"
-        " ON a.job_id = s.application_id WHERE a.posting_id = ?", (posting_id,),
-    ).fetchone()
-    if found is None:
-        return None
-    score_id = json.loads(found["data"]).get("score_id")
+    """The score that was current when the application first got an applied date."""
+    from . import applications  # local import: applications builds on this module
+
+    found = conn.execute("SELECT job_id FROM applications WHERE posting_id = ?",
+                         (posting_id,)).fetchone()
+    facts = applications.at_application(conn, found["job_id"]) if found else None
+    score_id = facts["score_id"] if facts else None
     if score_id is None:
         return None
     row = conn.execute("SELECT * FROM scores WHERE id = ?", (score_id,)).fetchone()

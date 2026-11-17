@@ -118,8 +118,6 @@ def untrack(conn: sqlite3.Connection, posting_ids: object) -> list[int]:
     stamp = now_iso()
     for posting_id in ids:
         existing = application(conn, posting_id)
-        conn.execute("DELETE FROM application_snapshots WHERE application_id = ?",
-                     (existing["job_id"],))  # type: ignore[index]
         conn.execute("DELETE FROM applications WHERE posting_id = ?", (posting_id,))
         _event(conn, "posting", str(posting_id), "untracked",
                {"job_id": existing["job_id"]}, stamp)  # type: ignore[index]

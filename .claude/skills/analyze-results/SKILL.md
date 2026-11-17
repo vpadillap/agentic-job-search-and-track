@@ -42,11 +42,13 @@ the user's data anywhere outside the private home.
 2. `jt learning refresh`. Keep `level`, `summary`, `active_lessons`,
    `candidates`, and `history.path`.
 3. Read the complete history file at `history.path`, every line. Records:
-   - `application`: one per application, with its full status path, outcome so
-     far (`pending` while unresolved), the snapshot of what was known when
-     applying (score and its components, resume kind, cover letter, channel,
-     salary asked and suggested, posting age), the posting's current work mode
-     and language, and the description;
+   - `application`: one per application, with its current status by full
+     name in the panel language (`status_key` for built-ins, `ended`), its
+     full status path by name with dates, outcome so far (`pending` while
+     unresolved), what held when applying (`applied_at`; the score and its
+     components current then; resume kind, cover letter, and channel as
+     recorded now; salary asked, suggested, and offered; posting age), the
+     posting's current work mode and language, and the description;
    - `tracked_not_applied` and `dismissal`: the user's decisions on postings,
      with the dismissal reason and note;
    - `correction`: a work-mode reading of yours that the user corrected, per

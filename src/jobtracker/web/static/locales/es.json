@@ -287,6 +287,7 @@
   "row.suggested": "sug. {amount}",
   "row.suggestedNone": "sin dato confiable",
   "row.diff": "{diff} vs sugerido",
+  "row.offered": "ofrecido {amount}",
   "next.prepare_documents": "Preparar documentos",
   "next.prepare_documentsSub": "Comando de “Necesitan algo”",
   "next.apply": "Postular",
@@ -333,6 +334,8 @@
   "field.applied_on": "Fecha",
   "field.asked": "Salario pedido / mes",
   "field.currency": "Moneda",
+  "field.offered": "Salario ofrecido / mes",
+  "field.offeredCurrency": "Moneda del salario ofrecido",
   "field.channel": "Canal",
   "field.contact": "Contacto",
   "field.contactPlaceholder": "Reclutador o enlace",
@@ -351,6 +354,7 @@
   "history.salaryNone": "sin datos confiables",
   "history.status_changed": "Estado: {to}",
   "history.field_changed": "Cambió {field}",
+  "history.applied": "Postuló el {date}",
   "history.tag_added": "Etiqueta: {tag}",
   "history.tag_removed": "Etiqueta quitada: {tag}",
   "history.document_registered": "{kind} v{version} ({origin})",
@@ -619,6 +623,10 @@
   "kpi.offersSub": {
     "one": "de {count} postulación",
     "other": "de {count} postulaciones"
+  },
+  "kpi.offeredVsAsked": {
+    "one": "Ofrecido vs pedido: {pct} (1 oferta)",
+    "other": "Ofrecido vs pedido: {pct} (mediana de {count})"
   },
   "kpi.ghostingSub": "{count} sin respuesta tras {days} días",
   "kpi.median": "mediana",

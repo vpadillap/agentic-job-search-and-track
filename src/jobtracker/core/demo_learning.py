@@ -26,6 +26,7 @@ COMPANIES = ("Andes Retail", "Pacífico Seguros Demo", "Lúcuma Pagos", "Nazca L
              "Moche Analytics", "Caral Fintech", "Tambo Foods", "Kuelap Travel")
 PROVIDERS = ("linkedin", "bumeran", "indeed")
 SKILLS = ("Python", "SQL", "Airflow", "dbt", "BigQuery", "Kafka", "Spark", "Looker")
+TAILORED_RESUME = b"PK Fictional tailored resume for the learning demo."
 
 
 def _description(title: str, company: str, skills: list[str], mode: str | None,
@@ -57,6 +58,7 @@ def add_history(conn: sqlite3.Connection, paths: Paths, level: str,
     if level not in LEVELS:
         raise JobTrackerError("invalid_level", f"level must be one of: {', '.join(LEVELS)}")
     rng = random.Random(42)
+    offers = random.Random(7)  # separate, so the outcomes above stay the same
     now = now or datetime.now().astimezone()
     today = now.date()
     started = (now - timedelta(days=170)).astimezone().strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -127,16 +129,23 @@ def add_history(conn: sqlite3.Connection, paths: Paths, level: str,
         respond_after = rng.randint(2, 18)
         if outcome != "waiting":
             applications.set_status(conn, [job], outcome)
-        snapshot = json.loads(conn.execute(
-            "SELECT data FROM application_snapshots WHERE application_id = ?",
-            (job,)).fetchone()["data"])
-        snapshot.update(resume_kind="tailored" if tailored else "base",
-                        channel=item["provider"].title(), applied_on=decided.isoformat())
-        conn.execute("UPDATE application_snapshots SET data = ?, captured_at = ?"
-                     " WHERE application_id = ?",
-                     (json.dumps(snapshot), decided.isoformat() + "T12:00:00Z", job))
+        if tailored:  # a fictional tailored resume, so the resume kind is "tailored"
+            folder = applications.folder(conn, paths, job)
+            folder.mkdir(parents=True, exist_ok=True)
+            (folder / "resume-proposed-v1.docx").write_bytes(TAILORED_RESUME)
+            applications.register_document(conn, paths, job, "resume_proposed",
+                                           "resume-proposed-v1.docx", "agent")
         conn.execute("UPDATE applications SET channel = ? WHERE job_id = ?",
                      (item["provider"].title(), job))
+        if outcome == "interview" and offers.random() < 0.3:
+            asked = offers.randrange(9000, 15001, 500)
+            applications.update_details(conn, job, {
+                "asked_salary": {"amount": asked, "currency": "PEN"},
+                "offered_salary": {"amount": int(asked * offers.uniform(0.85, 1.0)) // 100 * 100,
+                                   "currency": "PEN"}})
+        conn.execute("UPDATE events SET created_at = ? WHERE entity_type = 'application'"
+                     " AND entity_id = ? AND kind = 'applied'",
+                     (decided.isoformat() + "T12:00:00Z", job))
         # Backdate the status history: applied on the day, the outcome some days later.
         events = conn.execute("SELECT id, data FROM events WHERE entity_type = 'application'"
                               " AND entity_id = ? AND kind = 'status_changed' ORDER BY id",

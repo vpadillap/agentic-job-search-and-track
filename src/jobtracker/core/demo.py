@@ -264,8 +264,9 @@ def _older_applications(conn: sqlite3.Connection, paths: Paths, now: datetime, l
                       job[key]))
         if details:
             applications.update_details(conn, job[key], details)
-        conn.execute("UPDATE application_snapshots SET captured_at = ? WHERE application_id = ?",
-                     (when.strftime("%Y-%m-%dT%H:%M:%SZ"), job[key]))
+        conn.execute("UPDATE events SET data = json_set(data, '$.on', ?)"
+                     " WHERE entity_type = 'application' AND entity_id = ? AND kind = 'applied'",
+                     (when.astimezone().date().isoformat(), job[key]))
 
     in_days = lambda n: (today + timedelta(days=n)).isoformat()  # noqa: E731
     applied("ceibo", 14, "interview", channel="Company site",
@@ -277,6 +278,7 @@ def _older_applications(conn: sqlite3.Connection, paths: Paths, now: datetime, l
     applications.set_tags(conn, job["lumen"], ["Referral"])
     applied("puna", 27, "offer", channel="Computrabajo",
             asked_salary={"amount": 13000, "currency": "PEN"},
+            offered_salary={"amount": 12500, "currency": "PEN"},
             next_step_on=in_days(4), next_step_note="Answer the offer")
     applied("altiplano", 30, "rejected", channel="Indeed")
     applied("tika", 18, "Position frozen", ends=True, channel="Bumeran")
@@ -374,10 +376,6 @@ def clear(paths: Paths) -> dict:
                 folder = paths.job_folder(job_id, company).resolve()
                 if folder.is_relative_to(base) and folder.is_dir():
                     shutil.rmtree(folder)
-            if jobs:
-                conn.execute(
-                    f"DELETE FROM application_snapshots WHERE application_id IN"
-                    f" ({','.join('?' * len(jobs))})", jobs)
             conn.execute(f"DELETE FROM salary_research_log WHERE posting_id IN ({marks})", ids)
             conn.execute(f"DELETE FROM salary_suggestions WHERE posting_id IN ({marks})", ids)
             conn.execute(f"DELETE FROM salary_evidence WHERE posting_id IN ({marks})", ids)

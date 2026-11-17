@@ -729,3 +729,20 @@ def test_applications_show_the_description_and_the_posting_link(seeded, page):
     assert no_inner_scroll(detail.locator(".description"))
     expect(detail.locator(".posting-description").get_by_role(
         "link", name=re.compile("^Open posting"))).to_have_attribute("target", "_blank")
+
+
+def test_offered_salary_is_entered_and_shown(seeded, page):
+    open_board(page, "applications")
+    expect(app_row(page, "Puna Energía").locator(".offered")).to_contain_text("offered")
+    app_row(page, "Puna Energía").get_by_role("button", name=re.compile("Show details")).click()
+    expect(page.locator(".history")).to_contain_text("Applied on")
+    app_row(page, "Puna Energía").get_by_role("button", name=re.compile("Hide details")).click()
+    finlima = app_row(page, "Finlima S.A.")
+    expect(finlima.locator(".offered")).to_have_count(0)
+    finlima.get_by_role("button", name=re.compile("Show details")).click()
+    page.get_by_role("textbox", name="Salary offered / month").fill("11000")
+    page.get_by_role("textbox", name="Contact").click()          # leaving the field saves it
+    expect(page.locator(".field-state.saved")).to_be_visible()
+    expect(app_row(page, "Finlima S.A.").locator(".offered")).to_contain_text("11")
+    page.reload()
+    expect(app_row(page, "Finlima S.A.").locator(".offered")).to_contain_text("offered")

@@ -1,8 +1,10 @@
 """What the user's own results show: outcomes, decisions, corrections, breakdowns.
 
-Only applications the user applied to are outcomes (they have an application
-snapshot). An application is *resolved* when it reached interview or beyond,
-was closed, or has waited longer than the no-response threshold; unresolved
+Only applications the user applied to are outcomes (they have an applied
+date; their facts at the time of applying come from
+`applications.at_application`). An application is *resolved* when it reached
+interview or beyond, was closed, or has waited longer than the no-response
+threshold; unresolved
 ones are left out of every rate, so recent applications do not look like
 failures. Every rate carries its number of cases and an uncertainty range.
 
@@ -86,23 +88,26 @@ def _event_status(conn: sqlite3.Connection, data: dict) -> tuple[str | None, boo
 
 # ── outcomes ──────────────────────────────────────────────────────────────
 
-def outcomes(conn: sqlite3.Connection, today: date | None = None) -> list[dict]:
-    """One record per application the user applied to, with what happened."""
+def outcomes(conn: sqlite3.Connection, today: date | None = None,
+             language: str = "en") -> list[dict]:
+    """One record per application the user applied to, with what happened. Statuses
+    and the status path are given by their full names in `language`."""
     today = today or _today()
     ghost_days = applications.thresholds(conn)["ghost_after_days"]
     result = []
     for row in conn.execute(
         "SELECT a.id, a.job_id, a.applied_on, a.posting_id, s.key AS status_key, s.ends,"
-        " s.name_en AS status_name, n.data AS snapshot, p.title, p.company, p.language,"
+        " s.name_en, s.name_es, p.title, p.company, p.language,"
         " p.work_mode, p.work_mode_source, p.provider, p.description"
         " FROM applications a JOIN statuses s ON s.id = a.status_id"
-        " JOIN application_snapshots n ON n.application_id = a.job_id"
-        " JOIN postings p ON p.id = a.posting_id ORDER BY a.applied_on, a.id"
+        " JOIN postings p ON p.id = a.posting_id WHERE a.applied_on IS NOT NULL"
+        " ORDER BY a.applied_on, a.id"
     ):
-        snap = json.loads(row["snapshot"])
-        applied_on = _day(row["applied_on"] or snap.get("applied_on"))
+        facts = applications.at_application(conn, row["job_id"])
+        applied_on = _day(row["applied_on"])
         now = _progress(row["status_key"], bool(row["ends"]))
         reached = dict(now)
+        reached["offer"] = reached["offer"] or facts["offered_salary"] is not None
         response_at: date | None = None
         path = []
         for event in conn.execute(
@@ -111,8 +116,10 @@ def outcomes(conn: sqlite3.Connection, today: date | None = None) -> list[dict]:
             (row["job_id"],),
         ):
             data = json.loads(event["data"])
-            step = _progress(*_event_status(conn, data))
-            path.append({"status": data.get("to"), "on": event["created_at"][:10]})
+            key, ends = _event_status(conn, data)
+            step = _progress(key, ends)
+            path.append({"status": applications.status_names(conn, data, language)[1],
+                         "key": key, "on": event["created_at"][:10]})
             for flag in ("interview", "offer"):
                 reached[flag] = reached[flag] or step[flag]
             if step["response"] and response_at is None:
@@ -123,14 +130,16 @@ def outcomes(conn: sqlite3.Connection, today: date | None = None) -> list[dict]:
         result.append({
             "job_id": row["job_id"], "posting_id": row["posting_id"],
             "applied_on": applied_on.isoformat() if applied_on else None,
-            "status": row["status_name"], "status_key": row["status_key"],
+            "status": row["name_es"] if language == "es" else row["name_en"],
+            "status_key": row["status_key"],
             "status_path": path, "ended": bool(row["ends"]),
             "resolved": resolved, "interview": reached["interview"], "offer": reached["offer"],
             "responded": responded,
             "ghosted": resolved and not responded and row["status_key"] != "withdrawn",
             "days_to_response": (response_at - applied_on).days
             if response_at and applied_on else None,
-            "snapshot": snap, "title": row["title"], "company": row["company"],
+            "at_application": facts, "offered_salary": facts["offered_salary"],
+            "title": row["title"], "company": row["company"],
             "language": row["language"], "work_mode": row["work_mode"],
             "work_mode_source": row["work_mode_source"], "provider": row["provider"],
             "description": row["description"],
@@ -231,7 +240,30 @@ def summary(conn: sqlite3.Connection, period: str = "season",
         "decisions": {"tracked": sum(d["decision"] == "tracked" for d in made),
                       "dismissed": sum(d["decision"] == "dismissed" for d in made)},
         "corrections": len(corrections(conn)),
+        "offered_salary": _offered(items),
     }
+
+
+def _offered(items: list[dict]) -> dict:
+    """Offers with a recorded amount, and the median difference (%) between the
+    offered salary and the asked and suggested ones, in the same currency."""
+    with_amount = [i for i in items if i["offered_salary"]]
+
+    def compare(key: str) -> dict:
+        differences = []
+        for item in with_amount:
+            offered, other = item["offered_salary"], item["at_application"].get(key)
+            if not other or not other.get("amount") or other["currency"] != offered["currency"]:
+                continue
+            if other.get("basis") and offered.get("basis") and other["basis"] != offered["basis"]:
+                continue
+            differences.append((offered["amount"] - other["amount"]) * 100 / other["amount"])
+        middle = stats.median(differences)
+        return {"median_pct": round(middle, 1) if middle is not None else None,
+                "cases": len(differences)}
+
+    return {"offers_with_amount": len(with_amount), "vs_asked": compare("asked_salary"),
+            "vs_suggested": compare("suggested_salary")}
 
 
 # ── breakdowns ────────────────────────────────────────────────────────────
@@ -277,7 +309,7 @@ def title_group(title: str, profile_titles: list[str]) -> str:
 def features_of(item: dict, profile_titles: list[str]) -> dict[str, str]:
     """The group of an application along every dimension. Work mode is the
     posting's current value, so the user's corrections count."""
-    snap = item["snapshot"]
+    snap = item["at_application"]
     return {
         "score_band": _score_band(snap.get("score")),
         "title": title_group(item["title"], profile_titles),

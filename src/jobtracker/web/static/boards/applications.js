@@ -155,7 +155,8 @@ function DocLines({ app }) {
 
 function AskedSuggested({ app }) {
   const { t, fmt } = useUi();
-  const snap = app.snapshot && app.snapshot.suggested_salary;
+  const snap = app.at_application && app.at_application.suggested_salary;
+  const offered = app.offered_salary;
   const current = app.salary && app.salary.status === 'suggested' ? app.salary : null;
   const suggested = snap || current;
   const asked = app.asked_salary;
@@ -168,6 +169,7 @@ function AskedSuggested({ app }) {
     <span class="mono" style=${{ fontWeight: 600 }}>${asked ? fmt.money(asked.amount, asked.currency) : t('row.notApplied')}</span>
     <span class="small mono">${suggested ? t('row.suggested', { amount: fmt.money(suggested.amount, suggested.currency) }) : t('row.suggestedNone')}</span>
     ${diff && html`<span class="small">${t('row.diff', { diff })}</span>`}
+    ${offered && html`<span class="small mono offered">${t('row.offered', { amount: fmt.money(offered.amount, offered.currency) })}</span>`}
   </div>`;
 }
 
@@ -408,7 +410,8 @@ function historyText(item, t, fmt, statusName) {
     case 'scored': return t('history.scored', { total: d.total });
     case 'salary': return t('history.salary', { value: d.status === 'suggested' ? fmt.number(d.amount) : t('history.salaryNone') });
     case 'status_changed': return t('history.status_changed', { to: d.to_name || statusName(d.to) });
-    case 'field_changed': return t('history.field_changed', { field: t('field.' + (d.field === 'asked_salary' ? 'asked' : d.field)) });
+    case 'field_changed': return t('history.field_changed', { field: t('field.' + ({ asked_salary: 'asked', offered_salary: 'offered' }[d.field] || d.field)) });
+    case 'applied': return t('history.applied', { date: d.on ? fmt.dayMonth(d.on) : '' });
     case 'tag_added': return t('history.tag_added', { tag: d.tag });
     case 'tag_removed': return t('history.tag_removed', { tag: d.tag });
     case 'document_registered': return t('history.document_registered', { kind: t('kind.' + d.kind), version: d.version, origin: t('origin.' + d.origin) });
@@ -428,6 +431,9 @@ function YourApplication({ app, detail, onSaved, statusName }) {
   const initial = () => ({
     applied_on: app.applied_on || '', asked: app.asked_salary ? String(app.asked_salary.amount) : '',
     currency: (app.asked_salary && app.asked_salary.currency) || (app.salary && app.salary.currency) || 'PEN',
+    offered: app.offered_salary ? String(app.offered_salary.amount) : '',
+    offeredCurrency: (app.offered_salary && app.offered_salary.currency)
+      || (app.asked_salary && app.asked_salary.currency) || (app.salary && app.salary.currency) || 'PEN',
     channel: app.channel || '', contact: app.contact || '', notes: app.notes || '',
     next_step_on: app.next_step_on || '', next_step_note: app.next_step_note || '',
   });
@@ -451,11 +457,13 @@ function YourApplication({ app, detail, onSaved, statusName }) {
     onInput: (e) => setValues({ ...values, [field]: e.currentTarget.value }),
     onChange: () => save(field, { [field]: transform ? transform(values[field]) : (values[field] || null) }),
   });
-  const saveAsked = () => {
-    const amount = parseInt(values.asked.replace(/[^\d]/g, ''), 10);
-    save('asked', { asked_salary: Number.isFinite(amount) && amount > 0
-      ? { amount, currency: values.currency.toUpperCase(), basis: 'gross' } : null });
+  const saveSalary = (field, detail, currencyField) => {
+    const amount = parseInt(values[field].replace(/[^\d]/g, ''), 10);
+    save(field, { [detail]: Number.isFinite(amount) && amount > 0
+      ? { amount, currency: values[currencyField].toUpperCase(), basis: 'gross' } : null });
   };
+  const saveAsked = () => saveSalary('asked', 'asked_salary', 'currency');
+  const saveOffered = () => saveSalary('offered', 'offered_salary', 'offeredCurrency');
   return html`
     <div class="panel app-form">
       <h2>${t('detail.yours')}</h2>
@@ -468,6 +476,13 @@ function YourApplication({ app, detail, onSaved, statusName }) {
               onInput=${(e) => setValues({ ...values, asked: e.currentTarget.value })} onChange=${saveAsked} />
             <input type="text" maxlength="3" class="mono currency" aria-label=${t('field.currency')} value=${values.currency}
               onInput=${(e) => setValues({ ...values, currency: e.currentTarget.value.toUpperCase() })} onChange=${saveAsked} />
+          </span></${Field}>
+        <${Field} label=${t('field.offered')} state=${states.offered}>
+          <span class="money-input">
+            <input type="text" inputmode="numeric" class="mono" value=${values.offered}
+              onInput=${(e) => setValues({ ...values, offered: e.currentTarget.value })} onChange=${saveOffered} />
+            <input type="text" maxlength="3" class="mono currency" aria-label=${t('field.offeredCurrency')} value=${values.offeredCurrency}
+              onInput=${(e) => setValues({ ...values, offeredCurrency: e.currentTarget.value.toUpperCase() })} onChange=${saveOffered} />
           </span></${Field}>
         <${Field} label=${t('field.channel')} state=${states.channel}>
           <input type="text" list="channels" ...${bind('channel')} /></${Field}>

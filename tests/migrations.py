@@ -41,6 +41,14 @@ UNDO: dict[int, list[str]] = {
         " ELSE CASE ends WHEN 1 THEN 'closed_negative' ELSE 'applied' END END",
         "ALTER TABLE statuses DROP COLUMN ends",
     ],
+    13: [
+        "CREATE TABLE application_snapshots (id INTEGER PRIMARY KEY, application_id TEXT NOT"
+        " NULL UNIQUE, captured_at TEXT NOT NULL, data TEXT NOT NULL)",
+        "DELETE FROM events WHERE kind = 'applied'",
+        "ALTER TABLE applications DROP COLUMN offered_salary_basis",
+        "ALTER TABLE applications DROP COLUMN offered_salary_currency",
+        "ALTER TABLE applications DROP COLUMN offered_salary_amount",
+    ],
 }
 # 0008 adds `is_main` and 0009 drops it again, so undoing 9 then 8 leaves no
 # `is_main` column: that matches a version-7 database.
