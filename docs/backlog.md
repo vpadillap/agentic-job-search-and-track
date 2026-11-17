@@ -18,12 +18,12 @@ change (or a decision to drop it). Nothing here is scheduled.
 - **Possible direction (to decide in its change):** make the status chip the
   control that opens the status picker, and keep "+" for tags only.
 
-## Browser tests are skipped silently without Chromium
+## Browser tests are skipped silently on local machines without Chromium
 
-- **Found:** 2026-11-17. `uv run pytest` reported 46 skipped tests: every test
-  in `tests/test_browser.py` skips when Playwright's Chromium is not
-  installed. The CI workflow does not install it either, so the panel's
-  browser tests never run there.
+- **Found:** 2026-11-17. A local `uv run pytest` reported 46 skipped tests:
+  every test in `tests/test_browser.py` skips when Playwright's Chromium is
+  not installed, and nothing in the summary says the panel went untested. CI
+  installs Chromium, so they do run there.
 - **Workaround:** `uv run playwright install chromium`, then run the tests.
-- **Possible direction:** install Chromium in CI and make a missing browser a
-  visible failure there, while keeping the skip for local runs.
+- **Possible direction:** mention the Chromium step in the contributor setup
+  (`AGENTS.md`, README), or print a clear warning when the browser tests skip.
