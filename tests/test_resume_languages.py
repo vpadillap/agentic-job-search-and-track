@@ -140,16 +140,10 @@ def test_stating_a_language_that_already_has_a_resume(workspace, cli, tmp_path):
 
 
 def test_migrations_keep_an_existing_resume(workspace):
-    with closing(sqlite3.connect(workspace.database)) as conn:  # a database at version 7
-        conn.execute("PRAGMA user_version = 7")
-        conn.execute("DROP INDEX base_resumes_one_current_per_language")
-        for column in ("language", "translated_from"):
-            conn.execute(f"ALTER TABLE base_resumes DROP COLUMN {column}")
-        conn.execute("ALTER TABLE documents DROP COLUMN base_resume_id")
-        for column in ("work_mode_detail", "work_mode_source"):  # added by 0010
-            conn.execute(f"ALTER TABLE postings DROP COLUMN {column}")
-        conn.execute("CREATE UNIQUE INDEX base_resumes_one_current ON base_resumes (is_current)"
-                     " WHERE is_current = 1")
+    from tests.migrations import rewind
+
+    rewind(workspace.database, 7)
+    with closing(sqlite3.connect(workspace.database)) as conn:
         conn.execute(
             "INSERT INTO base_resumes (version, file_name, text_name, original_name, characters,"
             " text_source, imported_at, is_current)"

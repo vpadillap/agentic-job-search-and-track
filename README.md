@@ -27,7 +27,7 @@ The project is being built in stages. What works today:
 | Job search (`/job-search`), scoring, salary evidence, job-site recipe format | Works; job sites: LinkedIn (read logged out). Each new site arrives with its own update, switched off |
 | Applications tab, statuses, uploads | Works |
 | Tailored resumes, cover letters, form answers (`/prepare-documents`, `/form-answers`) | Works |
-| Learning: insights, lessons, predictions, recommendations (`/analyze-results`) | Planned |
+| Learning: Learning tab (what is working, lessons you apply or ignore), refresh before scoring and tailoring, interview-chance estimates and suggestions once your own results validate them, optional deeper review (`/analyze-results`) | Works |
 | Seasons and resets (`/new-season`), Profile & agent tab, `/panel` | Planned |
 
 The specification of every planned stage is in
@@ -87,7 +87,7 @@ Spanish command names as well (see the Spanish section).
 | `/job-search days=7` | Searches the enabled job sites and updates the panel | Works (LinkedIn) |
 | `/prepare-documents pending` | Tailored resumes, cover letters, and form answers for tracked jobs that lack them (or `ids=J0007,J0012`) | Works |
 | `/form-answers ids=J0007` | Answers to a posting's application form | Works |
-| `/analyze-results` | Reviews your results and proposes adjustments | Planned |
+| `/analyze-results` | Reviews your results and proposes adjustments | Works |
 | `/new-season` | Starts over with a new or updated profile; archives the previous campaign | Planned |
 | `/panel` | Starts or stops the local panel | Planned |
 
@@ -210,9 +210,12 @@ del panel (estados, etiquetas, CV enviado, historial; la modalidad con el detall
 que da el aviso, que puedes corregir) y la búsqueda
 (`/buscar-empleos`) con puntaje y evidencia salarial. El primer portal es
 LinkedIn (leído sin iniciar sesión); cada portal nuevo llega con su propia
-actualización, apagado hasta que lo actives. Los documentos y el
-aprendizaje están especificados en
-[`openspec/changes/`](openspec/changes/) y en desarrollo.
+actualización, apagado hasta que lo actives. También funcionan los documentos
+(`/preparar-documentos`, `/formulario`) y el aprendizaje: la pestaña
+Aprendizaje (qué funciona y lecciones que aplicas o ignoras), las estimaciones
+cuando tus propios resultados las validan, y la revisión a fondo opcional
+(`/analizar-resultados`). Las temporadas y la pestaña Perfil y agente están
+especificadas en [`openspec/changes/`](openspec/changes/) y en desarrollo.
 
 ## Requisitos
 
@@ -248,7 +251,7 @@ quedaste.
 | `/buscar-empleos dias=7` | `/job-search days=7` | Busca en los proveedores activos y actualiza el panel | Funciona (LinkedIn) |
 | `/preparar-documentos pendientes` | `/prepare-documents pending` | CV, cartas y respuestas de formulario que falten en las vacantes en seguimiento (o `ids=J0007,J0012`) | Funciona |
 | `/formulario ids=J0007` | `/form-answers ids=J0007` | Respuestas del formulario de una vacante | Funciona |
-| `/analizar-resultados` | `/analyze-results` | Revisa tus resultados y propone ajustes | Planificado |
+| `/analizar-resultados` | `/analyze-results` | Revisa tus resultados y propone ajustes | Funciona |
 | `/nueva-temporada` | `/new-season` | Empieza de nuevo con un perfil nuevo o actualizado; archiva lo anterior | Planificado |
 | `/panel` | `/panel` | Inicia o detiene el panel local | Planificado |
 

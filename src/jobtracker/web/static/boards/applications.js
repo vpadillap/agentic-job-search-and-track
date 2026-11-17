@@ -6,11 +6,12 @@ import * as Icon from '../components/icons.js';
 import { api } from '../api.js';
 import { WorkModeEditor, workModeText } from '../components/work-mode.js';
 import { PostingDescription, PostingLink } from '../components/posting-description.js';
+import { ChanceCell, EstimatePanel } from '../components/estimate.js';
 
 const STAGES = ['to_apply', 'applied', 'interview', 'offer', 'closed_positive', 'closed_negative'];
 const DOC_FILTERS = ['missingResume', 'proposedResume', 'sentResume', 'coverLetter', 'formUnanswered'];
 const DATE_FILTERS = ['any', '7', '30', '90', 'none'];
-const SORTS = ['next', 'applied', 'score', 'status', 'company'];
+const SORTS = ['next', 'applied', 'score', 'chance', 'status', 'company'];
 const ATTENTION = ['missing_resume', 'unanswered_form', 'no_response', 'follow_up_due'];
 const CHANNELS = ['Company site', 'Referral', 'Email', 'LinkedIn', 'Indeed', 'Bumeran', 'Computrabajo'];
 
@@ -50,6 +51,7 @@ function sortValue(app, key) {
     case 'next': return nextKey(app);
     case 'applied': return app.applied_on || '';
     case 'score': return app.score ? app.score.total : -1;
+    case 'chance': return app.estimate ? app.estimate.probability : -1;
     case 'status': return STAGES.indexOf(app.stage);
     case 'company': return fold(app.posting.company);
     default: return 0;
@@ -502,6 +504,7 @@ function ApplicationDetail({ app, version, onUpload, onSaved, statusName }) {
         <${FormCard} app=${app} detail=${detail} onSaved=${onSaved} />
         <${YourApplication} app=${app} detail=${detail} onSaved=${onSaved} statusName=${statusName} />
       </div>
+      <${EstimatePanel} estimate=${app.estimate} />
     </div>`;
 }
 
@@ -577,7 +580,8 @@ export function ApplicationsBoard({ data, version, commands, onAction, onReload 
 
   const columns = [
     { key: 'score', label: t('col.scoreApps'), sortable: true, width: '92px', render: (a) => {
-      if (!a.score) return html`<span class="score none">–</span>`;
+      const chance = a.estimate && html`<${ChanceCell} estimate=${a.estimate} compact />`;
+      if (!a.score) return html`<div class="stack"><span class="score none">–</span>${chance}</div>`;
       const prev = a.score.previous_total;
       const delta = prev !== null && prev !== undefined && prev !== a.score.total ? a.score.total - prev : null;
       const text = delta === null ? null : `${delta > 0 ? '+' : ''}${delta}`;
@@ -585,6 +589,7 @@ export function ApplicationsBoard({ data, version, commands, onAction, onReload 
         <span class=${'score ' + tone(a.score.total)}>${a.score.total}</span>
         ${text && html`<span class=${'delta' + (delta < 0 ? ' down' : '')}>
           ${a.score.resume_kind === 'sent' ? t('row.delta', { delta: text }) : t('row.deltaOther', { delta: text })}</span>`}
+        ${chance}
       </div>`;
     } },
     { key: 'company', label: t('col.job'), sortable: true, render: (a) => html`
@@ -684,7 +689,7 @@ export function ApplicationsBoard({ data, version, commands, onAction, onReload 
         <${Menu} label=${t('apps.sort', { value: t(sort.dir === 'asc' ? 'sort.ascending' : 'sort.descending', { column: t('sort.' + (sort.key === 'company' ? 'company' : sort.key)) }) })}
           buttonClass="btn btn-ghost">
           <fieldset><legend>${t('apps.sort', { value: '' })}</legend>
-            ${SORTS.flatMap((key) => ['asc', 'desc'].map((dir) => html`<label>
+            ${SORTS.filter((key) => key !== 'chance' || items.some((a) => a.estimate)).flatMap((key) => ['asc', 'desc'].map((dir) => html`<label>
               <input type="radio" name="apps-sort" checked=${sort.key === key && sort.dir === dir} onChange=${() => setSort({ key, dir })} />
               ${t(dir === 'asc' ? 'sort.ascending' : 'sort.descending', { column: t('sort.' + key) })}</label>`))}
           </fieldset>

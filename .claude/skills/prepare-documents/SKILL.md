@@ -55,6 +55,14 @@ Spanish alias: `pendientes` means `pending`, `todas` means `all`.
    language and run `jt resume language <code>` before tailoring. Read the
    profile, including `additional_facts`. Only a DOCX resume can be tailored
    without touching its design.
+4. Refresh learning before tailoring: `jt learning refresh`. Follow the active
+   lessons and `effects` it lists: `resume_emphasis` (terms the user approved to
+   highlight, only where the base resume already supports them) and
+   `salary_cap_pct` (the most a suggested salary answer may exceed the
+   suggestion, in percent). Candidates are not rules; ignore them here.
+   Read the complete history file at `history.path`: it shows which postings
+   reached interview and with which resume and cover letter. Use it to judge
+   what to emphasize, never to claim anything the resume does not support.
 
 ## 2. Decide the work
 
@@ -73,7 +81,10 @@ rescore. If one application fails, note why and continue with the next.
 
 ## 3. For each application
 
-Start with `jt applications show <job_id>`: `description` (the posting's
+Start with `jt applications show <job_id>`, and
+`jt learning refresh --posting <posting_id>` to get the same complete history
+ordered by similarity to this posting (most similar first) with its interview
+estimate when one is available. Then read `description` (the posting's
 text, at the top level), `posting` (`language`, title, company),
 `form_questions`, `score`, `salary`, `cover_letter`, and documents.
 
@@ -101,7 +112,10 @@ Follow `tailoring-guide.md`. In short:
 5. Register it:
    `jt documents register <job_id> resume-proposed <file_name> -` with
    `language`, `summary`, `level`, `support`, `gaps`, `applied_rules`, and
-   `base` (the `base.language` from the tailor result).
+   `base` (the `base.language` from the tailor result). `applied_rules` lists
+   the ids of the active lessons and rules you followed; when an applied lesson
+   or similar past cases shaped an edit, mention it in `summary` in one plain
+   phrase.
 6. Registering adds a `rescore` item for this application: run
    `jt pending --ids <job_id>` to get it (and its `resume`), and do 3d after
    the cover letter and answers.

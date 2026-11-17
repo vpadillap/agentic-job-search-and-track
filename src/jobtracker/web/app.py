@@ -22,7 +22,9 @@ from jobtracker.core import (
     config,
     db,
     documents,
+    learning,
     providers,
+    recommend,
     search,
     skills,
     tracking,
@@ -243,10 +245,35 @@ def create_app() -> FastAPI:
         language = _language()
         with db.session(get_paths()) as conn:
             items = applications.list_applications(conn, language)
+            estimates = learning.estimates_for(conn, [i["posting_id"] for i in items])
+            for item in items:
+                item["estimate"] = estimates[item["posting_id"]]["interview"]
             return {"ok": True, "applications": items, "funnel": applications.funnel(items),
                     "attention": applications.attention(items),
                     "statuses": applications.list_statuses(conn, language),
                     "thresholds": applications.thresholds(conn)}
+
+    @app.get("/api/learning")
+    def learning_board(period: str = "season") -> dict:
+        paths = get_paths()
+        with db.session(paths) as conn:
+            return {"ok": True, **learning.board(conn, paths, period)}
+
+    @app.post("/api/rules/{rule_id}/{decision}")
+    def decide_rule(rule_id: int, decision: str) -> dict:
+        actions = {"apply": learning.apply, "ignore": learning.ignore, "revert": learning.revert}
+        if decision not in actions:
+            raise JobTrackerError("not_found", f"unknown action '{decision}'")
+        with db.session(get_paths()) as conn:
+            return {"ok": True, "rule": actions[decision](conn, rule_id)}
+
+    @app.post("/api/experiments/{experiment_id}/{decision}")
+    def decide_experiment(experiment_id: int, decision: str) -> dict:
+        if decision not in ("accept", "decline"):
+            raise JobTrackerError("not_found", f"unknown action '{decision}'")
+        with db.session(get_paths()) as conn:
+            return {"ok": True, "experiment": recommend.decide_experiment(
+                conn, experiment_id, decision == "accept")}
 
     @app.get("/api/applications/{job_id}")
     def application_detail(job_id: str) -> dict:

@@ -6,6 +6,7 @@ import { makeFormat } from './format.js';
 import { Ui, TABS, Header, Banner, Toast, EmptyState, Placeholder } from './components/shell.js';
 import { SearchBoard } from './boards/search.js';
 import { ApplicationsBoard } from './boards/applications.js';
+import { LearningBoard } from './boards/learning.js';
 
 const POLL_MS = 3000;
 
@@ -143,6 +144,9 @@ function App({ initialState }) {
   } else if (tab === 'applications') {
     content = html`<${ApplicationsBoard} data=${apps} version=${state && state.changes ? state.changes.counter : 0}
       commands=${state && state.commands} onAction=${onAction} onReload=${() => reload()} />`;
+  } else if (tab === 'learning') {
+    content = html`<${LearningBoard} version=${state && state.changes ? state.changes.counter : 0}
+      commands=${state && state.commands} onAction=${onAction} />`;
   } else {
     content = html`<${Placeholder} tab=${tab} />`;
   }
@@ -150,7 +154,8 @@ function App({ initialState }) {
   return html`
     <${Ui.Provider} value=${ui}>
       <${Header} state=${state} lang=${lang} onLanguage=${changeLanguage} onReload=${() => reload()}
-        tab=${tab} counts=${{ search: counts.search ?? null, applications: counts.applications ?? null }} />
+        tab=${tab} counts=${{ search: counts.search ?? null, applications: counts.applications ?? null,
+          learning: counts.learning ? counts.learning : null }} />
       ${stale && html`<${Banner} onLoad=${() => reload()} />`}
       <main class="main" id="main">${content}</main>
       <${Toast} toast=${toast} onClose=${() => setToast(null)} />

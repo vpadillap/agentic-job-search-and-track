@@ -84,17 +84,18 @@ EARLIER = (
 NOTES = {
     "en": {
         "title": "Matches the target title “{title}”.",
-        "skills": "Matches: Python, SQL, Airflow, dbt, BigQuery. Missing: {extra}.",
+        "skills": "Matches: {matched}. Missing: {extra}.",
         "seniority": "Asks for {years}+ years; the resume shows 7.",
         "conditions": "{mode}, {contract}.",
     },
     "es": {
         "title": "Coincide con el título objetivo “{title}”.",
-        "skills": "Coinciden: Python, SQL, Airflow, dbt, BigQuery. Falta: {extra}.",
+        "skills": "Coinciden: {matched}. Falta: {extra}.",
         "seniority": "Pide {years}+ años; tu CV muestra 7.",
         "conditions": "{mode}, {contract}.",
     },
 }
+SKILLS = ("Python", "SQL", "Airflow", "dbt", "BigQuery")
 MODES = {"remote": "Remoto", "hybrid": "Híbrido", "onsite": "Presencial"}
 NO_MODE = {"en": "work mode not stated", "es": "modalidad no indicada"}
 # How some postings describe their arrangement beyond the mode (as the agent would note it).
@@ -146,15 +147,16 @@ def _score(conn: sqlite3.Connection, posting_id: int, row: tuple, language: str,
            run_id: int, resume: dict | None = None) -> None:
     title, mode, contract, extra, points = row[2], row[5], row[6], row[11], row[12]
     notes = NOTES.get(language, NOTES["en"])
-    values = {"title": title, "extra": extra, "years": 5,
+    # A missing skill is never also listed as matched.
+    matched = [s for s in SKILLS if s.casefold() != extra.casefold()]
+    values = {"title": title, "extra": extra, "years": 5, "matched": ", ".join(matched),
               "mode": MODES[mode] if mode else NO_MODE.get(language, NO_MODE["en"]),
               "contract": CONTRACTS[contract].lower()}
     components = {
         name: {"points": points[index], "note": notes[name].format(**values)}
         for index, name in enumerate(scoring.JUDGED)
     }
-    components["skills"].update(matched=["Python", "SQL", "Airflow", "dbt", "BigQuery"],
-                                missing=[extra])
+    components["skills"].update(matched=matched, missing=[extra])
     submission: dict = {"components": components}
     if resume:
         submission["resume"] = resume
@@ -298,7 +300,7 @@ def _older_applications(conn: sqlite3.Connection, paths: Paths, now: datetime, l
     return run_id
 
 
-def seed(paths: Paths) -> dict:
+def seed(paths: Paths, learning: str | None = None) -> dict:
     if not workspace.is_initialized(paths):
         workspace.initialize(paths)
     language = str(config.load(paths.config)["language"])
@@ -347,8 +349,14 @@ def seed(paths: Paths) -> dict:
         tracking.track(conn, [posting["finlima"]])
         tracking.track(conn, [earlier_ids["demo-inti"]], applied=True)
         tracking.dismiss(conn, [posting["pukara"]], "industry")
+        history = None
+        if learning:
+            from . import demo_learning
+
+            history = demo_learning.add_history(conn, paths, learning)
         bump_changes(conn)
-        return {"seeded": True, "runs": [older_id, earlier_id, run_id], "latest_run": summary}
+        return {"seeded": True, "runs": [older_id, earlier_id, run_id], "latest_run": summary,
+                "learning": history}
 
 
 def clear(paths: Paths) -> dict:
@@ -383,5 +391,9 @@ def clear(paths: Paths) -> dict:
                     f" ({','.join('?' * len(jobs))})", jobs)
             conn.execute(f"DELETE FROM postings WHERE id IN ({marks})", ids)
         runs = conn.execute("DELETE FROM search_runs WHERE is_demo = 1").rowcount
+        # Models and influence records were computed from the demo data.
+        conn.execute("DELETE FROM analyses")
+        conn.execute("DELETE FROM experiments")
+        conn.execute("DELETE FROM rule_influence")
         bump_changes(conn)
         return {"cleared": True, "postings": len(ids), "runs": runs}

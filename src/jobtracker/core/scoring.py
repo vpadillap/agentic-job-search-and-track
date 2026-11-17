@@ -180,8 +180,41 @@ def set_score(
             "resume_kind": checked["resume_kind"], "resume_ref": checked["resume_ref"],
         }), now),
     )
+    _history_from_estimate(conn, posting_id, int(cursor.lastrowid), language)
+    from . import learning
+
+    learning.record_influence(conn, "score", posting_id, areas=("score",))
     bump_changes(conn)
     return current(conn, posting_id)  # type: ignore[return-value]
+
+
+HISTORY_NOTE = {
+    "en": "Estimated interview chance {p}% against your usual {base}% (your own results).",
+    "es": "Probabilidad estimada de entrevista {p}% frente a tu {base}% habitual (tus resultados).",
+}
+
+
+def _history_from_estimate(conn: sqlite3.Connection, score_id_posting: int, score_id: int,
+                           language: str) -> None:
+    """While estimates are active, the history component reflects them."""
+    from . import predict
+
+    model = predict.latest_active_model(conn)
+    if model is None:
+        return
+    estimate = predict.estimate(conn, score_id_posting, model=model)
+    row = conn.execute("SELECT components FROM scores WHERE id = ?", (score_id,)).fetchone()
+    components = json.loads(row["components"])
+    for item in components:
+        if item["component"] == "history":
+            item["points"] = predict.history_points(estimate["probability"],
+                                                    estimate["base_rate"], item["max"])
+            item["neutral"] = False
+            item["note"] = HISTORY_NOTE.get(language, HISTORY_NOTE["en"]).format(
+                p=round(estimate["probability"] * 100), base=round(estimate["base_rate"] * 100))
+    total = sum(item["points"] for item in components)
+    conn.execute("UPDATE scores SET components = ?, total = ? WHERE id = ?",
+                 (json.dumps(components, ensure_ascii=False), total, score_id))
 
 
 def current(conn: sqlite3.Connection, posting_id: int) -> dict | None:

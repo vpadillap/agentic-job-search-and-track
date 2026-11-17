@@ -78,7 +78,8 @@ def test_state_with_demo_data(seeded, client):
     body = client.get("/api/state").json()
     assert body["initialized"] is True
     counts = body["header"]["counts"]
-    assert counts == {"search": 8, "applications": 7}      # 10 new - 1 tracked - 1 dismissed
+    # 10 new - 1 tracked - 1 dismissed; no lessons proposed
+    assert counts == {"search": 8, "applications": 7, "learning": 0}
     assert body["changes"]["counter"] > 0
 
 

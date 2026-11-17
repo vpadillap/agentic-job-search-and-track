@@ -270,6 +270,9 @@ def set_suggestion(
         "currency": criteria["currency"], "basis": criteria["basis"],
         "confidence": confidence, "criteria": criteria, "checked": None,
     }, [i["id"] for i in counted], "reused" if reused else "suggested")
+    from . import learning
+
+    learning.record_influence(conn, "salary", posting_id, areas=("salary",))
     result = current(conn, posting_id)
     assert result is not None and result["id"] == suggestion_id
     result["excluded"] = excluded

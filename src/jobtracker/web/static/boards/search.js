@@ -1,5 +1,6 @@
 // Board 1: the postings of a search run, their explanation, and what to do with them.
 import { html, useState, useEffect, useMemo, useRef } from '../vendor/preact-htm.js';
+import { ChanceCell, FitCell, EstimatePanel } from '../components/estimate.js';
 import { useUi, CommandChip, EmptyState, Menu } from '../components/shell.js';
 import { DataTable } from '../components/data-table.js';
 import * as Icon from '../components/icons.js';
@@ -11,7 +12,8 @@ const MODES = ['remote', 'hybrid', 'onsite'];
 const CONTRACTS = ['full-time', 'part-time', 'contractor'];
 const SCORE_STEPS = [50, 60, 70, 80];
 const DISMISS_REASONS = ['industry', 'low_salary', 'location', 'stack'];
-const SORTS = ['score', 'published', 'salary', 'title', 'company', 'source'];
+const SORTS = ['score', 'chance', 'fit', 'published', 'salary', 'title', 'company', 'source'];
+const LABEL_ORDER = { low: 0, medium: 1, high: 2 };
 
 const fold = (text) => (text || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const safeHref = (url) => (/^https?:\/\//i.test(url || '') ? url : undefined);
@@ -66,6 +68,8 @@ function filterChecks(filters, t) {
 function sortValue(row, key) {
   switch (key) {
     case 'score': return row.score ? row.score.total : -1;
+    case 'chance': return row.estimate ? row.estimate.probability : -1;
+    case 'fit': return row.fit ? LABEL_ORDER[row.fit.label] : -1;
     case 'salary': return row.salary && row.salary.amount ? row.salary.amount : -1;
     case 'published': return row.posted_at || '';
     case 'title': return fold(row.title);
@@ -213,7 +217,7 @@ function CheckMenu({ label, active, legend, options, values, onChange }) {
     </${Menu}>`;
 }
 
-function FilterBar({ filters, setFilters, sort, setSort, providers, selectedCount, onBulk }) {
+function FilterBar({ filters, setFilters, sort, setSort, providers, selectedCount, onBulk, sorts = SORTS }) {
   const { t } = useUi();
   const set = (patch) => setFilters({ ...filters, ...patch });
   const modeValue = filters.modes.length ? filters.modes.map((m) => t('mode.' + m)).join(', ') : t('filters.all');
@@ -257,7 +261,7 @@ function FilterBar({ filters, setFilters, sort, setSort, providers, selectedCoun
           ${(close) => html`
             <fieldset>
               <legend>${t('filters.sort', { value: '' })}</legend>
-              ${SORTS.flatMap((key) => ['desc', 'asc'].map((dir) => html`
+              ${sorts.flatMap((key) => ['desc', 'asc'].map((dir) => html`
                 <label>
                   <input type="radio" name="sort" checked=${sort.key === key && sort.dir === dir}
                     onChange=${() => setSort({ key, dir })} />
@@ -438,6 +442,7 @@ function RowDetail({ row, run, onTrack, onDismiss, onRestore }) {
         <${Breakdown} score=${row.score} />
         <${SalaryDetail} salary=${row.salary} />
       </div>
+      <${EstimatePanel} estimate=${row.estimate} fit=${row.fit} />
       ${!row.application && !row.dismissal && html`
         <div class="detail-actions">
           <div class="filter-group">
@@ -542,11 +547,15 @@ export function SearchBoard({ data, runId, onRunChange, commands, setupRequired,
     return { message: t('toast.restored') };
   });
 
+  const withEstimates = results.some((r) => r.estimate || r.fit);
   const columns = [
-    { key: 'score', label: t('column.score'), sortable: true, width: '72px',
-      render: (r) => (r.score
-        ? html`<span class=${'score ' + tone(r.score.total)}>${r.score.total}</span>`
-        : html`<span class="score none">–</span>`) },
+    { key: 'score', label: t('column.score'), sortable: true, width: withEstimates ? '84px' : '72px',
+      render: (r) => html`<div class="stack chance-fit">
+        ${r.score ? html`<span class=${'score ' + tone(r.score.total)}>${r.score.total}</span>`
+          : html`<span class="score none">–</span>`}
+        ${r.estimate && html`<${ChanceCell} estimate=${r.estimate} compact />`}
+        ${r.fit && html`<${FitCell} fit=${r.fit} compact />`}
+      </div>` },
     { key: 'title', label: t('column.job'), sortable: true,
       render: (r) => html`
         <div class="job">
@@ -586,7 +595,8 @@ export function SearchBoard({ data, runId, onRunChange, commands, setupRequired,
       showFiltered=${showFiltered} onToggleFiltered=${() => setShowFiltered(!showFiltered)}
       commands=${commands} onOpenProviders=${() => setProvidersOpen(true)} />
     ${showFiltered && html`<${FilteredList} data=${data} />`}
-    <${FilterBar} filters=${filters} setFilters=${changeFilters} sort=${sort} setSort=${setSort}
+    <${FilterBar} sorts=${SORTS.filter((key) => (key !== 'chance' || results.some((r) => r.estimate))
+      && (key !== 'fit' || results.some((r) => r.fit)))} filters=${filters} setFilters=${changeFilters} sort=${sort} setSort=${setSort}
       providers=${providers} selectedCount=${selected.size} onBulk=${(applied) => track([...selected], applied)} />
     <section class="card results" aria-label=${t('tabs.search')}>
       ${rows.length === 0 ? html`

@@ -37,6 +37,8 @@ user-data/                                  private home (gitignored)
 │       └── cover-letter-v<N>.md            proposed cover letter
 ├── searches/
 │   └── <YYYYMMDD-HHMM>/                    raw provider captures for one search run (debug/audit)
+├── learning/
+│   └── history.jsonl                       complete history for the agent, rewritten by `learning refresh`
 ├── exports/                                anything the user asks to export
 ├── backups/                                automatic DB copies before migrations and resets
 └── archive/
@@ -70,6 +72,10 @@ recorded keeps the name `resume-base.<ext>` until it is replaced.
   provider state, and the path of every document below.
 - **Disk**: only documents a human opens (resumes, cover letters, posting
   snapshots) and raw captures. Every such file is registered in the database.
+  One exception: `learning/history.jsonl` is a derived file, rebuilt from the
+  database on every `jobtracker learning refresh` (one JSON record per line:
+  every application with its outcome so far, every tracked or dismissed
+  posting, every corrected reading). It is never edited and can be deleted.
 
 Structured data is written **only** through the `jobtracker` CLI or the panel
 API. Agents do not edit the database or `config.toml` by hand.

@@ -12,7 +12,7 @@ language, and the profile.
 | `skills` | 35 | required and desirable skills found in the resume |
 | `seniority` | 15 | years and level asked vs what the resume shows |
 | `conditions` | 15 | work mode, contract, location, language, published salary vs the profile |
-| `history` | 10 | from the user's own outcomes; neutral (half) until learning starts. Never send it |
+| `history` | 10 | from the user's own outcomes: follows the interview estimate once the estimates are validated (predictive level), neutral (half) before. Never send it |
 
 ## How to judge each component
 
@@ -51,11 +51,15 @@ posting. Do not repeat the points in words.
 
 The total is computed by the CLI (here 25 + 27 + 15 + 14 + 5 neutral history
 = 86). If you include `"total"`, it must match. `resume` defaults to the
-current base resume; use `{"kind": "tailored" | "sent", "ref": "<file name>"}`
-when scoring against another resume.
+user's current resume in the posting's language. When scoring against another
+resume (a rescore item from `jt pending` or `jt context`), send that item's
+`resume` object exactly as given, for example
+`"resume": {"kind": "tailored", "ref": "resume-proposed-v2.docx#v2"}`; never
+build the reference yourself.
 
 ## Rescoring
 
-`jt context` lists `pending` items of kind `rescore` when the base resume
-changed after a score. Score those postings again the same way; the previous
+`jt context` lists `pending` items of kind `rescore` when the resume changed
+after a score, or when the user applied a lesson that changed the score
+weights. Score those postings again the same way; the previous
 score stays in history and the panel shows the change.

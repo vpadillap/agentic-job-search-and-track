@@ -49,6 +49,12 @@ def search_board(conn: sqlite3.Connection, run_id: int | None = None) -> dict:
             item = search.posting(conn, row["posting_id"], detail=False)
             item.update(reason=row["reason"], reason_detail=row["reason_detail"])
             filtered.append(item)
+    from . import learning
+
+    estimates = learning.estimates_for(conn, [r["id"] for r in results])
+    for item in results:
+        item["estimate"] = estimates[item["id"]]["interview"]
+        item["fit"] = estimates[item["id"]]["fit"]
     return {
         "run": search.summary(conn, run_id),
         "runs": runs,
@@ -59,7 +65,8 @@ def search_board(conn: sqlite3.Connection, run_id: int | None = None) -> dict:
 
 
 def counts(conn: sqlite3.Connection) -> dict:
-    """Tab counters: untriaged new results of the latest run, and tracked applications."""
+    """Tab counters: untriaged new results of the latest run, tracked applications, and
+    lessons waiting for the user's decision."""
     run_id = search.latest_run_id(conn)
     new = 0
     if run_id is not None:
@@ -72,7 +79,9 @@ def counts(conn: sqlite3.Connection) -> dict:
     active = conn.execute(
         "SELECT COUNT(*) FROM applications a JOIN statuses s ON s.id = a.status_id"
         " WHERE s.stage IN ('to_apply', 'applied', 'interview', 'offer')").fetchone()[0]
-    return {"search": new, "applications": active}
+    proposed = conn.execute("SELECT COUNT(*) FROM rules WHERE origin = 'learned'"
+                            " AND status = 'proposed'").fetchone()[0]
+    return {"search": new, "applications": active, "learning": proposed}
 
 
 def pending(conn: sqlite3.Connection) -> list[dict]:
@@ -134,6 +143,25 @@ def pending(conn: sqlite3.Connection) -> list[dict]:
                           "job_id": row["job_id"], "title": row["title"],
                           "company": row["company"], "resume": {"kind": "tailored", "ref": ref},
                           "reason": "a tailored resume was registered"})
+    # A weights lesson the user applied: open postings scored with older weights.
+    active = conn.execute("SELECT version FROM score_weights WHERE is_active = 1").fetchone()
+    run_id = search.latest_run_id(conn)
+    for row in conn.execute(
+        "SELECT sc.posting_id, sc.resume_kind, sc.resume_ref, p.title, p.company, a.job_id"
+        " FROM scores sc JOIN postings p ON p.id = sc.posting_id"
+        " LEFT JOIN applications a ON a.posting_id = sc.posting_id"
+        " LEFT JOIN statuses st ON st.id = a.status_id"
+        " WHERE sc.is_current = 1 AND sc.weights_version != ?"
+        " AND NOT EXISTS (SELECT 1 FROM dismissals d WHERE d.posting_id = sc.posting_id)"
+        " AND (st.stage IN ('to_apply', 'applied', 'interview', 'offer')"
+        "      OR (a.id IS NULL AND EXISTS (SELECT 1 FROM run_results r"
+        "          WHERE r.posting_id = sc.posting_id AND r.run_id = ? AND r.outcome = 'new')))"
+        " ORDER BY sc.posting_id", (active["version"] if active else 0, run_id),
+    ):
+        items.append({"kind": "rescore", "posting_id": row["posting_id"],
+                      "job_id": row["job_id"], "title": row["title"], "company": row["company"],
+                      "resume": {"kind": row["resume_kind"], "ref": row["resume_ref"]},
+                      "reason": "the score weights changed (a lesson you applied)"})
     # One rescore per posting, against the most specific resume: sent > tailored > base.
     rank = {"sent": 2, "tailored": 1}
     best: dict[int, dict] = {}

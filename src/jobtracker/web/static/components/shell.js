@@ -142,7 +142,7 @@ export function Header({ state, lang, onLanguage, onReload, tab, counts }) {
         ${TABS.map((name) => html`
           <a class="tab" href=${'#' + name} aria-current=${tab === name ? 'page' : undefined}>
             ${t('tabs.' + name)}
-            ${name in counts && counts[name] !== null && html`<span class="count">${counts[name]}</span>`}
+            ${name in counts && counts[name] !== null && html`<span class=${'count' + (name === 'learning' ? ' count-alert' : '')}>${counts[name]}</span>`}
           </a>`)}
       </nav>
     </header>`;

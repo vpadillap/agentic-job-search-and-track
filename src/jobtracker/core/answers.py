@@ -144,6 +144,11 @@ def propose(conn: sqlite3.Connection, job_id: str, proposals: object, *,
     _event(conn, job_id, "answers_proposed",
            {"current": result["current"], "alternatives": result["alternatives"]}, now)
     conn.execute("UPDATE applications SET updated_at = ? WHERE id = ?", (now, row["id"]))
+    from . import learning
+
+    rule_ids = sorted({r for item in checked for r in json.loads(item["applied_rules"])})
+    learning.record_influence(conn, "answers", job_id, rule_ids=rule_ids,
+                              areas=("form", "salary"))
     bump_changes(conn)
     return {**result, "answers": list_answers(conn, job_id)}
 

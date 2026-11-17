@@ -129,12 +129,36 @@ If the user tells you a posting's real work mode (for example after opening it),
 record it with `jt postings work-mode <posting_id> --mode remote|hybrid|onsite|none
 --detail "..."`. It is kept as the user's and no later search overwrites it.
 
-## 5. Score what is left
+## 5. Refresh learning, then score what is left
 
-For each remaining new posting, judge it against the base resume and profile
+Learning feeds on results, so it is refreshed here, after filtering and before
+scoring, never during the search itself:
+
+1. `jt learning refresh`. It recomputes what the user's results show, refits
+   the estimates only when enough new outcomes arrived, writes the complete
+   history file, and lists `effects`, `active_lessons`, and `candidates`.
+   Follow the active lessons and effects (they are the user's decisions).
+   Candidates are not rules: never act on them; they are for `/analyze-results`
+   and the panel's Learning tab.
+2. Read the history file at `history.path` completely. It holds every
+   application with its outcome so far, every posting the user tracked or
+   dismissed (with the reason), and every work-mode reading the user corrected.
+   Nothing is left out; decide yourself what is relevant. For a posting you are
+   scoring, `jt learning refresh --posting <id>` orders the same complete
+   history by similarity to it (most similar first) and adds the posting's
+   interview estimate and fit when they are available.
+3. Corrections of your own readings (records of type `correction`) tell you
+   how this site's postings mislead you; read work modes more carefully where
+   the user had to correct them.
+
+For each remaining new posting, judge it against the user's resume and profile
 with the rubric in `scoring-guide.md` (read it before the first score), then
 `jt score set <posting_id> - --run <run_id>`. The CLI rejects inconsistent
-scores; fix and resubmit. History is added by the system.
+scores; fix and resubmit. History is added by the system. When similar past
+cases or an applied lesson informed your judgement, say so in the note in one
+plain phrase (for example "Similar postings you applied to reached interview
+3 of 4 times" or "Applied lesson: …"); never cite a pattern the history does not
+show.
 
 `score set` judges a posting against the user's resume in the posting's
 language. If it fails with `no_resume_for_language`, the user has no resume in

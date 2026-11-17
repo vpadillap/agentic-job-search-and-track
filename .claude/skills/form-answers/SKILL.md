@@ -60,7 +60,7 @@ needing their input.
 |---|---|
 | years of experience with X | count from the dates in the resume; if X is not in the resume, say so plainly or leave it for the user, never inflate |
 | yes/no or choice (`options` present) | pick exactly one of the `options` text as given; if none is truthful, leave it for the user |
-| salary expectation | if `salary.status` is `suggested`, use its amount, currency, and basis, within any active salary rule (for example a cap over the median), and set `"basis"` to say it is based on the suggested salary; if there is no reliable salary data, leave it for the user (`needs_user`) and say so in the `note`; never invent a figure |
+| salary expectation | if `salary.status` is `suggested`, use its amount, currency, and basis, within any active salary rule (for example a cap over the median: `effects.salary_cap_pct` in `jt context` is the most, in percent, the answer may exceed the suggestion; at the prescriptive learning level `jt recommend --posting <id>` adds an ask within the evidence range), and set `"basis"` to say it is based on the suggested salary; if there is no reliable salary data, leave it for the user (`needs_user`) and say so in the `note`; never invent a figure |
 | availability / start date | from the profile's `availability`; otherwise leave it for the user |
 | work authorization, visa | from the profile's `work_authorization`; otherwise leave it for the user |
 | motivation, "tell us about you" | short, from the resume and the posting, same rules as the cover letter |

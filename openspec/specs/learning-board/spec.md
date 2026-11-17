@@ -1,9 +1,10 @@
-## Purpose
+# learning-board Specification
 
+## Purpose
 Defines the panel tab where the user sees what is working, what the agent has
 learned, and how far the system's advice can currently be trusted.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Maturity level is always visible
 The board SHALL show the current learning level (collecting, descriptive,
@@ -38,14 +39,14 @@ level does not permit.
 - **WHEN** the current level is descriptive
 - **THEN** no interview-chance estimates or apply-next ranking are displayed
 
-### Requirement: Prompt to analyze
-The board SHALL show when the last analysis was made, SHALL suggest a new one
-when enough new outcomes have accumulated, and SHALL show the command to run
-it.
+### Requirement: Refresh and deeper review
+The board SHALL show when learning was last refreshed and, when ten or more
+applications have resolved since the last deeper review, SHALL suggest the
+optional deeper review and show its command.
 
-#### Scenario: New outcomes since the last analysis
-- **WHEN** ten applications have resolved since the last analysis
-- **THEN** the board suggests running the analysis and shows the command
+#### Scenario: New outcomes since the last review
+- **WHEN** ten applications have resolved since the last deeper review
+- **THEN** the board suggests the deeper review and shows the command
 
 ### Requirement: Empty state
 With no applications the board SHALL explain what will appear and what the user

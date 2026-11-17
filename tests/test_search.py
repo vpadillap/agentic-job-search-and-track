@@ -372,16 +372,11 @@ def test_work_mode_can_be_cleared_and_bad_modes_are_refused(searchable, cli, wri
 
 
 def test_migration_keeps_existing_postings(searchable, cli, write_json):
-    import sqlite3
-    from contextlib import closing
-
     run = start(cli)
     cli("postings", "import", str(run["run_id"]), write_json(captures()))
-    with closing(sqlite3.connect(searchable.database)) as conn:  # back to version 9
-        conn.execute("PRAGMA user_version = 9")
-        for column in ("work_mode_detail", "work_mode_source"):
-            conn.execute(f"ALTER TABLE postings DROP COLUMN {column}")
-        conn.commit()
+    from tests.migrations import rewind
+
+    rewind(searchable.database, 9)
     with db.session(searchable) as conn:
         rows = conn.execute("SELECT work_mode, work_mode_detail, work_mode_source"
                             " FROM postings").fetchall()

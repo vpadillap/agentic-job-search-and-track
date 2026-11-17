@@ -20,9 +20,14 @@ from jobtracker.core import (
     doctor,
     documents,
     docx_tools,
+    insights,
+    learning,
+    predict,
     privacy,
     profile,
     providers,
+    recommend,
+    refresh,
     resume,
     rules,
     salary,
@@ -247,6 +252,105 @@ def cmd_rules_add(args: argparse.Namespace) -> dict:
         record["evidence"] = args.evidence
     with db.session(get_paths()) as conn:
         return {"rules": rules.add_rules(conn, [record])}
+
+
+def cmd_learning_refresh(args: argparse.Namespace) -> dict:
+    paths = get_paths()
+    with db.session(paths) as conn:
+        return refresh.refresh(conn, paths, args.posting)
+
+
+def cmd_learning_level(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"level": learning.level(conn), "last_refresh": refresh.last_refresh(conn)}
+
+
+def cmd_learning_reset(args: argparse.Namespace) -> dict:
+    if args.confirm != "RESET":
+        raise JobTrackerError("confirmation_required",
+                              "Resetting learning withdraws the estimates until new outcomes "
+                              "arrive. Confirm with --confirm RESET. Nothing was changed.")
+    with db.session(get_paths()) as conn:
+        return learning.reset(conn)
+
+
+def cmd_insights_summary(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        result = insights.summary(conn, args.period)
+        result.pop("response_days")
+        return {"summary": result}
+
+
+def cmd_insights_breakdown(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"breakdown": insights.breakdown(conn, args.dimension, args.period)}
+
+
+def cmd_insights_lessons(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return learning.candidates(conn, args.period)
+
+
+def cmd_rules_propose(args: argparse.Namespace) -> dict:
+    proposals = _read_json(args.file)
+    with db.session(get_paths()) as conn:
+        return learning.propose(conn, proposals)
+
+
+def cmd_rules_decide(args: argparse.Namespace) -> dict:
+    action = {"apply": learning.apply, "ignore": learning.ignore, "revert": learning.revert}
+    with db.session(get_paths()) as conn:
+        return {"rule": action[args.decision](conn, args.id)}
+
+
+def cmd_rules_effect(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"effect": learning.rule_effect(conn, args.id)}
+
+
+def cmd_predict_show(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"posting_id": args.posting,
+                "interview_estimate": predict.estimate(conn, args.posting),
+                "fit": predict.fit_estimate(conn, args.posting),
+                "track_record": predict.track_record(conn)}
+
+
+def cmd_predict_fit(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        interview = predict.fit(conn)
+        fit = predict.fit_preference(conn)
+        return {"interview": interview, "fit": fit}
+
+
+def cmd_recommend(args: argparse.Namespace) -> dict:
+    paths = get_paths()
+    with db.session(paths) as conn:
+        result = recommend.all_recommendations(conn, paths)
+        if result is None:
+            return {"recommendations": None, "level": learning.level(conn),
+                    "note": "Recommendations start at the prescriptive level."}
+        if args.posting is not None:
+            result["salary"] = recommend.salary_guidance(conn, args.posting)
+        return {"recommendations": result}
+
+
+def cmd_experiments_list(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"experiments": recommend.experiments(conn),
+                "proposals": recommend.experiment_proposals(conn)}
+
+
+def cmd_experiments_propose(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"experiment": recommend.propose_experiment(conn, args.dimension, args.question,
+                                                           args.planned)}
+
+
+def cmd_experiments_decide(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"experiment": recommend.decide_experiment(conn, args.id,
+                                                          args.decision == "accept")}
 
 
 def cmd_rules_import(args: argparse.Namespace) -> dict:
@@ -564,7 +668,7 @@ def cmd_answers_pick(args: argparse.Namespace) -> dict:
 
 
 def cmd_demo_seed(args: argparse.Namespace) -> dict:
-    return demo.seed(get_paths())
+    return demo.seed(get_paths(), learning=args.learning)
 
 
 def cmd_demo_clear(args: argparse.Namespace) -> dict:
@@ -925,7 +1029,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     demo_parser = sub.add_parser("demo", help="fictional data for trying the panel")
     demo_sub = demo_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)
-    demo_sub.add_parser("seed", help="load fictional searches").set_defaults(run=cmd_demo_seed)
+    demo_seed = demo_sub.add_parser("seed", help="load fictional searches")
+    demo_seed.add_argument("--learning", choices=("collecting", "descriptive", "predictive",
+                                                  "prescriptive"),
+                           help="also load a fictional history that reaches this learning level")
+    demo_seed.set_defaults(run=cmd_demo_seed)
     demo_sub.add_parser("clear", help="remove the demo data").set_defaults(run=cmd_demo_clear)
 
     rules_parser = sub.add_parser("rules", help="rules the agent obeys")
@@ -949,6 +1057,71 @@ def build_parser() -> argparse.ArgumentParser:
     rules_import = rules_sub.add_parser("import", help="add several rules from a JSON list")
     rules_import.add_argument("file", help="JSON file, or - for standard input")
     rules_import.set_defaults(run=cmd_rules_import)
+    rules_propose = rules_sub.add_parser("propose", help="store lessons as proposed (learned)")
+    rules_propose.add_argument("file", help="JSON list of lessons, or -")
+    rules_propose.set_defaults(run=cmd_rules_propose)
+    for decision, text in (("apply", "the user applies a proposed lesson"),
+                           ("ignore", "the user ignores a proposed lesson"),
+                           ("revert", "the user reverts an applied lesson")):
+        decide = rules_sub.add_parser(decision, help=text)
+        decide.add_argument("id", type=int)
+        decide.set_defaults(run=cmd_rules_decide, decision=decision)
+    rules_effect = rules_sub.add_parser("effect", help="outcomes with and without a rule")
+    rules_effect.add_argument("id", type=int)
+    rules_effect.set_defaults(run=cmd_rules_effect)
+
+    learning_parser = sub.add_parser("learning", help="the learning loop")
+    learning_sub = learning_parser.add_subparsers(dest="action", required=True,
+                                                  parser_class=_Parser)
+    learning_refresh = learning_sub.add_parser(
+        "refresh", help="before scoring or tailoring: numbers, models, history, candidates")
+    learning_refresh.add_argument("--posting", type=int,
+                                  help="order the history by similarity to this posting")
+    learning_refresh.set_defaults(run=cmd_learning_refresh)
+    learning_sub.add_parser("level").set_defaults(run=cmd_learning_level)
+    learning_reset = learning_sub.add_parser(
+        "reset", help="start learning over (estimates withdrawn until new outcomes)")
+    learning_reset.add_argument("--confirm")
+    learning_reset.set_defaults(run=cmd_learning_reset)
+
+    insights_parser = sub.add_parser("insights", help="what your results show")
+    insights_sub = insights_parser.add_subparsers(dest="action", required=True,
+                                                  parser_class=_Parser)
+    for name, run in (("summary", cmd_insights_summary), ("lessons", cmd_insights_lessons)):
+        command = insights_sub.add_parser(name)
+        command.add_argument("--period", default="all", choices=insights.PERIODS)
+        command.set_defaults(run=run)
+    insights_breakdown = insights_sub.add_parser("breakdown")
+    insights_breakdown.add_argument("dimension", choices=insights.DIMENSIONS)
+    insights_breakdown.add_argument("--period", default="all", choices=insights.PERIODS)
+    insights_breakdown.set_defaults(run=cmd_insights_breakdown)
+
+    predict_parser = sub.add_parser("predict", help="estimates for a posting")
+    predict_sub = predict_parser.add_subparsers(dest="action", required=True,
+                                                parser_class=_Parser)
+    predict_show = predict_sub.add_parser("show")
+    predict_show.add_argument("posting", type=int)
+    predict_show.set_defaults(run=cmd_predict_show)
+    predict_sub.add_parser("fit", help="refit and validate both models now").set_defaults(
+        run=cmd_predict_fit)
+
+    recommend_parser = sub.add_parser("recommend", help="advice at the prescriptive level")
+    recommend_parser.add_argument("--posting", type=int, help="include salary ask guidance")
+    recommend_parser.set_defaults(run=cmd_recommend)
+
+    experiments_parser = sub.add_parser("experiments", help="simple experiments")
+    experiments_sub = experiments_parser.add_subparsers(dest="action", required=True,
+                                                        parser_class=_Parser)
+    experiments_sub.add_parser("list").set_defaults(run=cmd_experiments_list)
+    experiments_propose = experiments_sub.add_parser("propose")
+    experiments_propose.add_argument("dimension", choices=sorted(recommend.EXPERIMENT_DIMENSIONS))
+    experiments_propose.add_argument("--question", required=True)
+    experiments_propose.add_argument("--planned", type=int, default=recommend.EXPERIMENT_SIZE)
+    experiments_propose.set_defaults(run=cmd_experiments_propose)
+    for decision in ("accept", "decline"):
+        decide = experiments_sub.add_parser(decision)
+        decide.add_argument("id", type=int)
+        decide.set_defaults(run=cmd_experiments_decide, decision=decision)
 
     reset = sub.add_parser("reset", help="archive all data and start empty")
     reset.add_argument("--confirm")

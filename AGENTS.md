@@ -15,7 +15,9 @@ back into future advice.
 > (statuses, tags, details, sent-resume upload, history, the Applications
 > board, `jobtracker applications …`, `jobtracker pending`), and document
 > preparation (`/prepare-documents`, `/form-answers`, `jobtracker documents …`,
-> `jobtracker answers …`). Learning and seasons are specified in
+> `jobtracker answers …`), and the learning loop (`jobtracker learning refresh`
+> before scoring and tailoring, insights, lessons the user applies, validated
+> estimates, the Learning board, `/analyze-results`). Seasons are specified in
 > `openspec/changes/` and not built yet. `jobtracker context` lists which
 > commands are available.
 

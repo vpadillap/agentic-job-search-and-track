@@ -54,6 +54,9 @@ export const api = {
   editAnswer: (job, position, text) => request('POST', `/api/applications/${encodeURIComponent(job)}/answers/${position}`, { text }),
   pickAnswer: (job, answerId) => request('POST', `/api/applications/${encodeURIComponent(job)}/answers-pick`, { answer_id: answerId }),
   pending: () => request('GET', '/api/pending'),
+  learning: (period) => request('GET', `/api/learning?period=${encodeURIComponent(period)}`),
+  decideRule: (id, action) => request('POST', `/api/rules/${encodeURIComponent(id)}/${action}`),
+  decideExperiment: (id, action) => request('POST', `/api/experiments/${encodeURIComponent(id)}/${action}`),
   async uploadSentResume(job, file) {
     const form = new FormData();
     form.append('file', file);

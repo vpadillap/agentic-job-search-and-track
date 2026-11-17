@@ -184,6 +184,11 @@ def register(conn: sqlite3.Connection, paths: Paths, job_id: str, kind: str, fil
     if kind == "cover_letter" and app_row["cover_letter_need"] != "required":
         conn.execute("UPDATE applications SET cover_letter_need = 'required' WHERE id = ?",
                      (app_row["id"],))
+    from . import learning
+
+    learning.record_influence(conn, "document", job_id, rule_ids=checked["applied_rules"],
+                              areas=("resume",) if kind == "resume_proposed"
+                              else ("cover_letter",))
     bump_changes(conn)
     return get(conn, document["id"])
 

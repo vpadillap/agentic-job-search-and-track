@@ -108,7 +108,7 @@ def test_tabs_have_counters_and_placeholders(seeded, page):
     open_board(page)
     expect(page.locator(".tab", has_text="Search").locator(".count")).to_have_text("8")
     expect(page.locator(".tab", has_text="Applications").locator(".count")).to_have_text("7")
-    page.get_by_role("link", name="Learning").click()
+    page.get_by_role("link", name="Profile & agent").click()
     expect(page.get_by_role("heading", name=re.compile("coming in a later update"))).to_be_visible()
 
 
