@@ -31,13 +31,22 @@ resilience to one provider failing, low load on job sites.
 *Alternative:* the agent scores everything before de-duplication (wastes most
 of the effort on repeats).
 
-### J2. De-duplication
+### J2. De-duplication: identity only, possible duplicates are a visible hint
 
-Key 1: provider + external id. Key 2: normalized company + normalized title +
-location, to catch the same job on two sites; the earliest sighting is kept as
-primary and other sources are attached as alternate links. Reposts of a posting
-the user dismissed stay hidden; reposts of a tracked posting add a timeline
-event.
+A posting is the same posting only when it has the same provider + external id
+or the same (normalized) URL. Nothing else merges postings: the same job on two
+sites is stored as two postings, each with its own row in the panel, so the
+user chooses which site to apply through. Found again in a later run, a posting
+counts as already seen; reposts of a posting the user dismissed stay hidden;
+reposts of a tracked posting add a timeline event.
+
+Possible duplicates are shown, never resolved automatically: a posting with
+the same normalized company and title, a publication date within 7 days of the
+other's (or an unknown date), that is part of the same search run or already
+tracked, gets a "possible duplicate" mark naming the other postings. The user
+and the agent decide what to do with them.
+*Alternative (rejected by the project owner):* merging by company + title +
+location with alternate links (hides the site choice from the user).
 
 ### J3. First-pass filter: hard constraints only, always with a reason
 

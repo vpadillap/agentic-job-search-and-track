@@ -89,3 +89,20 @@ def _write_pdf(path: Path, objects: list[bytes]) -> Path:
     ).encode()
     path.write_bytes(bytes(output))
     return path
+
+
+def provider_text(provider_id: str, **fields: object) -> str:
+    """A valid provider file (see providers/_template.md); `fields` override front matter."""
+    meta: dict[str, object] = {
+        "id": provider_id, "name": provider_id.title(), "kind": "jobs", "regions": "[PE]",
+        "access": "http", "requires_login": "false", "live_walk": "false",
+        "dependencies": "[]", "max_results_per_query": 50,
+        "min_seconds_between_requests": 3, "last_verified": "2026-11-01",
+    }
+    meta.update(fields)
+    head = "\n".join(f"{key}: {value}" for key, value in meta.items())
+    sections = ["Access method", "Search recipe", "Fields to extract",
+                "Application form questions", "Salary data", "Limits and etiquette",
+                "Known pitfalls"]
+    body = "\n\n".join(f"## {name}\n\nFictional instructions." for name in sections)
+    return f"---\n{head}\n---\n\n# {provider_id}\n\n{body}\n"

@@ -13,12 +13,16 @@ from jobtracker.core import (
     config,
     context,
     db,
+    demo,
     doctor,
     privacy,
     profile,
     providers,
     resume,
     rules,
+    salary,
+    scoring,
+    search,
     setup,
     skills,
     workspace,
@@ -216,6 +220,141 @@ def cmd_rules_import(args: argparse.Namespace) -> dict:
         return {"rules": rules.add_rules(conn, records)}  # type: ignore[arg-type]
 
 
+def cmd_providers_validate(args: argparse.Namespace) -> dict:
+    return providers.validate(file=Path(args.file) if args.file else None)
+
+
+def _language() -> str:
+    return str(config.load(get_paths().config)["language"])
+
+
+def cmd_run_start(args: argparse.Namespace) -> dict:
+    paths = get_paths()
+    with db.session(paths) as conn:
+        return search.start_run(conn, paths, args.days)
+
+
+def cmd_run_provider(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"run": search.record_provider(conn, args.run_id, args.provider, args.status,
+                                              args.reason, args.detail)}
+
+
+def cmd_run_finish(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"run": search.finish_run(conn, args.run_id)}
+
+
+def cmd_run_show(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        run_id = args.run_id or search.latest_run_id(conn)
+        if run_id is None:
+            raise JobTrackerError("not_found", "There are no search runs yet")
+        return {"run": search.summary(conn, run_id)}
+
+
+def cmd_run_list(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"runs": search.list_runs(conn)}
+
+
+def cmd_postings_import(args: argparse.Namespace) -> dict:
+    records = _read_json(args.file)
+    with db.session(get_paths()) as conn:
+        return search.import_postings(conn, args.run_id, records)
+
+
+def cmd_postings_filter(args: argparse.Namespace) -> dict:
+    records = _read_json(args.file)
+    with db.session(get_paths()) as conn:
+        return search.filter_postings(conn, args.run_id, records)
+
+
+def cmd_postings_flag(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"posting": search.add_flag(conn, args.id, args.text)}
+
+
+def cmd_postings_questions(args: argparse.Namespace) -> dict:
+    records = _read_json(args.file)
+    with db.session(get_paths()) as conn:
+        return {"posting": search.set_questions(conn, args.id, records)}
+
+
+def cmd_postings_list(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"postings": search.list_postings(conn, args.run_id, args.outcome)}
+
+
+def cmd_postings_show(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        item = search.posting(conn, args.id)
+        item["score"] = scoring.current(conn, args.id)
+        item["salary"] = salary.current(conn, args.id)
+        item["possible_duplicates"] = search.possible_duplicates(
+            conn, args.id, search.latest_run_id(conn))
+        return {"posting": item}
+
+
+def cmd_score_set(args: argparse.Namespace) -> dict:
+    submission = _read_json(args.file)
+    with db.session(get_paths()) as conn:
+        return {"score": scoring.set_score(conn, args.id, submission, run_id=args.run_id,
+                                           language=_language())}
+
+
+def cmd_score_show(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        result: dict = {"score": scoring.current(conn, args.id)}
+        if args.history:
+            result["history"] = scoring.history(conn, args.id)
+            result["at_application"] = scoring.at_application(conn, args.id)
+        return result
+
+
+def cmd_score_weights(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        if args.set:
+            return {"weights": scoring.set_weights(conn, _read_json(args.set), args.note)}
+        return {"weights": scoring.active_weights(conn),
+                "history": scoring.weights_history(conn)}
+
+
+def cmd_salary_evidence_add(args: argparse.Namespace) -> dict:
+    records = _read_json(args.file)
+    with db.session(get_paths()) as conn:
+        return {"evidence": salary.add_evidence(conn, records)}
+
+
+def cmd_salary_set(args: argparse.Namespace) -> dict:
+    submission = _read_json(args.file)
+    with db.session(get_paths()) as conn:
+        return {"salary": salary.set_suggestion(conn, args.id, submission)}
+
+
+def cmd_salary_none(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"salary": salary.mark_no_data(conn, args.id, args.checked)}
+
+
+def cmd_salary_lookup(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return salary.lookup(conn, args.id)
+
+
+def cmd_salary_show(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"salary": salary.current(conn, args.id)}
+
+
+def cmd_demo_seed(args: argparse.Namespace) -> dict:
+    return demo.seed(get_paths())
+
+
+def cmd_demo_clear(args: argparse.Namespace) -> dict:
+    return demo.clear(get_paths())
+
+
 def cmd_reset(args: argparse.Namespace) -> dict:
     return workspace.reset(get_paths(), args.confirm, args.label)
 
@@ -333,6 +472,103 @@ def build_parser() -> argparse.ArgumentParser:
         toggle = providers_sub.add_parser(action)
         toggle.add_argument("provider")
         toggle.set_defaults(run=cmd_providers_enable, enabled=enabled)
+
+    providers_validate = providers_sub.add_parser(
+        "validate", help="check provider files against the template")
+    providers_validate.add_argument("file", nargs="?", help="one file (default: all)")
+    providers_validate.set_defaults(run=cmd_providers_validate)
+
+    run_parser = sub.add_parser("run", help="search runs")
+    run_sub = run_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)
+    run_start = run_sub.add_parser("start", help="open a run: titles, providers, capture folder")
+    run_start.add_argument("--days", type=int, help="posting age window (default: profile)")
+    run_start.set_defaults(run=cmd_run_start)
+    run_provider = run_sub.add_parser("provider", help="record how a provider went")
+    run_provider.add_argument("run_id", type=int, metavar="run")
+    run_provider.add_argument("provider")
+    run_provider.add_argument("--status", required=True, choices=("ok", "skipped", "failed"))
+    run_provider.add_argument("--reason", choices=search.SKIP_REASONS)
+    run_provider.add_argument("--detail")
+    run_provider.set_defaults(run=cmd_run_provider)
+    run_finish = run_sub.add_parser("finish", help="close a run and get its summary")
+    run_finish.add_argument("run_id", type=int, metavar="run")
+    run_finish.set_defaults(run=cmd_run_finish)
+    run_show = run_sub.add_parser("show", help="summary of a run (default: latest)")
+    run_show.add_argument("run_id", type=int, nargs="?", metavar="run")
+    run_show.set_defaults(run=cmd_run_show)
+    run_sub.add_parser("list").set_defaults(run=cmd_run_list)
+
+    postings_parser = sub.add_parser("postings", help="postings found by searches")
+    postings_sub = postings_parser.add_subparsers(
+        dest="action", required=True, parser_class=_Parser)
+    postings_import = postings_sub.add_parser("import", help="store what providers returned")
+    postings_import.add_argument("run_id", type=int, metavar="run")
+    postings_import.add_argument("file", help="JSON list of postings, or - for stdin")
+    postings_import.set_defaults(run=cmd_postings_import)
+    postings_filter = postings_sub.add_parser("filter", help="record exclusions with reasons")
+    postings_filter.add_argument("run_id", type=int, metavar="run")
+    postings_filter.add_argument("file", help="JSON list of {posting_id, reason, detail}")
+    postings_filter.set_defaults(run=cmd_postings_filter)
+    postings_flag = postings_sub.add_parser("flag", help="add a visible doubt to a posting")
+    postings_flag.add_argument("id", type=int)
+    postings_flag.add_argument("--text", required=True)
+    postings_flag.set_defaults(run=cmd_postings_flag)
+    postings_questions = postings_sub.add_parser("questions", help="store form questions")
+    postings_questions.add_argument("id", type=int)
+    postings_questions.add_argument("file", help="JSON list of questions, or - for stdin")
+    postings_questions.set_defaults(run=cmd_postings_questions)
+    postings_list = postings_sub.add_parser("list", help="postings of a run (default: latest)")
+    postings_list.add_argument("--run", type=int, dest="run_id")
+    postings_list.add_argument("--outcome", choices=("new", "filtered", "duplicate", "seen"))
+    postings_list.set_defaults(run=cmd_postings_list)
+    postings_show = postings_sub.add_parser("show")
+    postings_show.add_argument("id", type=int)
+    postings_show.set_defaults(run=cmd_postings_show)
+
+    score_parser = sub.add_parser("score", help="alignment scores")
+    score_sub = score_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)
+    score_set = score_sub.add_parser("set", help="store a score (history is kept)")
+    score_set.add_argument("id", type=int, help="posting id")
+    score_set.add_argument("file", help="JSON with components, or - for stdin")
+    score_set.add_argument("--run", type=int, dest="run_id")
+    score_set.set_defaults(run=cmd_score_set)
+    score_show = score_sub.add_parser("show")
+    score_show.add_argument("id", type=int, help="posting id")
+    score_show.add_argument("--history", action="store_true")
+    score_show.set_defaults(run=cmd_score_show)
+    score_weights = score_sub.add_parser("weights", help="show or change component maximums")
+    score_weights.add_argument("--set", help="JSON file with new maximums (creates a version)")
+    score_weights.add_argument("--note")
+    score_weights.set_defaults(run=cmd_score_weights)
+
+    salary_parser = sub.add_parser("salary", help="salary evidence and suggestions")
+    salary_sub = salary_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)
+    evidence_parser = salary_sub.add_parser("evidence")
+    evidence_sub = evidence_parser.add_subparsers(
+        dest="evidence_action", required=True, parser_class=_Parser)
+    evidence_add = evidence_sub.add_parser("add", help="store salary reports with links")
+    evidence_add.add_argument("file", help="JSON list of evidence, or - for stdin")
+    evidence_add.set_defaults(run=cmd_salary_evidence_add)
+    salary_set = salary_sub.add_parser("set", help="suggest a salary from 2+ comparable sources")
+    salary_set.add_argument("id", type=int, help="posting id")
+    salary_set.add_argument("file", help="JSON {evidence_ids, criteria}, or - for stdin")
+    salary_set.set_defaults(run=cmd_salary_set)
+    salary_none = salary_sub.add_parser("none", help="record that there is no reliable data")
+    salary_none.add_argument("id", type=int, help="posting id")
+    salary_none.add_argument("--checked", action="append", required=True,
+                             help="a source or search that was tried (repeat)")
+    salary_none.set_defaults(run=cmd_salary_none)
+    salary_lookup = salary_sub.add_parser("lookup", help="recent evidence for the same job")
+    salary_lookup.add_argument("id", type=int, help="posting id")
+    salary_lookup.set_defaults(run=cmd_salary_lookup)
+    salary_show = salary_sub.add_parser("show")
+    salary_show.add_argument("id", type=int, help="posting id")
+    salary_show.set_defaults(run=cmd_salary_show)
+
+    demo_parser = sub.add_parser("demo", help="fictional data for trying the panel")
+    demo_sub = demo_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)
+    demo_sub.add_parser("seed", help="load fictional searches").set_defaults(run=cmd_demo_seed)
+    demo_sub.add_parser("clear", help="remove the demo data").set_defaults(run=cmd_demo_clear)
 
     rules_parser = sub.add_parser("rules", help="rules the agent obeys")
     rules_sub = rules_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import config, db, profile, providers, resume, rules, setup, skills
+from . import board, config, db, profile, providers, resume, rules, scoring, search, setup, skills
 from .paths import Paths
 from .workspace import is_initialized
 
@@ -47,8 +47,13 @@ def build(paths: Paths) -> dict:
             "base_resume": resume.current(conn, paths),
             "rescore_since": resume.rescore_since(conn),
             "rules": rules.list_rules(conn, "active", language),
-            "pending": [],
+            "pending": board.pending(conn),
             "providers": providers.with_state(conn),
+            "score_weights": scoring.active_weights(conn),
+            "latest_run": (
+                search.summary(conn, run_id)
+                if (run_id := search.latest_run_id(conn)) is not None else None
+            ),
             "commands": skills.command_list(language),
             "setup": setup_status,
             "panel": {

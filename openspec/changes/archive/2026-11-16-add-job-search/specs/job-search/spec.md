@@ -34,13 +34,19 @@ SHALL record which provider was skipped and why.
 - **THEN** the run completes with the other providers and reports that provider as skipped with the reason
 
 ### Requirement: De-duplication and memory of past decisions
-The search SHALL store each distinct posting once, SHALL recognize the same job
-found on several sites or in earlier runs, and SHALL NOT present dismissed or
-already tracked postings as new.
+The search SHALL treat postings as the same only when they share the provider's
+own posting id or the URL, SHALL recognize such postings found again in earlier
+runs, SHALL NOT present dismissed or already tracked postings as new, and SHALL
+keep the same job found on different sites as separate postings marked as
+possible duplicates.
+
+#### Scenario: Same URL found twice
+- **WHEN** a run returns a posting whose URL is already stored
+- **THEN** no second posting is stored and the sighting is counted as a duplicate or as already seen
 
 #### Scenario: Same job on two sites
-- **WHEN** two providers return the same job at the same company and location
-- **THEN** one posting is stored with both source links
+- **WHEN** two providers return a posting with the same company and title published within 7 days of each other
+- **THEN** both postings are stored separately and each is marked as a possible duplicate of the other
 
 #### Scenario: Previously dismissed
 - **WHEN** a search finds a posting the user dismissed earlier

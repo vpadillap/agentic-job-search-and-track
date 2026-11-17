@@ -1,0 +1,59 @@
+{
+  "_note": "Fictional provider captures for tests. Companies, postings, and links are invented.",
+  "postings": [
+    {
+      "provider": "alpha", "external_id": "A-100",
+      "url": "https://example.test/alpha/jobs/100",
+      "title": "Senior Data Engineer", "company": "Altamar Retail",
+      "location": "Lima", "country": "PE", "work_mode": "Remoto", "contract_type": "Tiempo completo",
+      "seniority": "Senior", "posted_ago": "hace 2 días",
+      "description": "Altamar Retail busca Senior Data Engineer.\n\nRequisitos\n• Python, SQL, Airflow.\n• Deseable: Kafka.\n\n  Texto con espacios   tal cual.",
+      "form_questions": [
+        {"text": "¿Años de experiencia con Airflow?", "kind": "number", "required": true},
+        {"text": "¿Expectativa salarial?", "kind": "text", "required": true},
+        {"text": "¿Disponibilidad?", "kind": "choice", "options": ["Inmediata", "15 días", "30 días"]},
+        {"text": "Enlace a tu portafolio", "kind": "text"}
+      ]
+    },
+    {
+      "provider": "beta", "external_id": "B-7",
+      "url": "https://example.test/beta/aviso/7",
+      "title": "Senior  Data Engineer", "company": "Altamar Retail S.A.C.",
+      "location": "Lima", "country": "PE", "work_mode": "remote", "contract_type": "full-time",
+      "seniority": "Senior", "posted_at": "{today-1}",
+      "description": "Same job, published on another site."
+    },
+    {
+      "provider": "alpha", "external_id": "A-101",
+      "url": "https://example.test/alpha/jobs/101",
+      "title": "Data Platform Engineer", "company": "Finlima S.A.",
+      "location": "San Isidro", "country": "PE", "work_mode": "Presencial", "contract_type": "full-time",
+      "seniority": "Senior", "posted_at": "{today-3}",
+      "description": "Onsite only, five days a week."
+    },
+    {
+      "provider": "beta", "external_id": "B-8",
+      "url": "https://example.test/beta/aviso/8",
+      "title": "Data Engineer", "company": "Vértiz Salud",
+      "location": "Surco", "country": "PE", "work_mode": "hybrid", "contract_type": "full-time",
+      "seniority": "Semi Senior", "posted_ago": "yesterday",
+      "description": "Two or three years of experience."
+    },
+    {
+      "provider": "alpha", "external_id": "A-102",
+      "url": "https://example.test/alpha/jobs/102",
+      "title": "Senior Data Engineer", "company": "Kallpa Energía",
+      "location": "Lima", "country": "PE", "work_mode": "remote", "contract_type": "contractor",
+      "seniority": "Senior", "posted_at": "{today-12}",
+      "description": "Too old for the default window."
+    },
+    {
+      "provider": "alpha", "external_id": "A-100-again",
+      "url": "https://EXAMPLE.test/alpha/jobs/100/#apply",
+      "title": "Senior Data Engineer", "company": "Altamar Retail",
+      "location": "Lima", "country": "PE", "work_mode": "remote", "contract_type": "full-time",
+      "seniority": "Senior", "posted_ago": "2 days ago",
+      "description": "The same URL, listed again under another title query."
+    }
+  ]
+}

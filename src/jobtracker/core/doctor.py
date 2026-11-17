@@ -117,13 +117,25 @@ def run(paths: Paths) -> dict:
         provider_id = str(provider["id"])
         if enabled is not None and provider_id not in enabled:
             continue
-        dependencies = provider.get("dependencies") or []
-        missing = [d for d in dependencies if not _tool_available(str(d))]  # type: ignore[union-attr]
-        if missing:
+        if not provider.get("valid", True):
             checks.append(_check(
-                f"provider:{provider_id}", "fail", f"missing: {', '.join(map(str, missing))}",
-                f"Install the tools listed in providers/{provider['file']}, or disable the "
-                f"provider.",
+                f"provider:{provider_id}", "warn",
+                f"invalid provider file: {'; '.join(map(str, provider['problems']))}",  # type: ignore[call-overload]
+                f"Fix providers/{provider['file']} (see providers/_template.md). Searches skip "
+                f"it until then.",
+            ))
+            continue
+        dependencies = provider.get("dependencies") or []
+        missing = [str(d) for d in dependencies if not _tool_available(str(d))]  # type: ignore[union-attr]
+        if missing:
+            how = "; ".join(
+                f"{tool}: {providers.install_hint(tool, str(provider['file']))}" for tool in missing
+            )
+            checks.append(_check(
+                f"provider:{provider_id}", "fail",
+                f"{provider.get('name', provider_id)} needs {', '.join(missing)}, which is not "
+                f"installed",
+                f"Install it ({how}), or disable the provider.",
             ))
         else:
             checks.append(_check(f"provider:{provider_id}", "pass", "requirements available"))

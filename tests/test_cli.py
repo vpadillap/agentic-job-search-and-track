@@ -9,6 +9,7 @@ from contextlib import closing
 from pathlib import Path
 
 from jobtracker.core import db, doctor
+from tests.helpers import provider_text
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -81,7 +82,7 @@ def test_doctor_reports_missing_provider_tools(workspace, cli, tmp_path, monkeyp
     providers_dir = tmp_path / "providers"
     providers_dir.mkdir()
     (providers_dir / "demo.md").write_text(
-        "---\nid: demo\ndependencies: [surely-not-installed-tool]\n---\n", encoding="utf-8")
+        provider_text("demo", dependencies="[surely-not-installed-tool]"), encoding="utf-8")
     monkeypatch.setattr("jobtracker.core.providers.providers_dir", lambda: providers_dir)
     _, out, _ = cli("doctor")
     check = next(c for c in out["checks"] if c["id"] == "provider:demo")

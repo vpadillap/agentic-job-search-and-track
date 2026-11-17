@@ -1,18 +1,57 @@
-"""Provider instruction files (providers/<id>.md): front matter only, for now."""
+"""Provider instruction files (providers/<id>.md) and each user's provider state.
+
+A provider file has a flat front matter block and a fixed set of sections (see
+providers/_template.md). Adding a valid file is all it takes to add a provider.
+"""
 from __future__ import annotations
 
+import os
 import re
+from datetime import date
 from pathlib import Path
 
 from .db import bump_changes, now_iso
 from .errors import JobTrackerError
 from .paths import repo_root
 
+PROVIDERS_DIR_ENV = "JOBTRACKER_PROVIDERS_DIR"
 SKIPPED_FILES = {"readme.md", "_template.md"}
+KINDS = ("jobs", "salary", "both")
+ACCESS_METHODS = ("chrome-extension", "playwright", "scrapling", "http", "web-search")
+REQUIRED_FIELDS: dict[str, type | tuple[type, ...]] = {
+    "id": str,
+    "name": str,
+    "kind": str,
+    "regions": list,
+    "access": str,
+    "requires_login": bool,
+    "live_walk": bool,
+    "dependencies": list,
+    "max_results_per_query": int,
+    "min_seconds_between_requests": int,
+    "last_verified": str,
+}
+REQUIRED_SECTIONS = (
+    "Access method",
+    "Search recipe",
+    "Fields to extract",
+    "Application form questions",
+    "Limits and etiquette",
+    "Known pitfalls",
+)
+SALARY_SECTION = "Salary data"
+
+# How to install tools that provider files commonly depend on.
+INSTALL_HINTS = {
+    "playwright": "pip install playwright, then: python -m playwright install chromium",
+    "scrapling": "pip install scrapling",
+    "chrome-extension": "Install Claude in Chrome and connect it to Claude Code",
+}
 
 
 def providers_dir() -> Path:
-    return repo_root() / "providers"
+    override = os.environ.get(PROVIDERS_DIR_ENV)
+    return Path(override) if override else repo_root() / "providers"
 
 
 def _parse_value(raw: str) -> object:
@@ -41,19 +80,91 @@ def parse_front_matter(text: str) -> dict[str, object]:
     return data
 
 
+def _sections(text: str) -> set[str]:
+    return {match.group(1).strip().casefold()
+            for match in re.finditer(r"^##\s+(.+?)\s*(?:\(.*\))?\s*$", text, re.M)}
+
+
+def validate_text(text: str, file_name: str) -> list[str]:
+    """Every problem in one provider file, as readable messages (empty when valid)."""
+    problems: list[str] = []
+    meta = parse_front_matter(text)
+    if not meta:
+        return ["missing front matter (the block between the leading '---' lines)"]
+    for field, expected in REQUIRED_FIELDS.items():
+        if field not in meta:
+            problems.append(f"missing field '{field}'")
+        elif not isinstance(meta[field], expected) or (
+            expected is int and isinstance(meta[field], bool)
+        ):
+            problems.append(f"field '{field}' has the wrong type")
+    stem = Path(file_name).stem
+    if "id" in meta and meta["id"] != stem:
+        problems.append(f"field 'id' must match the file name ('{stem}')")
+    if "kind" in meta and meta["kind"] not in KINDS:
+        problems.append(f"field 'kind' must be one of: {', '.join(KINDS)}")
+    if "access" in meta and meta["access"] not in ACCESS_METHODS:
+        problems.append(f"field 'access' must be one of: {', '.join(ACCESS_METHODS)}")
+    if isinstance(meta.get("last_verified"), str):
+        try:
+            date.fromisoformat(str(meta["last_verified"]))
+        except ValueError:
+            problems.append("field 'last_verified' must be a date like 2026-11-15")
+    for field in ("max_results_per_query", "min_seconds_between_requests"):
+        value = meta.get(field)
+        if isinstance(value, int) and not isinstance(value, bool) and value < 0:
+            problems.append(f"field '{field}' must not be negative")
+    found = _sections(text)
+    required = list(REQUIRED_SECTIONS)
+    if meta.get("kind") in ("salary", "both"):
+        required.append(SALARY_SECTION)
+    for section in required:
+        if section.casefold() not in found:
+            problems.append(f"missing section '## {section}'")
+    return problems
+
+
 def list_providers(directory: Path | None = None) -> list[dict[str, object]]:
+    """Every provider file with its front matter and whether it is valid."""
     directory = directory or providers_dir()
-    found = []
+    found: list[dict[str, object]] = []
     if not directory.is_dir():
         return found
     for path in sorted(directory.glob("*.md")):
         if path.name.lower() in SKIPPED_FILES:
             continue
-        meta = parse_front_matter(path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8")
+        meta = parse_front_matter(text)
         meta.setdefault("id", path.stem)
+        meta.setdefault("name", path.stem)
         meta["file"] = path.name
+        problems = validate_text(text, path.name)
+        meta["valid"] = not problems
+        meta["problems"] = problems
         found.append(meta)
     return found
+
+
+def validate(directory: Path | None = None, file: Path | None = None) -> dict:
+    """Validate one file or every provider file."""
+    if file is not None:
+        if not file.is_file():
+            raise JobTrackerError("not_found", f"There is no file at '{file}'")
+        problems = validate_text(file.read_text(encoding="utf-8"), file.name)
+        results = [{"file": file.name, "valid": not problems, "problems": problems}]
+    else:
+        results = [
+            {"file": p["file"], "valid": p["valid"], "problems": p["problems"]}
+            for p in list_providers(directory)
+        ]
+    return {"valid": all(r["valid"] for r in results), "files": results}
+
+
+def install_hint(tool: str, provider_file: str) -> str:
+    hint = INSTALL_HINTS.get(tool)
+    if hint:
+        return hint
+    return f"see the dependencies section of providers/{provider_file}"
 
 
 def with_state(conn) -> list[dict[str, object]]:
@@ -66,6 +177,7 @@ def with_state(conn) -> list[dict[str, object]]:
             **provider,
             "enabled": bool(row["enabled"]) if row else True,
             "last_status": row["last_status"] if row else None,
+            "last_error": row["last_error"] if row else None,
             "last_run_at": row["last_run_at"] if row else None,
         })
     return result
@@ -82,3 +194,15 @@ def set_enabled(conn, provider_id: str, enabled: bool) -> list[dict[str, object]
     )
     bump_changes(conn)
     return with_state(conn)
+
+
+def record_result(conn, provider_id: str, status: str, error: str | None, when: str) -> None:
+    """Remember how the last use of a provider went (no change-counter bump)."""
+    conn.execute(
+        "INSERT INTO providers_state (provider_id, enabled, last_status, last_error,"
+        " last_run_at, updated_at) VALUES (?, 1, ?, ?, ?, ?)"
+        " ON CONFLICT(provider_id) DO UPDATE SET last_status = excluded.last_status,"
+        " last_error = excluded.last_error, last_run_at = excluded.last_run_at,"
+        " updated_at = excluded.updated_at",
+        (provider_id, status, error, when, when),
+    )
