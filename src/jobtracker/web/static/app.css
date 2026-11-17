@@ -287,3 +287,9 @@ button.header-chip { color: var(--header-text); font: inherit; font-size: 13px; 
 .icon-btn { flex: none; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--neutral-fg); }
 .alternative { display: flex; flex-direction: column; gap: 6px; padding: 8px; margin-top: 6px; border: 1px dashed var(--line-strong); border-radius: 6px; }
 .alternative .btn { align-self: flex-start; }
+
+/* ── status chip as the status picker ─────────────────────────────────── */
+button.status-button { display: inline-flex; align-items: center; gap: 4px; border: 1px solid transparent; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+button.status-button:hover, button.status-button[aria-expanded="true"] { border-color: currentColor; }
+button.status-button:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+button.status-button .chevron { opacity: .7; }

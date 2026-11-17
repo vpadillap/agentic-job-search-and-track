@@ -282,7 +282,6 @@
   "col.next": "Próximo paso",
   "row.delta": "{delta} con tu CV enviado",
   "row.deltaOther": "{delta} desde el último score",
-  "row.addStatusTag": "Cambiar estado o añadir etiqueta",
   "doc.resumeSent": "CV enviado",
   "doc.resumeReady": "CV adaptado listo",
   "doc.resumeMissing": "Falta CV adaptado",
@@ -458,5 +457,7 @@
   "detail.openOn": "Abrir aviso · {site}",
   "detail.readMore": "Leer la descripción completa",
   "detail.readLess": "Mostrar menos",
-  "detail.noDescription": "Cargando la descripción…"
+  "detail.noDescription": "Cargando la descripción…",
+  "row.changeStatus": "Estado: {name}. Cambiar estado",
+  "row.addTag": "Añadir una etiqueta"
 }

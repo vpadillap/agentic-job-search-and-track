@@ -58,32 +58,26 @@ function sortValue(app, key) {
 
 // ── small pieces ──────────────────────────────────────────────────────────
 
-function StatusChip({ status }) {
-  const custom = !status.builtin;
-  return html`<span class=${'status-chip stage-' + status.stage + (custom ? ' custom' : '')}>${status.name}</span>`;
-}
-
 function StatusTagMenu({ app, statuses, onStatus, onTags }) {
   const { t } = useUi();
   const [name, setName] = useState('');
   const [stage, setStage] = useState(app.stage);
   const [tag, setTag] = useState('');
+  const status = app.status;
+  const chipClass = 'status-chip stage-' + status.stage + (status.builtin ? '' : ' custom') + ' status-button';
   return html`
     <div class="tags">
-      <${StatusChip} status=${app.status} />
-      ${app.tags.map((item) => html`<span class="tag-chip">${item}
-        <button type="button" class="tag-remove" aria-label=${t('tags.remove', { tag: item })}
-          onClick=${() => onTags(app, [], [item])}>×</button></span>`)}
-      <${Menu} label=${html`<svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>`}
-        buttonClass="add-chip" menuLabel=${t('row.addStatusTag')}>
+      <${Menu} buttonClass=${chipClass} menuLabel=${t('row.changeStatus', { name: status.name })}
+        label=${html`${status.name}<svg class="icon chevron" width="12" height="12" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
+          aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>`}>
         ${(close) => html`
           <fieldset>
             <legend>${t('status.legend')}</legend>
             ${statuses.map((s) => html`
               <label>
-                <input type="radio" name=${'status-' + app.job_id} checked=${s.id === app.status.id}
-                  onChange=${() => onStatus([app.job_id], s.id, null, s.name)} />
+                <input type="radio" name=${'status-' + app.job_id} checked=${s.id === status.id}
+                  onChange=${() => { onStatus([app.job_id], s.id, null, s.name); close(); }} />
                 <span class=${'stage-dot stage-' + s.stage} aria-hidden="true"></span>${s.name}
               </label>`)}
           </fieldset>
@@ -103,7 +97,15 @@ function StatusTagMenu({ app, statuses, onStatus, onTags }) {
               ${STAGES.map((s) => html`<option value=${s}>${t('stage.' + s)}</option>`)}
             </select>
             <button type="submit" class="btn btn-sm btn-dark" disabled=${!name.trim()}>${t('status.create')}</button>
-          </form>
+          </form>`}
+      </${Menu}>
+      ${app.tags.map((item) => html`<span class="tag-chip">${item}
+        <button type="button" class="tag-remove" aria-label=${t('tags.remove', { tag: item })}
+          onClick=${() => onTags(app, [], [item])}>×</button></span>`)}
+      <${Menu} label=${html`<svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>`}
+        buttonClass="add-chip" menuLabel=${t('row.addTag')}>
+        ${() => html`
           <form class="menu-form" onSubmit=${(e) => {
             e.preventDefault();
             if (!tag.trim()) return;

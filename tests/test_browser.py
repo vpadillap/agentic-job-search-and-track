@@ -431,22 +431,56 @@ def test_funnel_card_filters_by_stage(seeded, page):
 def test_inline_status_change_persists(seeded, page):
     open_board(page, "applications")
     quipu = app_row(page, "Quipu Analytics")
-    quipu.get_by_role("button", name="Change status or add a tag").click()
-    page.get_by_role("radio", name="Applied").check()
+    quipu.get_by_role("button", name="Status: New. Change status").click()
+    page.get_by_role("radio", name="Applied").click()      # picking closes the list
     expect(app_row(page, "Quipu Analytics").locator(".status-chip")).to_have_text("Applied")
     page.reload()
     expect(app_row(page, "Quipu Analytics").locator(".status-chip")).to_have_text("Applied")
 
 
+def test_status_opens_from_the_status_itself(seeded, page):
+    open_board(page, "applications")
+    chip = app_row(page, "Quipu Analytics").locator(".status-chip")
+    expect(chip).to_have_attribute("aria-expanded", "false")
+    chip.click()                                   # the visible status, not a separate icon
+    expect(chip).to_have_attribute("aria-expanded", "true")
+    expect(page.get_by_role("radio", name="New")).to_be_checked()
+    expect(page.get_by_role("textbox", name="New status")).to_be_visible()
+    expect(page.get_by_role("textbox", name="Add tag")).to_have_count(0)
+    page.keyboard.press("Escape")
+    expect(chip).to_be_focused()
+    page.keyboard.press("Enter")                   # keyboard opens it too
+    expect(page.get_by_role("radio", name="Applied")).to_be_visible()
+
+
+def test_tags_have_their_own_control(seeded, page):
+    open_board(page, "applications")
+    app_row(page, "Quipu Analytics").get_by_role("button", name="Add a tag").click()
+    expect(page.get_by_role("textbox", name="Add tag")).to_be_visible()
+    expect(page.get_by_role("radio")).to_have_count(0)
+    expect(page.get_by_role("textbox", name="New status")).to_have_count(0)
+
+
+def test_status_control_in_spanish(seeded, page):
+    open_board(page, "applications")
+    page.get_by_role("button", name="ES", exact=True).click()
+    app_row(page, "Quipu Analytics").get_by_role(
+        "button", name="Estado: Nuevo. Cambiar estado").click()
+    expect(page.get_by_role("radio", name="Postulado")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(app_row(page, "Quipu Analytics").get_by_role(
+        "button", name="Añadir una etiqueta")).to_be_visible()
+    page.get_by_role("button", name="EN", exact=True).click()
+
+
 def test_inline_status_creation_and_tags(seeded, page):
     open_board(page, "applications")
-    menu = "Change status or add a tag"
-    app_row(page, "Finlima S.A.").get_by_role("button", name=menu).click()
+    app_row(page, "Finlima S.A.").get_by_role("button", name="Status: New. Change status").click()
     page.get_by_role("textbox", name="New status").fill("On hold")
     page.get_by_label("Stage").select_option("applied")
     page.get_by_role("button", name="Create and apply").click()
     expect(app_row(page, "Finlima S.A.").locator(".status-chip")).to_have_text("On hold")
-    app_row(page, "Finlima S.A.").get_by_role("button", name=menu).click()
+    app_row(page, "Finlima S.A.").get_by_role("button", name="Add a tag").click()
     page.get_by_role("textbox", name="Add tag").fill("Remote friendly")
     page.get_by_role("button", name="Add tag", exact=True).click()
     expect(app_row(page, "Finlima S.A.").locator(".tag-chip")).to_contain_text("Remote friendly")

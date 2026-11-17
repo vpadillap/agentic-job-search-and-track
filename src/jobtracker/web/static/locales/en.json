@@ -282,7 +282,6 @@
   "col.next": "Next step",
   "row.delta": "{delta} with your sent resume",
   "row.deltaOther": "{delta} since last score",
-  "row.addStatusTag": "Change status or add a tag",
   "doc.resumeSent": "Resume sent",
   "doc.resumeReady": "Tailored resume ready",
   "doc.resumeMissing": "No tailored resume",
@@ -458,5 +457,7 @@
   "detail.openOn": "Open posting · {site}",
   "detail.readMore": "Read the full description",
   "detail.readLess": "Show less",
-  "detail.noDescription": "Loading the description…"
+  "detail.noDescription": "Loading the description…",
+  "row.changeStatus": "Status: {name}. Change status",
+  "row.addTag": "Add a tag"
 }

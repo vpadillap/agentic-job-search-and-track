@@ -24,21 +24,6 @@ change (or a decision to drop it). Nothing here is scheduled.
 - **Check also:** `add-learning-loop` (not built yet) before it is applied, so
   it reads statuses, not stages.
 
-## Applications board: changing a status is hard to find
-
-- **Found:** 2026-11-17, by the project owner ("the user cannot edit the status
-  of tracked items").
-- **Current behavior:** status editing works (covered by
-  `test_inline_status_change_persists` and
-  `test_inline_status_creation_and_tags`), but the only entry point is a small
-  "+" button after the status chip. Its accessible name is "Change status or
-  add a tag", but visually it reads as "add". Clicking the status chip itself
-  does nothing.
-- **Spec:** `openspec/specs/applications-board/spec.md`, requirement "Inline
-  editing" ("the user picks a new status in a row").
-- **Possible direction (to decide in its change):** make the status chip the
-  control that opens the status picker, and keep "+" for tags only.
-
 ## Browser tests are skipped silently on local machines without Chromium
 
 - **Found:** 2026-11-17. A local `uv run pytest` reported 46 skipped tests:
