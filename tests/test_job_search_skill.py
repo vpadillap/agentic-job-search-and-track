@@ -56,3 +56,9 @@ def test_skill_explains_the_work_mode_and_its_detail():
     assert "reading the title and the complete description" in text
     assert "work mode is not stated is never excluded" in text
     assert "`jt postings work-mode" in text
+
+
+def test_skill_explains_how_to_turn_a_site_on_without_doing_it():
+    text = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+    assert "job sites start switched off" in text
+    assert "Never turn\na site on yourself" in text

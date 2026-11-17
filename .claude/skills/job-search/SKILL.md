@@ -50,9 +50,12 @@ output: `run_id`, `published_since` (ignore postings published before this
 date), `titles` (the included titles: search only these), `capture_folder`
 (raw captures go here), and `providers`.
 
-If `to_search` is empty, tell the user that no job site is enabled or
-available yet (each site is added by its own update), finish the run with
-`jt run finish <run_id>`, and stop.
+If `to_search` is empty, finish the run with `jt run finish <run_id>` and
+stop. Tell the user why: if `providers` lists sites with status `disabled`,
+name them and say that job sites start switched off and are turned on in
+`/setup` or with the job-site switches in the panel's Search tab. Never turn
+a site on yourself. If there are no sites at all, say that none is available
+yet (each site is added by its own update).
 
 ## 3. Search each provider
 

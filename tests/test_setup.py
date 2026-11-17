@@ -231,7 +231,9 @@ def test_provider_selection(workspace, cli, tmp_path, monkeypatch):
     monkeypatch.setattr("jobtracker.core.providers.providers_dir", lambda: folder)
 
     _, out, _ = cli("providers", "list")
-    assert [(p["id"], p["enabled"]) for p in out["providers"]] == [("demo", True)]
+    assert [(p["id"], p["enabled"]) for p in out["providers"]] == [("demo", False)]
+    _, out, _ = cli("providers", "enable", "demo")
+    assert out["providers"][0]["enabled"] is True
     _, out, _ = cli("providers", "disable", "demo")
     assert out["providers"][0]["enabled"] is False
     _, context, _ = cli("context")

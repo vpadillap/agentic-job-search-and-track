@@ -24,7 +24,7 @@ The project is being built in stages. What works today:
 | First-run setup (`/setup`): requirements, language, resume, questionnaire, target titles, preferences | Works |
 | Private workspace, database, `jobtracker` command-line interface, privacy guard | Works |
 | Panel: Search tab (results, filters, score and salary detail, track and dismiss; work mode with how the posting describes it, which you can correct) | Works |
-| Job search (`/job-search`), scoring, salary evidence, job-site recipe format | Works, but no job site is added yet: each one arrives with its own update |
+| Job search (`/job-search`), scoring, salary evidence, job-site recipe format | Works; job sites: LinkedIn (read logged out). Each new site arrives with its own update, switched off |
 | Applications tab, statuses, uploads | Works |
 | Tailored resumes, cover letters, form answers (`/prepare-documents`, `/form-answers`) | Works |
 | Learning: insights, lessons, predictions, recommendations (`/analyze-results`) | Planned |
@@ -84,7 +84,7 @@ Spanish command names as well (see the Spanish section).
 | Command | What it does | State |
 |---|---|---|
 | `/setup` | First run, and later changes to your profile | Works |
-| `/job-search days=7` | Searches the enabled job sites and updates the panel | Works (no job sites yet) |
+| `/job-search days=7` | Searches the enabled job sites and updates the panel | Works (LinkedIn) |
 | `/prepare-documents pending` | Tailored resumes, cover letters, and form answers for tracked jobs that lack them (or `ids=J0007,J0012`) | Works |
 | `/form-answers ids=J0007` | Answers to a posting's application form | Works |
 | `/analyze-results` | Reviews your results and proposes adjustments | Planned |
@@ -121,8 +121,12 @@ them as rules and follows them from then on.
   setup.
 - Nothing is deleted by the tool. A reset moves your data into
   `user-data/archive/`.
-- How each job site is read is defined per site, and every site can be
-  switched off. Be aware of each site's terms of use.
+- How each job site is read is defined per site. Every site starts switched
+  off: you choose which ones to use in `/setup` or in the Search tab, so an
+  update never starts searching a new site on its own. Be aware of each
+  site's terms of use; for example, LinkedIn is read logged out, never with
+  your account, but its terms forbid automated access and it may throttle
+  your connection for a while.
 
 The exact layout of the private folder is documented in
 [`docs/workspace-layout.md`](docs/workspace-layout.md).
@@ -204,8 +208,9 @@ El proyecto se construye por etapas. Hoy funciona la configuración inicial
 comandos, la protección de privacidad, las pestañas Búsqueda y Postulaciones
 del panel (estados, etiquetas, CV enviado, historial; la modalidad con el detalle
 que da el aviso, que puedes corregir) y la búsqueda
-(`/buscar-empleos`) con puntaje y evidencia salarial; aún no hay portales de
-empleo: cada uno llega con su propia actualización. Los documentos y el
+(`/buscar-empleos`) con puntaje y evidencia salarial. El primer portal es
+LinkedIn (leído sin iniciar sesión); cada portal nuevo llega con su propia
+actualización, apagado hasta que lo actives. Los documentos y el
 aprendizaje están especificados en
 [`openspec/changes/`](openspec/changes/) y en desarrollo.
 
@@ -240,7 +245,7 @@ quedaste.
 | Comando | En inglés | Qué hace | Estado |
 |---|---|---|---|
 | `/configurar` | `/setup` | Primera vez, y cambios posteriores a tu perfil | Funciona |
-| `/buscar-empleos dias=7` | `/job-search days=7` | Busca en los proveedores activos y actualiza el panel | Funciona (aún sin portales) |
+| `/buscar-empleos dias=7` | `/job-search days=7` | Busca en los proveedores activos y actualiza el panel | Funciona (LinkedIn) |
 | `/preparar-documentos pendientes` | `/prepare-documents pending` | CV, cartas y respuestas de formulario que falten en las vacantes en seguimiento (o `ids=J0007,J0012`) | Funciona |
 | `/formulario ids=J0007` | `/form-answers ids=J0007` | Respuestas del formulario de una vacante | Funciona |
 | `/analizar-resultados` | `/analyze-results` | Revisa tus resultados y propone ajustes | Planificado |
@@ -280,6 +285,10 @@ guarda como reglas y las respeta desde entonces.
   define la variable de entorno `JOBTRACKER_HOME` antes de configurar.
 - La herramienta no borra nada. Un reinicio mueve tus datos a
   `user-data/archive/`.
+- Cada portal de empleo empieza apagado: eliges cuáles usar en `/configurar`
+  o en la pestaña Búsqueda. LinkedIn se lee sin iniciar sesión, nunca con tu
+  cuenta, pero sus condiciones prohíben el acceso automatizado y puede limitar
+  tu conexión por un tiempo.
 
 ## Problemas frecuentes
 

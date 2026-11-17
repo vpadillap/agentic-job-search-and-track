@@ -72,4 +72,7 @@ def searchable(workspace, cli, providers_dir) -> Paths:
     code, out, _ = cli("profile", "set", str(path))
     assert code == 0, out
     path.unlink()
+    for provider_id in ("alpha", "beta", "gamma"):  # job sites start switched off
+        code, out, _ = cli("providers", "enable", provider_id)
+        assert code == 0, out
     return workspace

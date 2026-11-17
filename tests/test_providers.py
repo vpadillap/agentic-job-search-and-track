@@ -5,7 +5,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from jobtracker.core import doctor
+from jobtracker.core import db, doctor
 from tests.helpers import provider_text
 
 TEMPLATE = Path(__file__).resolve().parents[1] / "providers" / "_template.md"
@@ -50,11 +50,13 @@ def test_a_new_valid_file_appears_in_the_list(workspace, cli, providers_dir):
     (providers_dir / "delta.md").write_text(provider_text("delta"), encoding="utf-8")
     _, out, _ = cli("providers", "list")
     listed = {p["id"]: p for p in out["providers"]}
-    assert listed["delta"]["valid"] is True and listed["delta"]["enabled"] is True
+    assert listed["delta"]["valid"] is True
+    assert listed["delta"]["enabled"] is False  # arrives switched off: the user decides
 
 
 def test_invalid_files_are_listed_but_skipped_by_searches(searchable, cli, providers_dir):
     (providers_dir / "broken.md").write_text("---\nid: broken\n---\n", encoding="utf-8")
+    assert cli("providers", "enable", "broken")[0] == 0
     _, out, _ = cli("run", "start")
     broken = next(p for p in out["providers"] if p["id"] == "broken")
     assert broken["status"] == "skipped" and broken["reason"] == "invalid_file"
@@ -92,3 +94,71 @@ def test_disabled_providers_are_not_checked(workspace, cli, providers_dir, monke
     cli("providers", "disable", "alpha")
     _, out, _ = cli("doctor")
     assert "provider:alpha" not in {c["id"] for c in out["checks"]}
+
+
+# ── job sites are off until the user turns them on ────────────────────────
+
+def test_a_fresh_workspace_lists_every_provider_switched_off(workspace, cli, providers_dir):
+    _, out, _ = cli("providers", "list")
+    assert {p["id"]: p["enabled"] for p in out["providers"]} == {
+        "alpha": False, "beta": False, "gamma": False}
+
+
+def test_providers_never_chosen_are_not_searched_until_enabled(searchable, cli):
+    with db.session(searchable) as conn:  # as if the user never chose any site
+        conn.execute("DELETE FROM providers_state")
+    _, run, _ = cli("run", "start")
+    assert run["to_search"] == []
+    assert {p["id"]: p["status"] for p in run["providers"]} == {
+        "alpha": "disabled", "beta": "disabled", "gamma": "disabled"}
+    cli("run", "finish", str(run["run_id"]))
+    with db.session(searchable) as conn:  # finishing a run turns nothing on
+        assert conn.execute("SELECT COUNT(*) FROM providers_state WHERE enabled = 1"
+                            ).fetchone()[0] == 0
+
+    assert cli("providers", "enable", "beta")[0] == 0
+    _, run, _ = cli("run", "start")
+    assert run["to_search"] == ["beta"]
+
+
+def test_a_stored_off_stays_off(searchable, cli):
+    cli("providers", "disable", "alpha")
+    _, run, _ = cli("run", "start")
+    cli("run", "provider", str(run["run_id"]), "beta", "--status", "ok")
+    cli("run", "finish", str(run["run_id"]))
+    _, out, _ = cli("providers", "list")
+    assert {p["id"]: p["enabled"] for p in out["providers"]}["alpha"] is False
+
+
+def test_setup_turns_on_the_chosen_sites():
+    setup = (TEMPLATE.parents[1] / ".claude" / "skills" / "setup" / "SKILL.md").read_text(
+        encoding="utf-8")
+    step = setup[setup.index("## 8. Job sites"):setup.index("## 9.")]
+    assert "`jt providers enable <id>` for each one" in step
+    assert "starts switched off" in step
+    assert "disable <id>` for those not wanted" not in step
+    assert "terms-of-use risk" in step
+
+
+# ── the repository's provider files ───────────────────────────────────────
+
+def test_every_provider_file_in_the_repository_is_valid():
+    from jobtracker.core import providers
+
+    result = providers.validate(TEMPLATE.parent)
+    assert result["valid"], result
+    assert "linkedin.md" in {f["file"] for f in result["files"]}
+
+
+def test_linkedin_is_read_logged_out_over_http():
+    from jobtracker.core import providers
+
+    listed = {p["id"]: p for p in providers.list_providers(TEMPLATE.parent)}
+    linkedin = listed["linkedin"]
+    assert (linkedin["access"], linkedin["requires_login"], linkedin["live_walk"]) == (
+        "http", False, False)
+    assert linkedin["dependencies"] == ["curl"]
+    text = (TEMPLATE.parent / "linkedin.md").read_text(encoding="utf-8")
+    for forbidden in ("Playwright", "the browser extension", "jobs/search"):
+        assert forbidden in text.split("## Search recipe")[0]  # named as forbidden
+    assert "throttles or blocks requests from the user's IP address" in text

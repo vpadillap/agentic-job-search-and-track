@@ -166,12 +166,16 @@ the user says so.
    version yet and that searching will become available with them; continue.
 3. Otherwise show the providers whose `regions` cover the user's country (or
    `global`), with a one-line note on how each is accessed (`access`,
-   `requires_login`, `live_walk`). Ask which to use.
-4. `jt providers disable <id>` for those not wanted.
+   `requires_login`, `live_walk`). Read each one's file
+   (`providers/<id>.md`, section `## Limits and etiquette`) and tell the user
+   any terms-of-use risk it states, in a sentence. Ask which to use.
+4. Every job site starts switched off. `jt providers enable <id>` for each one
+   the user picks; leave the others off. A site added later by an update also
+   arrives off, so nothing is searched without the user's choice.
 5. For each enabled provider with `dependencies`, tell the user what will be
    installed, ask, install, and confirm with `jt doctor` that its
    `provider:<id>` check passes. If the user declines or installation fails,
-   disable that provider and say so.
+   run `jt providers disable <id>` and say so.
 
 ## 9. Preferences (`preferences`)
 

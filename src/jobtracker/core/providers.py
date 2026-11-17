@@ -168,14 +168,18 @@ def install_hint(tool: str, provider_file: str) -> str:
 
 
 def with_state(conn) -> list[dict[str, object]]:
-    """Every provider file with this user's state (enabled unless switched off)."""
+    """Every provider file with this user's state.
+
+    A provider is off until the user turns it on, so a site added by an update of the
+    repository never runs without the user's choice.
+    """
     state = {row["provider_id"]: row for row in conn.execute("SELECT * FROM providers_state")}
     result = []
     for provider in list_providers():
         row = state.get(str(provider["id"]))
         result.append({
             **provider,
-            "enabled": bool(row["enabled"]) if row else True,
+            "enabled": bool(row["enabled"]) if row else False,
             "last_status": row["last_status"] if row else None,
             "last_error": row["last_error"] if row else None,
             "last_run_at": row["last_run_at"] if row else None,
@@ -197,10 +201,13 @@ def set_enabled(conn, provider_id: str, enabled: bool) -> list[dict[str, object]
 
 
 def record_result(conn, provider_id: str, status: str, error: str | None, when: str) -> None:
-    """Remember how the last use of a provider went (no change-counter bump)."""
+    """Remember how the last use of a provider went (no change-counter bump).
+
+    Never turns a provider on: a missing row is stored as off.
+    """
     conn.execute(
         "INSERT INTO providers_state (provider_id, enabled, last_status, last_error,"
-        " last_run_at, updated_at) VALUES (?, 1, ?, ?, ?, ?)"
+        " last_run_at, updated_at) VALUES (?, 0, ?, ?, ?, ?)"
         " ON CONFLICT(provider_id) DO UPDATE SET last_status = excluded.last_status,"
         " last_error = excluded.last_error, last_run_at = excluded.last_run_at,"
         " updated_at = excluded.updated_at",
