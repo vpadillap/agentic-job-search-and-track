@@ -310,6 +310,13 @@ def cmd_postings_flag(args: argparse.Namespace) -> dict:
         return {"posting": search.add_flag(conn, args.id, args.text)}
 
 
+def cmd_postings_work_mode(args: argparse.Namespace) -> dict:
+    """Record the work mode and its detail the user gave (never overwritten by imports)."""
+    with db.session(get_paths()) as conn:
+        return {"posting": search.set_work_mode(conn, args.id, args.mode, args.detail,
+                                                source="user")}
+
+
 def cmd_postings_questions(args: argparse.Namespace) -> dict:
     records = _read_json(args.file)
     with db.session(get_paths()) as conn:
@@ -739,6 +746,14 @@ def build_parser() -> argparse.ArgumentParser:
     postings_flag.add_argument("id", type=int)
     postings_flag.add_argument("--text", required=True)
     postings_flag.set_defaults(run=cmd_postings_flag)
+    postings_work_mode = postings_sub.add_parser(
+        "work-mode", help="set a posting's work mode and its detail as the user gave them")
+    postings_work_mode.add_argument("id", type=int)
+    postings_work_mode.add_argument("--mode", required=True,
+                                    choices=("remote", "hybrid", "onsite", "none"))
+    postings_work_mode.add_argument("--detail", help="how the posting describes the arrangement")
+    postings_work_mode.set_defaults(run=cmd_postings_work_mode)
+
     postings_questions = postings_sub.add_parser("questions", help="store form questions")
     postings_questions.add_argument("id", type=int)
     postings_questions.add_argument("file", help="JSON list of questions, or - for stdin")

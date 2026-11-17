@@ -48,3 +48,11 @@ def test_spanish_alias_installs_now_that_the_skill_exists(workspace, cli, skills
     listed = {c["id"]: c for c in skills.command_list("es")}
     assert listed["job-search"]["available"] is True
     assert listed["job-search"]["example"] == "/buscar-empleos dias=7"
+
+
+def test_skill_explains_the_work_mode_and_its_detail():
+    text = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+    assert "`work_mode_detail`" in text
+    assert "reading the title and the complete description" in text
+    assert "work mode is not stated is never excluded" in text
+    assert "`jt postings work-mode" in text

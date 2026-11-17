@@ -4,6 +4,7 @@ import { useUi, CommandChip, EmptyState, Menu } from '../components/shell.js';
 import { DataTable } from '../components/data-table.js';
 import * as Icon from '../components/icons.js';
 import { api } from '../api.js';
+import { WorkModeEditor } from '../components/work-mode.js';
 
 const MODES = ['remote', 'hybrid', 'onsite'];
 const CONTRACTS = ['full-time', 'part-time', 'contractor'];
@@ -568,8 +569,9 @@ export function SearchBoard({ data, runId, onRunChange, commands, setupRequired,
       render: (r) => html`
         <div class="tags">
           ${r.contract_type && html`<span class="cond">${t('contract.' + r.contract_type)}</span>`}
-          ${(r.work_mode || r.location) && html`<span class="cond">${[r.work_mode && t('mode.' + r.work_mode),
-            r.work_mode === 'remote' ? (fmt.country(r.country) || r.location) : r.location].filter(Boolean).join(' · ')}</span>`}
+          <${WorkModeEditor} posting=${r} onAction=${onAction} />
+          ${(r.location || r.country) && html`<span class="cond">${r.work_mode === 'remote'
+            ? (fmt.country(r.country) || r.location) : r.location}</span>`}
         </div>` },
     { key: 'salary', label: t('column.salary'), sortable: true, render: (r) => html`<${SalaryCell} salary=${r.salary} />` },
     { key: 'published', label: t('column.published'), sortable: true, width: '96px',

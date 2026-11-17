@@ -23,7 +23,7 @@ The project is being built in stages. What works today:
 |---|---|
 | First-run setup (`/setup`): requirements, language, resume, questionnaire, target titles, preferences | Works |
 | Private workspace, database, `jobtracker` command-line interface, privacy guard | Works |
-| Panel: Search tab (results, filters, score and salary detail, track and dismiss) | Works |
+| Panel: Search tab (results, filters, score and salary detail, track and dismiss; work mode with how the posting describes it, which you can correct) | Works |
 | Job search (`/job-search`), scoring, salary evidence, job-site recipe format | Works, but no job site is added yet: each one arrives with its own update |
 | Applications tab, statuses, uploads | Works |
 | Tailored resumes, cover letters, form answers (`/prepare-documents`, `/form-answers`) | Works |
@@ -202,7 +202,8 @@ Todo lo personal se queda en tu computadora, en una sola carpeta que git ignora.
 El proyecto se construye por etapas. Hoy funciona la configuración inicial
 (`/configurar`), el espacio de trabajo privado, la interfaz de línea de
 comandos, la protección de privacidad, las pestañas Búsqueda y Postulaciones
-del panel (estados, etiquetas, CV enviado, historial) y la búsqueda
+del panel (estados, etiquetas, CV enviado, historial; la modalidad con el detalle
+que da el aviso, que puedes corregir) y la búsqueda
 (`/buscar-empleos`) con puntaje y evidencia salarial; aún no hay portales de
 empleo: cada uno llega con su propia actualización. Los documentos y el
 aprendizaje están especificados en

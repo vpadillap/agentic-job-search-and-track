@@ -28,6 +28,7 @@ QUESTION_KINDS = ("text", "long_text", "choice", "multi_choice", "number", "yes_
 DUPLICATE_DAYS = 7   # publication dates this close make a same company+title a possible duplicate
 DEFAULT_AGE_DAYS = 7
 MAX_AGE_DAYS = 90
+WORK_MODE_DETAIL_MAX = 200  # characters of free text describing the work arrangement
 
 
 def _fail(message: str, **details: object):
@@ -353,6 +354,7 @@ def _validate_record(record: object, index: int, reference: date) -> dict:
         "company": company, "location": normalize.clean_text(location) if location else None,
         "country": country.upper() if country else None,
         "work_mode": normalize.work_mode(record.get("work_mode")),
+        "work_mode_detail": work_mode_detail(record.get("work_mode_detail"), where),
         "contract_type": normalize.contract_type(record.get("contract_type")),
         "seniority": _text(record, "seniority", where, required=False),
         "posted_at": posted.isoformat() if posted else None,
@@ -430,13 +432,15 @@ def import_postings(conn: sqlite3.Connection, run_id: int, records: object) -> d
         if posting_id is None:
             cursor = conn.execute(
                 "INSERT INTO postings (provider, external_id, url, url_key, title, company,"
-                " location, country, work_mode, contract_type, seniority, posted_at,"
+                " location, country, work_mode, work_mode_detail, contract_type, seniority,"
+                " posted_at,"
                 " description, published_salary, language, flags, match_key, first_run_id,"
                 " captured_at, is_demo)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (item["provider"], item["external_id"], item["url"], url_key, item["title"],
                  item["company"], item["location"], item["country"], item["work_mode"],
-                 item["contract_type"], item["seniority"], item["posted_at"],
+                 item["work_mode_detail"], item["contract_type"], item["seniority"],
+                 item["posted_at"],
                  item["description"],
                  json.dumps(item["published_salary"]) if item["published_salary"] else None,
                  item["language"], json.dumps(item["flags"], ensure_ascii=False),
@@ -528,6 +532,45 @@ def filter_postings(conn: sqlite3.Connection, run_id: int, records: object) -> d
     return {"filtered": len(checked), "summary": summary(conn, run_id)}
 
 
+def work_mode_detail(value: object, where: str = "work_mode_detail") -> str | None:
+    """How a posting describes its arrangement beyond the mode: trimmed text, or None."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        _fail(f"{where}: 'work_mode_detail' must be text", field="work_mode_detail")
+    text = normalize.clean_text(value)
+    if not text:
+        return None
+    if len(text) > WORK_MODE_DETAIL_MAX:
+        _fail(f"{where}: 'work_mode_detail' is longer than {WORK_MODE_DETAIL_MAX} characters",
+              field="work_mode_detail")
+    return text
+
+
+def set_work_mode(conn: sqlite3.Connection, posting_id: int, mode: str | None,
+                  detail: str | None, *, source: str = "user") -> dict:
+    """Set or correct a posting's work mode and its detail; later imports never undo it."""
+    if source not in ("agent", "user"):
+        raise JobTrackerError("invalid_posting", "source must be agent or user")
+    row = _posting_row(conn, posting_id)
+    new_mode = normalize.work_mode(mode) if mode not in (None, "", "none") else None
+    new_detail = work_mode_detail(detail)
+    now = now_iso()
+    conn.execute(
+        "UPDATE postings SET work_mode = ?, work_mode_detail = ?, work_mode_source = ?"
+        " WHERE id = ?", (new_mode, new_detail, source, posting_id))
+    conn.execute(
+        "INSERT INTO events (entity_type, entity_id, kind, data, created_at)"
+        " VALUES ('posting', ?, 'work_mode', ?, ?)",
+        (str(posting_id), json.dumps({
+            "from": {"mode": row["work_mode"], "detail": row["work_mode_detail"],
+                     "source": row["work_mode_source"]},
+            "to": {"mode": new_mode, "detail": new_detail}, "source": source,
+        }, ensure_ascii=False), now))
+    bump_changes(conn)
+    return posting(conn, posting_id, detail=False)
+
+
 def _posting_row(conn: sqlite3.Connection, posting_id: int) -> sqlite3.Row:
     row = conn.execute("SELECT * FROM postings WHERE id = ?", (posting_id,)).fetchone()
     if row is None:
@@ -571,6 +614,7 @@ def posting(conn: sqlite3.Connection, posting_id: int, *, detail: bool = True) -
         "id": row["id"], "provider": row["provider"], "external_id": row["external_id"],
         "url": row["url"], "title": row["title"], "company": row["company"],
         "location": row["location"], "country": row["country"], "work_mode": row["work_mode"],
+        "work_mode_detail": row["work_mode_detail"], "work_mode_source": row["work_mode_source"],
         "contract_type": row["contract_type"], "seniority": row["seniority"],
         "posted_at": row["posted_at"], "captured_at": row["captured_at"],
         "published_salary": json.loads(row["published_salary"])

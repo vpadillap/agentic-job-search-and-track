@@ -558,3 +558,45 @@ def test_search_track_actions_land_on_the_applications_board(seeded, page):
     quena = app_row(page, "Quena Labs")
     expect(quena.locator(".status-chip")).to_have_text("Applied")
     expect(quena).to_contain_text("Follow up")                   # applied today: follow-up date set
+
+
+# ── work mode with detail ─────────────────────────────────────────────────
+
+def test_search_row_shows_the_work_mode_detail(seeded, page):
+    open_board(page)
+    expect(row(page, "Nortia Seguros").locator(".wm-chip")).to_contain_text(
+        "Hybrid · Híbrido: 2 días presencial por semana")
+    expect(row(page, "Cobre Logística").locator(".wm-chip")).to_contain_text("Work mode not stated")
+
+
+def test_user_fills_in_a_missing_work_mode(seeded, page):
+    open_board(page)
+    row(page, "Cobre Logística").get_by_role("button", name=re.compile("^Edit work mode")).click()
+    page.get_by_role("radio", name="Remote").check()
+    page.get_by_label("How the posting describes it").fill("Early Friday")
+    page.get_by_role("button", name="Save").click()
+    chip = row(page, "Cobre Logística").locator(".wm-chip")
+    expect(chip).to_contain_text("Remote · Early Friday")
+    expect(chip.locator(".wm-edited")).to_have_text("edited")
+    page.reload()
+    expect(row(page, "Cobre Logística").locator(".wm-chip")).to_contain_text(
+        "Remote · Early Friday")
+
+
+def test_work_mode_corrected_in_applications_shows_everywhere(seeded, page):
+    open_board(page, "applications")
+    app_row(page, "Huaral Minerals").get_by_role(
+        "button", name=re.compile("^Edit work mode")).click()
+    page.get_by_role("radio", name="Hybrid").check()
+    page.get_by_label("How the posting describes it").fill("Fridays from home")
+    page.keyboard.press("Enter")
+    expect(app_row(page, "Huaral Minerals").locator(".wm-chip")).to_contain_text(
+        "Hybrid · Fridays from home")
+    app_row(page, "Huaral Minerals").get_by_role("button", name=re.compile("Show details")).click()
+    expect(page.locator(".detail .history")).to_contain_text(
+        "Work mode set by you: Hybrid · Fridays from home")
+    with db.session(seeded) as conn:
+        posting_id = conn.execute(
+            "SELECT p.id FROM postings p WHERE p.company = 'Huaral Minerals'").fetchone()[0]
+        assert search.posting(conn, posting_id, detail=False)["work_mode_detail"] == (
+            "Fridays from home")

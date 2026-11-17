@@ -4,6 +4,7 @@ import { useUi, CommandChip, EmptyState, Menu } from '../components/shell.js';
 import { DataTable } from '../components/data-table.js';
 import * as Icon from '../components/icons.js';
 import { api } from '../api.js';
+import { WorkModeEditor, workModeText } from '../components/work-mode.js';
 
 const STAGES = ['to_apply', 'applied', 'interview', 'offer', 'closed_positive', 'closed_negative'];
 const DOC_FILTERS = ['missingResume', 'proposedResume', 'sentResume', 'coverLetter', 'formUnanswered'];
@@ -409,6 +410,8 @@ function historyText(item, t, fmt, statusName) {
     case 'answer_edited': return t('history.answer_edited', { position: d.position });
     case 'answer_picked': return t('history.answer_picked', { position: d.position });
     case 'cover_letter_need': return t('history.cover_letter_need.' + d.need);
+    case 'work_mode': return t('history.work_mode', {
+      value: workModeText(t, { work_mode: d.to.mode, work_mode_detail: d.to.detail }) || t('workMode.notStated') });
     default: return item.kind;
   }
 }
@@ -582,8 +585,9 @@ export function ApplicationsBoard({ data, version, commands, onAction, onReload 
     { key: 'company', label: t('col.job'), sortable: true, render: (a) => html`
       <div class="job">
         <span class="job-title">${a.posting.title}</span>
-        <span class="job-company">${a.posting.company} · ${[a.posting.work_mode && t('mode.' + a.posting.work_mode),
+        <span class="job-company">${[a.posting.company,
           a.posting.contract_type && t('contract.' + a.posting.contract_type)].filter(Boolean).join(' · ')}</span>
+        <${WorkModeEditor} posting=${a.posting} onAction=${onAction} />
         <span class="small mono">${a.job_id}</span>
       </div>` },
     { key: 'status', label: t('col.statusTags'), sortable: true, render: (a) => html`

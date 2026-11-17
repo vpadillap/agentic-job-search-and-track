@@ -316,3 +316,37 @@ def test_demo_clear_removes_only_demo_rows(seeded, cli):
         assert conn.execute("SELECT COUNT(*) FROM applications").fetchone()[0] == 0
         assert conn.execute("SELECT COUNT(*) FROM search_runs").fetchone()[0] == 0
 
+
+
+# ── work mode ─────────────────────────────────────────────────────────────
+
+def test_user_sets_a_work_mode_from_the_panel(seeded, client):
+    target = latest(client)["results"][0]
+    response = client.post(f"/api/postings/{target['id']}/work-mode",
+                           json={"work_mode": "hybrid", "detail": "2 días presencial por semana"})
+    assert response.status_code == 200, response.text
+    updated = next(r for r in latest(client)["results"] if r["id"] == target["id"])
+    assert (updated["work_mode"], updated["work_mode_detail"], updated["work_mode_source"]) == (
+        "hybrid", "2 días presencial por semana", "user")
+
+
+def test_work_mode_request_is_validated(seeded, client):
+    target = latest(client)["results"][0]
+    url = f"/api/postings/{target['id']}/work-mode"
+    assert client.post(url, json={"work_mode": "moon"}).status_code == 422
+    assert client.post(url, json={"work_mode": "remote", "detail": "x" * 201}).status_code == 422
+    assert client.post("/api/postings/99999/work-mode",
+                       json={"work_mode": "remote"}).status_code == 404
+    cleared = client.post(url, json={"work_mode": None, "detail": None}).json()["posting"]
+    assert cleared["work_mode"] is None
+
+
+def test_applications_rows_carry_the_work_mode_detail(seeded, client):
+    apps = client.get("/api/applications").json()["applications"]
+    target = apps[0]
+    client.post(f"/api/postings/{target['posting_id']}/work-mode",
+                json={"work_mode": "remote", "detail": "Early Friday"})
+    again = next(a for a in client.get("/api/applications").json()["applications"]
+                 if a["job_id"] == target["job_id"])
+    assert again["posting"]["work_mode_detail"] == "Early Friday"
+    assert again["posting"]["work_mode_source"] == "user"

@@ -444,5 +444,15 @@
   "history.cover_letter_need.required": "Cover letter: required",
   "history.cover_letter_need.not_required": "Cover letter: not required",
   "detail.fromBase": "From your {language} resume (v{version})",
-  "detail.fromBaseUnknown": "From your resume (v{version})"
+  "detail.fromBaseUnknown": "From your resume (v{version})",
+  "workMode.legend": "Work mode",
+  "workMode.notStated": "Work mode not stated",
+  "workMode.detail": "How the posting describes it",
+  "workMode.detailPlaceholder": "e.g. 2 days a week at the office",
+  "workMode.save": "Save",
+  "workMode.saved": "Work mode saved",
+  "workMode.edited": "edited",
+  "workMode.editedTitle": "Set by you",
+  "workMode.edit": "Edit work mode ({value})",
+  "history.work_mode": "Work mode set by you: {value}"
 }

@@ -34,6 +34,8 @@ export const api = {
   changes: () => request('GET', '/api/changes'),
   search: (run) => request('GET', run ? `/api/search?run=${encodeURIComponent(run)}` : '/api/search'),
   providers: () => request('GET', '/api/providers'),
+  setWorkMode: (postingId, workMode, detail) => request('POST', `/api/postings/${encodeURIComponent(postingId)}/work-mode`,
+    { work_mode: workMode, detail }),
   setProvider: (id, enabled) => request('POST', `/api/providers/${encodeURIComponent(id)}`, { enabled }),
   setLanguage: (language) => request('POST', '/api/settings/language', { language }),
   track: (ids, applied = false) => request('POST', '/api/actions/track', { posting_ids: ids, applied }),

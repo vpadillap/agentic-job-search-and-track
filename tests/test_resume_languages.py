@@ -146,6 +146,8 @@ def test_migrations_keep_an_existing_resume(workspace):
         for column in ("language", "translated_from"):
             conn.execute(f"ALTER TABLE base_resumes DROP COLUMN {column}")
         conn.execute("ALTER TABLE documents DROP COLUMN base_resume_id")
+        for column in ("work_mode_detail", "work_mode_source"):  # added by 0010
+            conn.execute(f"ALTER TABLE postings DROP COLUMN {column}")
         conn.execute("CREATE UNIQUE INDEX base_resumes_one_current ON base_resumes (is_current)"
                      " WHERE is_current = 1")
         conn.execute(

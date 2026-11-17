@@ -50,7 +50,7 @@ LATEST = (
      "contractor", "Senior", 2, 0, [], "Terraform", (23, 25, 13, 12)),
     ("nortia", "indeed", "Analytics Engineer", "Nortia Seguros", "Miraflores", "hybrid",
      "full-time", "Senior", 3, 6, [], "Looker", (18, 24, 12, 14)),
-    ("cobre", "linkedin", "BI Engineer", "Cobre Logística", "Lima", "remote", "part-time",
+    ("cobre", "linkedin", "BI Engineer", "Cobre Logística", "Lima", None, "part-time",
      "Senior", 4, 0, [], "Power BI", (15, 22, 12, 10)),
     ("vertiz", "computrabajo", "Ingeniero de Datos", "Vértiz Salud", "Surco", "onsite",
      "full-time", "Semi Senior", 5, 0, ["Seniority appears lower than yours"], "Spark",
@@ -96,8 +96,28 @@ NOTES = {
     },
 }
 MODES = {"remote": "Remoto", "hybrid": "Híbrido", "onsite": "Presencial"}
+NO_MODE = {"en": "work mode not stated", "es": "modalidad no indicada"}
+# How some postings describe their arrangement beyond the mode (as the agent would note it).
+WORK_MODE_DETAILS = {
+    "nortia": "Híbrido: 2 días presencial por semana",
+    "mistral": "Horario de verano: viernes hasta el mediodía",
+    "ceibo": "Híbrido: martes y jueves en oficina",
+}
 CONTRACTS = {"full-time": "Tiempo completo", "part-time": "Medio tiempo",
              "contractor": "Contrato por proyecto"}
+
+
+def _description(key: str, company: str, title: str, extra: str, location: str,
+                 mode: str | None, contract: str) -> str:
+    text = DESCRIPTION.format(
+        company=company, title=title, years=5, extra=extra,
+        mode=(MODES[mode] + (" desde Perú" if mode == "remote" else f" en {location}"))
+        if mode else "", contract=CONTRACTS[contract])
+    if not mode:  # the posting does not say where the work is done
+        text = text.replace("Modalidad: . ", "")
+    if key in WORK_MODE_DETAILS:
+        text += "\n" + WORK_MODE_DETAILS[key] + "."
+    return text
 
 
 def _record(row: tuple, today: date) -> dict:
@@ -110,12 +130,10 @@ def _record(row: tuple, today: date) -> dict:
         "external_id": f"demo-{key}",
         "url": f"https://example.com/demo/{provider}/{key}",
         "title": title, "company": company, "location": location, "country": "PE",
-        "work_mode": mode, "contract_type": contract, "seniority": level,
+        "work_mode": mode, "work_mode_detail": WORK_MODE_DETAILS.get(key),
+        "contract_type": contract, "seniority": level,
         "posted_at": (today - timedelta(days=age)).isoformat(),
-        "description": DESCRIPTION.format(
-            company=company, title=title, years=5, extra=extra,
-            mode=MODES[mode] + (" desde Perú" if mode == "remote" else f" en {location}"),
-            contract=CONTRACTS[contract]),
+        "description": _description(key, company, title, extra, location, mode, contract),
         "language": "es", "flags": flags,
         "form_questions": [
             {"text": f"Pregunta de ejemplo {n + 1}", "kind": "text", "required": n == 0}
@@ -128,7 +146,8 @@ def _score(conn: sqlite3.Connection, posting_id: int, row: tuple, language: str,
            run_id: int, resume: dict | None = None) -> None:
     title, mode, contract, extra, points = row[2], row[5], row[6], row[11], row[12]
     notes = NOTES.get(language, NOTES["en"])
-    values = {"title": title, "extra": extra, "years": 5, "mode": MODES[mode],
+    values = {"title": title, "extra": extra, "years": 5,
+              "mode": MODES[mode] if mode else NO_MODE.get(language, NO_MODE["en"]),
               "contract": CONTRACTS[contract].lower()}
     components = {
         name: {"points": points[index], "note": notes[name].format(**values)}

@@ -444,5 +444,15 @@
   "history.cover_letter_need.required": "Carta: requerida",
   "history.cover_letter_need.not_required": "Carta: no requerida",
   "detail.fromBase": "A partir de tu CV en {language} (v{version})",
-  "detail.fromBaseUnknown": "A partir de tu CV (v{version})"
+  "detail.fromBaseUnknown": "A partir de tu CV (v{version})",
+  "workMode.legend": "Modalidad",
+  "workMode.notStated": "Modalidad no indicada",
+  "workMode.detail": "Cómo lo describe el aviso",
+  "workMode.detailPlaceholder": "p. ej. 2 días presencial por semana",
+  "workMode.save": "Guardar",
+  "workMode.saved": "Modalidad guardada",
+  "workMode.edited": "editado",
+  "workMode.editedTitle": "Indicado por ti",
+  "workMode.edit": "Editar modalidad ({value})",
+  "history.work_mode": "Modalidad indicada por ti: {value}"
 }

@@ -85,7 +85,8 @@ Posting record (JSON object; `null` or omit what the site does not show):
 |---|---|
 | `provider`, `external_id`, `url` | the site's own id and canonical link |
 | `title`, `company`, `location`, `country` | as shown; `country` as ISO code (PE) |
-| `work_mode` | remote, hybrid, onsite (site wording is normalized) |
+| `work_mode` | remote, hybrid, onsite: decide it by reading the title and the complete description, not by matching words (a "remote" in a benefits list or in another job's title is not this posting's mode); `null` when the posting does not say, and then add the flag "work mode not stated" (in the panel language) |
+| `work_mode_detail` | how the posting describes the arrangement when it says more than the mode, in the posting's language and close to its words ("Híbrido: 2 días presencial por semana", "Summer hours: Fridays until noon"); at most 200 characters; `null` otherwise. Never invented |
 | `contract_type` | full-time, part-time, contractor |
 | `seniority` | as stated (Senior, Semi Senior, Junior…) |
 | `posted_at` or `posted_ago` | an absolute date, or exactly what the site shows ("hace 2 días", "2 days ago"); the CLI converts it |
@@ -106,7 +107,7 @@ clearly violates a hard constraint:
 | Reason | When |
 |---|---|
 | `title` | its title is one of the profile's excluded titles, or clearly another role |
-| `work_mode` | its work mode is not among the accepted ones |
+| `work_mode` | its stated work mode is not among the accepted ones (a posting whose work mode is not stated is never excluded for this) |
 | `contract_type` | its contract type is not among the accepted ones |
 | `location` | onsite or hybrid outside the accepted locations |
 | `language` | it requires a language the user lacks |
@@ -120,6 +121,10 @@ what exactly did not fit.
 
 When in doubt, keep the posting and add a flag instead:
 `jt postings flag <posting_id> --text "Seniority appears lower than yours"`.
+
+If the user tells you a posting's real work mode (for example after opening it),
+record it with `jt postings work-mode <posting_id> --mode remote|hybrid|onsite|none
+--detail "..."`. It is kept as the user's and no later search overwrites it.
 
 ## 5. Score what is left
 

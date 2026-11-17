@@ -423,3 +423,14 @@ def test_applications_counter_counts_open_applications(jobs, client, cli):
     assert client.get("/api/state").json()["header"]["counts"]["applications"] == 2
     cli("applications", "set-status", jobs["finlima"], "--to", "rejected")
     assert client.get("/api/state").json()["header"]["counts"]["applications"] == 1
+
+
+def test_a_work_mode_correction_is_in_the_applications_history(jobs):
+    with db.session(jobs["home"]) as conn:
+        from jobtracker.core import search
+
+        search.set_work_mode(conn, jobs["postings"]["A-101"], "hybrid", "Fridays from home")
+    item = detail(jobs["home"], jobs["finlima"])
+    events = [e for e in item["history"] if e["kind"] == "work_mode"]
+    assert events and events[0]["data"]["to"] == {"mode": "hybrid", "detail": "Fridays from home"}
+    assert item["posting"]["work_mode_detail"] == "Fridays from home"

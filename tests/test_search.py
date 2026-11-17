@@ -308,3 +308,101 @@ def test_relative_dates(shown, days):
 
     reference = date(2026, 11, 15)
     assert relative_date(shown, reference) == reference - timedelta(days=days)
+
+
+# ── work-mode detail ──────────────────────────────────────────────────────
+
+def test_import_stores_the_work_mode_detail_as_the_agents(searchable, cli, write_json):
+    records = captures()
+    records[0]["work_mode"] = "hybrid"
+    records[0]["work_mode_detail"] = "  Híbrido: 2 días presencial por semana "
+    run = start(cli)
+    _, report, _ = cli("postings", "import", str(run["run_id"]), write_json(records))
+    posting_id = by_external(report)[records[0]["external_id"]]["posting_id"]
+    _, shown, _ = cli("postings", "show", str(posting_id))
+    posting = shown["posting"]
+    assert (posting["work_mode"], posting["work_mode_detail"], posting["work_mode_source"]) == (
+        "hybrid", "Híbrido: 2 días presencial por semana", "agent")
+
+
+def test_a_too_long_work_mode_detail_is_refused(searchable, cli, write_json):
+    records = captures()
+    records[0]["work_mode_detail"] = "x" * (search.WORK_MODE_DETAIL_MAX + 1)
+    run = start(cli)
+    code, out, _ = cli("postings", "import", str(run["run_id"]), write_json(records))
+    assert code == 1
+    assert out["error"]["details"]["field"] == "work_mode_detail"
+
+
+def test_users_work_mode_is_recorded_and_survives_a_later_search(searchable, cli, write_json):
+    run = start(cli)
+    _, report, _ = cli("postings", "import", str(run["run_id"]), write_json(captures()))
+    posting_id = by_external(report)["A-101"]["posting_id"]
+    cli("run", "finish", str(run["run_id"]))
+    with db.session(searchable) as conn:
+        before = search.posting(conn, posting_id, detail=False)
+        changed = search.set_work_mode(conn, posting_id, "hybrid", "Fridays from home")
+        event = conn.execute("SELECT data FROM events WHERE entity_type = 'posting'"
+                             " AND entity_id = ? AND kind = 'work_mode'",
+                             (str(posting_id),)).fetchone()
+    assert (changed["work_mode"], changed["work_mode_detail"], changed["work_mode_source"]) == (
+        "hybrid", "Fridays from home", "user")
+    assert json.loads(event["data"])["from"]["mode"] == before["work_mode"]
+
+    again = start(cli)
+    _, report, _ = cli("postings", "import", str(again["run_id"]), write_json(captures()))
+    assert by_external(report)["A-101"]["outcome"] == "seen"
+    with db.session(searchable) as conn:
+        kept = search.posting(conn, posting_id, detail=False)
+    assert (kept["work_mode"], kept["work_mode_detail"], kept["work_mode_source"]) == (
+        "hybrid", "Fridays from home", "user")
+
+
+def test_work_mode_can_be_cleared_and_bad_modes_are_refused(searchable, cli, write_json):
+    run = start(cli)
+    _, report, _ = cli("postings", "import", str(run["run_id"]), write_json(captures()))
+    posting_id = by_external(report)["A-101"]["posting_id"]
+    with db.session(searchable) as conn:
+        cleared = search.set_work_mode(conn, posting_id, "none", "")
+        assert (cleared["work_mode"], cleared["work_mode_detail"]) == (None, None)
+        with pytest.raises(search.JobTrackerError):
+            search.set_work_mode(conn, posting_id, "on the moon", None)
+        with pytest.raises(search.JobTrackerError):
+            search.set_work_mode(conn, 99999, "remote", None)
+
+
+def test_migration_keeps_existing_postings(searchable, cli, write_json):
+    import sqlite3
+    from contextlib import closing
+
+    run = start(cli)
+    cli("postings", "import", str(run["run_id"]), write_json(captures()))
+    with closing(sqlite3.connect(searchable.database)) as conn:  # back to version 9
+        conn.execute("PRAGMA user_version = 9")
+        for column in ("work_mode_detail", "work_mode_source"):
+            conn.execute(f"ALTER TABLE postings DROP COLUMN {column}")
+        conn.commit()
+    with db.session(searchable) as conn:
+        rows = conn.execute("SELECT work_mode, work_mode_detail, work_mode_source"
+                            " FROM postings").fetchall()
+    assert rows and all(r["work_mode_detail"] is None and r["work_mode_source"] == "agent"
+                        for r in rows)
+    assert any(r["work_mode"] for r in rows)
+
+
+def test_work_mode_command(searchable, cli, write_json):
+    run = start(cli)
+    _, report, _ = cli("postings", "import", str(run["run_id"]), write_json(captures()))
+    posting_id = by_external(report)["A-101"]["posting_id"]
+    code, out, _ = cli("postings", "work-mode", str(posting_id), "--mode", "remote",
+                       "--detail", "Early Friday")
+    assert code == 0, out
+    assert (out["posting"]["work_mode"], out["posting"]["work_mode_detail"],
+            out["posting"]["work_mode_source"]) == ("remote", "Early Friday", "user")
+    code, out, _ = cli("postings", "work-mode", str(posting_id), "--mode", "none")
+    assert code == 0 and out["posting"]["work_mode"] is None
+    assert out["posting"]["work_mode_detail"] is None
+    code, out, _ = cli("postings", "work-mode", "99999", "--mode", "remote")
+    assert code == 1 and out["error"]["code"] == "not_found"
+    code, _, _ = cli("postings", "work-mode", str(posting_id), "--mode", "moon")
+    assert code != 0

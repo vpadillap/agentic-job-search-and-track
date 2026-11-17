@@ -23,6 +23,7 @@ from jobtracker.core import (
     db,
     documents,
     providers,
+    search,
     skills,
     tracking,
 )
@@ -68,6 +69,11 @@ class DismissRequest(PostingIds):
 
 class LanguageRequest(BaseModel):
     language: Literal["en", "es"]
+
+
+class WorkModeRequest(BaseModel):
+    work_mode: Literal["remote", "hybrid", "onsite"] | None
+    detail: str | None = Field(default=None, max_length=search.WORK_MODE_DETAIL_MAX)
 
 
 class ProviderRequest(BaseModel):
@@ -205,6 +211,12 @@ def create_app() -> FastAPI:
     def undismiss(body: PostingIds) -> dict:
         with db.session(get_paths()) as conn:
             return {"ok": True, "posting_ids": tracking.undismiss(conn, body.posting_ids)}
+
+    @app.post("/api/postings/{posting_id}/work-mode")
+    def set_work_mode(posting_id: int, body: WorkModeRequest) -> dict:
+        with db.session(get_paths()) as conn:
+            return {"ok": True, "posting": search.set_work_mode(
+                conn, posting_id, body.work_mode, body.detail, source="user")}
 
     @app.post("/api/providers/{provider_id}")
     def set_provider(provider_id: str, body: ProviderRequest) -> dict:

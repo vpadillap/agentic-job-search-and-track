@@ -598,7 +598,7 @@ def history(conn: sqlite3.Connection, job_id: str) -> list[dict]:
     for event in conn.execute(
         "SELECT * FROM events WHERE (entity_type = 'application' AND entity_id = ?)"
         " OR (entity_type = 'posting' AND entity_id = ? AND kind IN ('scored', 'salary',"
-        " 'tracked')) ORDER BY created_at, id", (job_id, str(row["posting_id"])),
+        " 'tracked', 'work_mode')) ORDER BY created_at, id", (job_id, str(row["posting_id"])),
     ):
         items.append({"at": event["created_at"], "kind": event["kind"],
                       "data": json.loads(event["data"]) if event["data"] else {}})
