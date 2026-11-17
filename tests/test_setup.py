@@ -47,7 +47,7 @@ def test_interrupted_setup_resumes_after_the_last_completed_step(workspace, cli)
 
 
 def test_a_completed_step_can_be_revised_without_losing_data(workspace, cli, tmp_path):
-    cli("resume", "import", str(make_docx(tmp_path / "cv.docx")))
+    cli("resume", "import", str(make_docx(tmp_path / "cv.docx")), "--language", "en")
     for step in STEP_IDS:
         cli("setup", "done", step)
     _, out, _ = cli("setup", "redo", "titles")
@@ -88,7 +88,7 @@ def test_setup_commands_leave_the_repository_untouched(home, cli, tmp_path, monk
     cli("init", "--language", "es")
     cli("skills", "sync")
     cli("privacy", "terms", "add", PERSONA["name"], PERSONA["email"])
-    cli("resume", "import", str(make_docx(tmp_path / "cv.docx")))
+    cli("resume", "import", str(make_docx(tmp_path / "cv.docx")), "--language", "en")
     monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(
         {"work_modes": ["remote"], "titles": PERSONA["target_titles"]})))
     cli("profile", "set", "-")

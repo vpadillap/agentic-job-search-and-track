@@ -101,13 +101,17 @@ More terms can be added at any time with the same command, and
 ## 5. Resume (`resume`)
 
 1. Ask for the path to their resume (PDF or DOCX; DOCX is better because later
-   tailoring can keep its exact layout).
-2. `jt resume import "<path>"`
+   tailoring can keep its exact layout) and which language it is written in.
+   If `jt context` shows a `base_resume` whose `language` is null (imported
+   before languages were recorded), ask which language that one is in first
+   and run `jt resume language <code>`.
+2. `jt resume import "<path>" --language <code>` (2-letter code: en, es, pt…).
+   The first resume imported is the main one: scores are judged against it.
    - `no_text_extracted`: the file is probably a scan. Offer two options: a
      text-based file instead, or you read the file visually, show the full text
      to the user for confirmation, save the confirmed text with
      `jt paths` → `profile` folder as `resume-visual-draft.md`, and run
-     `jt resume import "<path>" --text "<that file>"`.
+     `jt resume import "<path>" --language <code> --text "<that file>"`.
    - `unsupported_resume` / `unreadable_resume`: ask for another file.
 3. Read the extracted text at the returned `text_path`.
 4. Show the user a short summary so they can confirm it was read correctly:
@@ -120,6 +124,13 @@ More terms can be added at any time with the same command, and
    them now with `jt privacy terms add`.
 6. If the file is a PDF, mention once that providing the DOCX version later
    allows tailoring without touching the layout.
+7. Ask whether they also have their resume in another language that they
+   translated or reviewed themselves. For each one, import it the same way with
+   its own `--language`, and confirm it was read correctly. Tell them: postings
+   in that language will be tailored from that version; postings in a language
+   they have no resume in are translated from the main one. They can add a
+   language, or make another one the main resume (`jt resume main <code>`),
+   at any time by asking.
 
 ## 6. Questionnaire (`questionnaire`)
 

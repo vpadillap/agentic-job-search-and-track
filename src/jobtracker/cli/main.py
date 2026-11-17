@@ -148,13 +148,33 @@ def cmd_resume_import(args: argparse.Namespace) -> dict:
     paths = get_paths()
     text_file = Path(args.text) if args.text else None
     with db.session(paths) as conn:
-        return {"resume": resume.import_resume(conn, paths, Path(args.file), text_file)}
+        return {"resume": resume.import_resume(conn, paths, Path(args.file), text_file,
+                                               language=args.language)}
 
 
 def cmd_resume_show(args: argparse.Namespace) -> dict:
     paths = get_paths()
     with db.session(paths) as conn:
-        return {"resume": resume.current(conn, paths)}
+        return {"resume": resume.current(conn, paths),
+                "by_language": resume.list_current(conn, paths)}
+
+
+def cmd_resume_list(args: argparse.Namespace) -> dict:
+    paths = get_paths()
+    with db.session(paths) as conn:
+        return {"resumes": resume.list_all(conn, paths)}
+
+
+def cmd_resume_main(args: argparse.Namespace) -> dict:
+    paths = get_paths()
+    with db.session(paths) as conn:
+        return {"resume": resume.set_main(conn, paths, args.language)}
+
+
+def cmd_resume_language(args: argparse.Namespace) -> dict:
+    paths = get_paths()
+    with db.session(paths) as conn:
+        return {"resume": resume.set_language(conn, paths, args.language)}
 
 
 def cmd_privacy_terms_add(args: argparse.Namespace) -> dict:
@@ -440,11 +460,10 @@ def _in_folder(conn, paths, job_id: str, file_name: str) -> Path:
     return path
 
 
-def _base_resume_file(conn, paths) -> Path:
-    base = resume.current(conn, paths)
-    if base is None:
-        raise JobTrackerError("no_base_resume", "There is no base resume. Run /setup.")
-    return Path(base["path"])
+def _base_for(conn, paths, job_id: str, override: str | None) -> dict:
+    """The base resume to tailor from, by the posting's language (or the override)."""
+    posting = applications.application(conn, job_id)["posting"]
+    return resume.choose_base(conn, paths, posting["language"], override)
 
 
 def cmd_documents_path(args: argparse.Namespace) -> dict:
@@ -481,10 +500,14 @@ def cmd_documents_tailor(args: argparse.Namespace) -> dict:
         raise JobTrackerError("invalid_edit", 'expected an object {"edits": [...]}')
     paths = get_paths()
     with db.session(paths) as conn:
-        base = _base_resume_file(conn, paths)
+        chosen = _base_for(conn, paths, args.job_id, args.base)
         target = documents.next_path(conn, paths, args.job_id, "resume-proposed", "docx")
+    base = Path(chosen["path"])
     result = docx_tools.tailor(base, target, request["edits"])
     result["file_name"] = target.name
+    result["base"] = {"language": chosen["language"], "version": chosen["version"],
+                      "main": chosen["main"]}
+    result["translate"] = chosen["translate"]
     result["layout"] = docx_tools.layout_check(base, target)
     return result
 
@@ -492,7 +515,7 @@ def cmd_documents_tailor(args: argparse.Namespace) -> dict:
 def cmd_documents_check(args: argparse.Namespace) -> dict:
     paths = get_paths()
     with db.session(paths) as conn:
-        base = _base_resume_file(conn, paths)
+        base = Path(_base_for(conn, paths, args.job_id, args.base)["path"])
         proposed = _in_folder(conn, paths, args.job_id, args.file)
     if base.suffix.lower() != ".docx" or proposed.suffix.lower() != ".docx":
         raise JobTrackerError("invalid_document", "the layout check compares two DOCX files")
@@ -618,9 +641,22 @@ def build_parser() -> argparse.ArgumentParser:
     resume_sub = resume_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)
     resume_import = resume_sub.add_parser("import", help="store a resume as the base resume")
     resume_import.add_argument("file")
+    resume_import.add_argument("--language", required=True,
+                               help="2-letter code of the language it is written in (en, es...)")
     resume_import.add_argument("--text", help="text of the resume when it cannot be extracted")
     resume_import.set_defaults(run=cmd_resume_import)
-    resume_sub.add_parser("show").set_defaults(run=cmd_resume_show)
+    resume_sub.add_parser("show", help="the main base resume and one per language").set_defaults(
+        run=cmd_resume_show)
+    resume_sub.add_parser("list", help="every base resume, with earlier versions").set_defaults(
+        run=cmd_resume_list)
+    resume_main = resume_sub.add_parser(
+        "main", help="make the base resume in a language the main one")
+    resume_main.add_argument("language")
+    resume_main.set_defaults(run=cmd_resume_main)
+    resume_language = resume_sub.add_parser(
+        "language", help="state the language of a base resume imported without one")
+    resume_language.add_argument("language")
+    resume_language.set_defaults(run=cmd_resume_language)
 
     privacy_parser = sub.add_parser("privacy", help="privacy guard settings")
     privacy_sub = privacy_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)
@@ -826,10 +862,13 @@ def build_parser() -> argparse.ArgumentParser:
         "tailor", help="copy the DOCX base resume with text edits, design untouched")
     docs_tailor.add_argument("job_id")
     docs_tailor.add_argument("file", help='JSON {"edits": [...]}, or -')
+    docs_tailor.add_argument("--base", help="language of the base resume to start from "
+                                            "(default: the posting's, else the main one)")
     docs_tailor.set_defaults(run=cmd_documents_tailor)
     docs_check = docs_sub.add_parser("check", help="compare a DOCX's shape with the base resume")
     docs_check.add_argument("job_id")
     docs_check.add_argument("file")
+    docs_check.add_argument("--base", help="language of the base resume to compare with")
     docs_check.set_defaults(run=cmd_documents_check)
     docs_letter = docs_sub.add_parser("cover-letter", help="record whether one is needed")
     docs_letter.add_argument("job_id")

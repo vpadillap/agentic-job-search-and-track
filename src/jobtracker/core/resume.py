@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import sqlite3
 import zipfile
@@ -75,12 +76,26 @@ def _visible_characters(text: str) -> int:
     return sum(1 for character in text if not character.isspace())
 
 
-def current(conn: sqlite3.Connection, paths: Paths) -> dict | None:
-    row = conn.execute("SELECT * FROM base_resumes WHERE is_current = 1").fetchone()
-    if row is None:
+LANGUAGE_PATTERN = re.compile(r"^[a-z]{2}$")
+
+
+def _language(code: str | None) -> str | None:
+    if code is None:
         return None
+    clean = code.strip().lower()
+    if not LANGUAGE_PATTERN.match(clean):
+        raise JobTrackerError("invalid_language",
+                              f"'{code}' is not a 2-letter language code such as en or es")
+    return clean
+
+
+def _dict(row: sqlite3.Row, paths: Paths) -> dict:
     return {
+        "id": row["id"],
         "version": row["version"],
+        "language": row["language"],
+        "main": bool(row["is_main"]),
+        "current": bool(row["is_current"]),
         "path": str(paths.profile / row["file_name"]),
         "text_path": str(paths.profile / row["text_name"]),
         "original_name": row["original_name"],
@@ -90,14 +105,108 @@ def current(conn: sqlite3.Connection, paths: Paths) -> dict | None:
     }
 
 
+def current(conn: sqlite3.Connection, paths: Paths) -> dict | None:
+    """The main base resume: what scores are judged against."""
+    row = conn.execute(
+        "SELECT * FROM base_resumes WHERE is_current = 1 AND is_main = 1").fetchone()
+    return _dict(row, paths) if row else None
+
+
+def by_id(conn: sqlite3.Connection, paths: Paths, resume_id: int) -> dict:
+    row = conn.execute("SELECT * FROM base_resumes WHERE id = ?", (resume_id,)).fetchone()
+    if row is None:
+        raise JobTrackerError("not_found", f"There is no base resume {resume_id}")
+    return _dict(row, paths)
+
+
+def list_current(conn: sqlite3.Connection, paths: Paths) -> list[dict]:
+    """The current base resume of every language, the main one first."""
+    return [_dict(r, paths) for r in conn.execute(
+        "SELECT * FROM base_resumes WHERE is_current = 1"
+        " ORDER BY is_main DESC, COALESCE(language, ''), id")]
+
+
+def list_all(conn: sqlite3.Connection, paths: Paths) -> list[dict]:
+    return [_dict(r, paths) for r in conn.execute(
+        "SELECT * FROM base_resumes ORDER BY is_current DESC, is_main DESC,"
+        " COALESCE(language, ''), version DESC")]
+
+
+def _current_in(conn: sqlite3.Connection, language: str | None) -> sqlite3.Row | None:
+    return conn.execute(
+        "SELECT * FROM base_resumes WHERE is_current = 1 AND COALESCE(language, '') = ?",
+        (language or "",)).fetchone()
+
+
+def choose_base(conn: sqlite3.Connection, paths: Paths, posting_language: str | None,
+                override: str | None = None) -> dict:
+    """The base resume to tailor from: the one in the posting's language when the user
+    has it, otherwise the main one (which then needs translating)."""
+    if override is not None:
+        row = _current_in(conn, _language(override))
+        if row is None:
+            raise JobTrackerError("not_found", f"There is no base resume in '{override}'")
+    else:
+        wanted = (posting_language or "").strip().lower() or None
+        row = _current_in(conn, wanted) if wanted else None
+        if row is None:
+            row = conn.execute(
+                "SELECT * FROM base_resumes WHERE is_current = 1 AND is_main = 1").fetchone()
+    if row is None:
+        raise JobTrackerError("no_base_resume", "There is no base resume. Run /setup.")
+    base = _dict(row, paths)
+    wanted = (posting_language or "").strip().lower() or None
+    translate = None if not wanted or not base["language"] else wanted != base["language"]
+    return {**base, "translate": translate}
+
+
+def set_main(conn: sqlite3.Connection, paths: Paths, language: str) -> dict:
+    """Make the current base resume in `language` the main one."""
+    row = _current_in(conn, _language(language))
+    if row is None:
+        raise JobTrackerError("not_found", f"There is no base resume in '{language}'")
+    conn.execute("UPDATE base_resumes SET is_main = 0 WHERE is_main = 1")
+    conn.execute("UPDATE base_resumes SET is_main = 1 WHERE id = ?", (row["id"],))
+    conn.execute(
+        "INSERT INTO events (entity_type, entity_id, kind, data, created_at)"
+        " VALUES ('base_resume', ?, 'made_main', ?, ?)",
+        (str(row["version"]), json.dumps({"language": row["language"]}), now_iso()),
+    )
+    bump_changes(conn)
+    return _dict(conn.execute("SELECT * FROM base_resumes WHERE id = ?",
+                              (row["id"],)).fetchone(), paths)
+
+
+def set_language(conn: sqlite3.Connection, paths: Paths, language: str) -> dict:
+    """State the language of the base resume imported before languages were recorded."""
+    code = _language(language)
+    row = _current_in(conn, None)
+    if row is None:
+        raise JobTrackerError("not_found",
+                              "There is no base resume without a language to set")
+    if _current_in(conn, code) is not None:
+        raise JobTrackerError(
+            "language_taken",
+            f"There is already a base resume in '{code}'. Import the newer one with "
+            f"`resume import <file> --language {code}` instead.",
+        )
+    conn.execute("UPDATE base_resumes SET language = ? WHERE id = ?", (code, row["id"]))
+    bump_changes(conn)
+    return _dict(conn.execute("SELECT * FROM base_resumes WHERE id = ?",
+                              (row["id"],)).fetchone(), paths)
+
+
 def import_resume(
-    conn: sqlite3.Connection, paths: Paths, source: Path, text_file: Path | None = None
+    conn: sqlite3.Connection, paths: Paths, source: Path, text_file: Path | None = None,
+    language: str | None = None,
 ) -> dict:
-    """Store `source` as the base resume. The previous one is kept under a versioned name.
+    """Store `source` as the base resume in `language`. The previous base resume in
+    that language is kept under a versioned name; other languages are untouched.
 
     `text_file` supplies the text when it cannot be extracted (scanned resume
     read visually and confirmed by the user).
     """
+    language = _language(language)
     if not source.is_file():
         raise JobTrackerError("not_found", f"There is no file at '{source}'")
     extension = source.suffix.lower()
@@ -105,6 +214,14 @@ def import_resume(
         raise JobTrackerError(
             "unsupported_resume",
             f"'{extension or source.name}' is not supported. Use PDF, DOCX, Markdown, or text.",
+        )
+    if language is not None and _current_in(conn, None) is not None \
+            and _current_in(conn, language) is None:
+        raise JobTrackerError(
+            "language_unknown",
+            "The current base resume has no language yet. Ask the user which language it is "
+            "in and run `resume language <code>` first, so a new file does not end up "
+            "beside it as a second copy of the same language. Nothing was stored.",
         )
 
     if text_file is not None:
@@ -127,7 +244,9 @@ def import_resume(
         )
 
     paths.profile.mkdir(parents=True, exist_ok=True)
-    previous = conn.execute("SELECT * FROM base_resumes WHERE is_current = 1").fetchone()
+    previous = _current_in(conn, language)
+    has_main = conn.execute("SELECT 1 FROM base_resumes WHERE is_main = 1").fetchone()
+    becomes_main = previous["is_main"] if previous is not None else has_main is None
     latest = conn.execute("SELECT COALESCE(MAX(version), 0) FROM base_resumes").fetchone()[0]
     version = latest + 1
 
@@ -149,30 +268,36 @@ def import_resume(
                 shutil.move(str(old_path), str(paths.profile / new_name))
             renamed[name] = new_name
         conn.execute(
-            "UPDATE base_resumes SET is_current = 0, file_name = ?, text_name = ? WHERE id = ?",
+            "UPDATE base_resumes SET is_current = 0, is_main = 0, file_name = ?, text_name = ?"
+            " WHERE id = ?",
             (renamed[previous["file_name"]], renamed[previous["text_name"]], previous["id"]),
         )
 
-    file_name = f"resume-base{extension}"
-    text_name = "resume-base.md"
+    stem = f"resume-base-{language}" if language else "resume-base"
+    file_name = f"{stem}{extension}"
+    text_name = f"{stem}.md"
     (paths.profile / file_name).write_bytes(payload)
     if file_name != text_name:
         (paths.profile / text_name).write_text(text + "\n", encoding="utf-8")
 
     now = now_iso()
-    conn.execute(
+    cursor = conn.execute(
         "INSERT INTO base_resumes (version, file_name, text_name, original_name, characters,"
-        " text_source, imported_at, is_current) VALUES (?, ?, ?, ?, ?, ?, ?, 1)",
-        (version, file_name, text_name, source.name, characters, text_source, now),
+        " text_source, imported_at, is_current, language, is_main)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
+        (version, file_name, text_name, source.name, characters, text_source, now, language,
+         int(bool(becomes_main))),
     )
     conn.execute(
         "INSERT INTO events (entity_type, entity_id, kind, data, created_at)"
         " VALUES ('base_resume', ?, 'imported', ?, ?)",
-        (str(version), json.dumps({"replaced": previous["version"] if previous else None}), now),
+        (str(version), json.dumps({"replaced": previous["version"] if previous else None,
+                                   "language": language}), now),
     )
-    rescore = previous is not None
+    # Scores are judged against the main base resume: only a new version of it
+    # makes them stale. Another language version has the same content.
+    rescore = previous is not None and bool(previous["is_main"])
     if rescore:
-        # Open postings were judged against the old resume; they need a new score.
         conn.execute(
             "INSERT INTO settings (key, value) VALUES (?, ?)"
             " ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -180,8 +305,7 @@ def import_resume(
         )
     bump_changes(conn)
 
-    result = current(conn, paths)
-    assert result is not None
+    result = by_id(conn, paths, cursor.lastrowid)
     return {
         **result,
         "words": len(text.split()),

@@ -144,13 +144,13 @@ def test_title_needs_a_profile(workspace, cli):
 def test_readable_resume_is_stored_unchanged_with_its_text(workspace, cli, tmp_path, maker):
     extension = "docx" if maker is make_docx else "pdf"
     source = maker(tmp_path / f"My Resume.{extension}")
-    code, out, _ = cli("resume", "import", str(source))
+    code, out, _ = cli("resume", "import", str(source), "--language", "en")
     assert code == 0, out
     resume = out["resume"]
-    stored = workspace.profile / f"resume-base.{extension}"
+    stored = workspace.profile / f"resume-base-en.{extension}"
     assert Path(resume["path"]) == stored
     assert stored.read_bytes() == source.read_bytes()
-    text = (workspace.profile / "resume-base.md").read_text(encoding="utf-8")
+    text = (workspace.profile / "resume-base-en.md").read_text(encoding="utf-8")
     assert "Senior Data Engineer" in text and "BigQuery" in text
     assert resume["version"] == 1 and resume["text_source"] == "extracted"
     assert resume["original_name"] == source.name
@@ -159,7 +159,7 @@ def test_readable_resume_is_stored_unchanged_with_its_text(workspace, cli, tmp_p
 
 def test_unreadable_resume_is_reported_and_nothing_is_stored(workspace, cli, tmp_path):
     source = make_image_only_pdf(tmp_path / "scan.pdf")
-    code, out, _ = cli("resume", "import", str(source))
+    code, out, _ = cli("resume", "import", str(source), "--language", "en")
     assert code == 1
     assert out["error"]["code"] == "no_text_extracted"
     assert "--text" in out["error"]["message"]
@@ -172,17 +172,18 @@ def test_visually_read_text_can_be_confirmed(workspace, cli, tmp_path):
     source = make_image_only_pdf(tmp_path / "scan.pdf")
     confirmed = tmp_path / "confirmed.md"
     confirmed.write_text(RESUME_TEXT, encoding="utf-8")
-    code, out, _ = cli("resume", "import", str(source), "--text", str(confirmed))
+    code, out, _ = cli("resume", "import", str(source), "--language", "en", "--text",
+                       str(confirmed))
     assert code == 0
     assert out["resume"]["text_source"] == "provided"
-    assert "Airflow" in (workspace.profile / "resume-base.md").read_text(encoding="utf-8")
+    assert "Airflow" in (workspace.profile / "resume-base-en.md").read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("name", ["resume.odt", "resume.png", "resume"])
 def test_unsupported_file_types_are_rejected(workspace, cli, tmp_path, name):
     source = tmp_path / name
     source.write_text("x", encoding="utf-8")
-    code, out, _ = cli("resume", "import", str(source))
+    code, out, _ = cli("resume", "import", str(source), "--language", "en")
     assert code == 1 and out["error"]["code"] == "unsupported_resume"
 
 
@@ -190,7 +191,7 @@ def test_corrupt_documents_are_rejected(workspace, cli, tmp_path):
     for name in ("broken.docx", "broken.pdf"):
         source = tmp_path / name
         source.write_bytes(b"this is not a real document")
-        code, out, _ = cli("resume", "import", str(source))
+        code, out, _ = cli("resume", "import", str(source), "--language", "en")
         assert code == 1 and out["error"]["code"] == "unreadable_resume", name
     assert list(workspace.profile.iterdir()) == []
 
@@ -199,22 +200,22 @@ def test_updated_base_resume_keeps_the_previous_one_and_asks_for_rescoring(
         workspace, cli, tmp_path):
     first = make_docx(tmp_path / "first.docx")
     second = make_text_pdf(tmp_path / "second.pdf", RESUME_TEXT + "\nKafka\n")
-    cli("resume", "import", str(first))
+    cli("resume", "import", str(first), "--language", "en")
     _, context, _ = cli("context")
     assert context["rescore_since"] is None
 
-    code, out, _ = cli("resume", "import", str(second))
+    code, out, _ = cli("resume", "import", str(second), "--language", "en")
     assert code == 0
     assert out["resume"]["version"] == 2
     assert out["resume"]["replaced_version"] == 1
     assert out["resume"]["rescore_needed"] is True
 
     profile_dir = workspace.profile
-    assert (profile_dir / "resume-base-v1.docx").read_bytes() == first.read_bytes()
-    assert "Kafka" not in (profile_dir / "resume-base-v1.md").read_text(encoding="utf-8")
-    assert (profile_dir / "resume-base.pdf").is_file()
-    assert "Kafka" in (profile_dir / "resume-base.md").read_text(encoding="utf-8")
-    assert not (profile_dir / "resume-base.docx").exists()
+    assert (profile_dir / "resume-base-en-v1.docx").read_bytes() == first.read_bytes()
+    assert "Kafka" not in (profile_dir / "resume-base-en-v1.md").read_text(encoding="utf-8")
+    assert (profile_dir / "resume-base-en.pdf").is_file()
+    assert "Kafka" in (profile_dir / "resume-base-en.md").read_text(encoding="utf-8")
+    assert not (profile_dir / "resume-base-en.docx").exists()
 
     _, context, _ = cli("context")
     assert context["rescore_since"] is not None
@@ -222,21 +223,21 @@ def test_updated_base_resume_keeps_the_previous_one_and_asks_for_rescoring(
 
 
 def test_reimporting_the_current_base_resume_does_not_lose_it(workspace, cli, tmp_path):
-    cli("resume", "import", str(make_docx(tmp_path / "cv.docx")))
-    current = workspace.profile / "resume-base.docx"
+    cli("resume", "import", str(make_docx(tmp_path / "cv.docx")), "--language", "en")
+    current = workspace.profile / "resume-base-en.docx"
     original = current.read_bytes()
-    code, _, _ = cli("resume", "import", str(current))
+    code, _, _ = cli("resume", "import", str(current), "--language", "en")
     assert code == 0
     assert current.read_bytes() == original
-    assert (workspace.profile / "resume-base-v1.docx").read_bytes() == original
+    assert (workspace.profile / "resume-base-en-v1.docx").read_bytes() == original
 
 
 def test_profile_exposes_resume_and_titles(profiled, cli, tmp_path):
-    cli("resume", "import", str(make_docx(tmp_path / "cv.docx")))
+    cli("resume", "import", str(make_docx(tmp_path / "cv.docx")), "--language", "en")
     _, out, _ = cli("profile", "show")
     profile = out["profile"]
     assert profile["version"] == 1
-    assert profile["base_resume"]["file_name"] == "resume-base.docx"
+    assert profile["base_resume"]["file_name"] == "resume-base-en.docx"
     assert {t["state"] for t in profile["titles"]} == {"included", "excluded", "suggested"}
     _, resume, _ = cli("resume", "show")
     assert Path(resume["resume"]["path"]).is_file()

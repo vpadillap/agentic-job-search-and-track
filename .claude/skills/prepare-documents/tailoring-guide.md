@@ -90,7 +90,8 @@ for one.
 A PDF cannot be edited in place without changing its design.
 
 1. Ask the user for the editable source (DOCX). If they give it, import it as
-   the new base resume with `jt resume import <file>` and tailor that.
+   the new base resume with `jt resume import <file> --language <code>` and
+   tailor that.
 2. If they have no editable version, a tailored resume means rebuilding it from
    its text: that is a `heavy` change. Do it only with their consent (or a user
    rule that allows it). Then write it as Markdown at
@@ -101,8 +102,15 @@ A PDF cannot be edited in place without changing its design.
 
 ## 5. Language
 
-Write in the posting's language. If the base resume is in another language,
-the tailored resume is a translation plus tailoring:
+Write in the posting's language. The user may have their own resume in
+several languages; `jt documents tailor` starts from the one in the posting's
+language when it exists, and says `translate: false`. Then do not translate:
+tailor the user's own wording.
+
+Only when `translate` is true (the user has no resume in the posting's
+language, so the main one was used) is the tailored resume a translation plus
+tailoring. Mention in your report that the user can give you a version in that
+language to use next time. When translating:
 
 - Translate faithfully, line by line; translate section headings too.
 - Employer names, product names, and certifications stay as they are.
@@ -112,6 +120,12 @@ the tailored resume is a translation plus tailoring:
   gendered form, use the one the user already uses (profile, earlier
   documents) or a neutral wording, and mention it in the summary.
 - Start the `summary` with "Translated from <language>." so the user knows.
+- `characters.change_pct` beyond ±10 is expected when translating; watch
+  `same_shape` instead.
+
+If the base used is older than the main resume (compare `imported_at` in
+`jt resume show`), say so in your report: the user may have updated only one
+language version.
 
 ## 6. The summary
 

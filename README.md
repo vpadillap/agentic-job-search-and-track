@@ -61,7 +61,8 @@ The agent will:
 1. Check your environment and install what is missing (it asks first).
 2. Ask whether you want the panel in English or Spanish.
 3. Create your private workspace.
-4. Ask for your resume (PDF or DOCX) and confirm it read it correctly.
+4. Ask for your resume (PDF or DOCX) and confirm it read it correctly. If you
+   also have it in another language, you can give that version too.
 5. Ask about the job you want: remote/hybrid/onsite, contract type, location,
    minimum salary, languages, and so on. Every question can be skipped.
 6. Ask which job titles you want, look at how the market names similar roles,
@@ -101,7 +102,8 @@ them as rules and follows them from then on.
   Resumes and form answers never claim experience you do not have.
 - It does not change your resume's layout without your consent.
 - It writes documents in the language of each job posting, whatever language
-  the panel is in.
+  the panel is in. If you gave it your resume in that language, it tailors your
+  own version; otherwise it translates your main resume.
 - Lessons it learns from your results take effect only after you approve them.
 
 ## Your data and privacy
@@ -257,7 +259,8 @@ guarda como reglas y las respeta desde entonces.
   respuestas nunca afirman experiencia que no tienes.
 - No cambia el diseño de tu CV sin tu consentimiento.
 - Escribe los documentos en el idioma de cada aviso, sin importar el idioma del
-  panel.
+  panel. Si le diste tu CV en ese idioma, adapta tu propia versión; si no,
+  traduce tu CV principal.
 - Las lecciones que aprende de tus resultados solo se aplican cuando las
   apruebas.
 

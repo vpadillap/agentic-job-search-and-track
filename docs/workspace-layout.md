@@ -26,9 +26,9 @@ user-data/                                  private home (gitignored)
 ├── jobtracker.db                           SQLite: the source of truth for all structured data
 ├── .private-terms                          one term per line (name, email, phone…) for the privacy guard
 ├── profile/
-│   ├── resume-base.<ext>                   the user's resume exactly as provided (pdf/docx)
-│   ├── resume-base.md                      extracted text of the base resume
-│   └── resume-base-v<N>.<ext>              earlier base resumes, kept when the user updates it
+│   ├── resume-base-<lang>.<ext>            the user's resume in one language, exactly as provided (pdf/docx)
+│   ├── resume-base-<lang>.md               extracted text of that base resume
+│   └── resume-base-<lang>-v<N>.<ext>       earlier versions in that language, kept on update
 ├── applications/
 │   └── <job-id>-<company-slug>/            one folder per tracked job, e.g. J0007-altamar-retail
 │       ├── posting.md                      job description verbatim, as captured
@@ -42,6 +42,11 @@ user-data/                                  private home (gitignored)
 └── archive/
     └── <YYYYMMDD>-<label>/                 a previous home moved aside by a full reset
 ```
+
+Base resumes: one current file per language the user has a resume in
+(`<lang>` is a 2-letter code such as `en` or `es`). One of them is the main
+resume. A base resume imported before languages were recorded keeps the name
+`resume-base.<ext>` until it is replaced.
 
 ## Naming rules
 

@@ -94,7 +94,7 @@ def validate_meta(conn: sqlite3.Connection, kind: str, meta: object) -> dict:
     if not isinstance(meta, dict):
         raise JobTrackerError("invalid_document", "expected an object describing the document")
     unknown = sorted(set(meta) - {"language", "summary", "level", "support", "gaps",
-                                  "applied_rules"})
+                                  "applied_rules", "base"})
     if unknown:
         raise JobTrackerError("invalid_document", f"'{unknown[0]}' is not a document field",
                               field=unknown[0])
@@ -134,6 +134,7 @@ def validate_meta(conn: sqlite3.Connection, kind: str, meta: object) -> dict:
         "support": checked_support,
         "gaps": _text_list("gaps", meta.get("gaps")),
         "applied_rules": _rule_ids(conn, meta.get("applied_rules")),
+        "base": meta.get("base"),
     }
 
 
@@ -158,14 +159,27 @@ def register(conn: sqlite3.Connection, paths: Paths, job_id: str, kind: str, fil
                     (app_row["id"], name)).fetchone():
         raise JobTrackerError("already_registered",
                               f"'{name}' is already registered; write a new version instead")
+    base_id = None
+    if kind == "resume_proposed":
+        from . import resume
+
+        posting = applications.application(conn, job_id)["posting"]
+        if checked["base"] is not None and not isinstance(checked["base"], str):
+            raise JobTrackerError("invalid_document",
+                                  "'base' is the language code of the base resume used",
+                                  field="base")
+        base_id = resume.choose_base(conn, paths, posting["language"], checked["base"])["id"]
+    elif checked["base"] is not None:
+        raise JobTrackerError("invalid_document", "only a resume has a base resume",
+                              field="base")
     document = applications.register_document(conn, paths, job_id, kind, name, "agent")
     conn.execute(
         "UPDATE documents SET language = ?, change_summary = ?, level = ?, support = ?,"
-        " gaps = ?, applied_rules = ? WHERE id = ?",
+        " gaps = ?, applied_rules = ?, base_resume_id = ? WHERE id = ?",
         (checked["language"], checked["summary"], checked["level"],
          json.dumps(checked["support"], ensure_ascii=False),
          json.dumps(checked["gaps"], ensure_ascii=False),
-         json.dumps(checked["applied_rules"]), document["id"]),
+         json.dumps(checked["applied_rules"]), base_id, document["id"]),
     )
     if kind == "cover_letter" and app_row["cover_letter_need"] != "required":
         conn.execute("UPDATE applications SET cover_letter_need = 'required' WHERE id = ?",
@@ -213,7 +227,7 @@ def _loads(value: str | None, default):
     return json.loads(value) if value else default
 
 
-def _dict(row: sqlite3.Row) -> dict:
+def _dict(conn: sqlite3.Connection, row: sqlite3.Row) -> dict:
     return {
         "id": row["id"], "kind": row["kind"], "file_name": row["file_name"],
         "version": row["version"], "origin": row["origin"],
@@ -222,19 +236,31 @@ def _dict(row: sqlite3.Row) -> dict:
         "language": row["language"], "summary": row["change_summary"], "level": row["level"],
         "support": _loads(row["support"], []), "gaps": _loads(row["gaps"], []),
         "applied_rules": _loads(row["applied_rules"], []),
+        "base_resume": _base_ref(conn, row),
     }
+
+
+def _base_ref(conn: sqlite3.Connection, row: sqlite3.Row) -> dict | None:
+    """Which base resume a tailored resume came from (language and version)."""
+    if row["base_resume_id"] is None:
+        return None
+    base = conn.execute(
+        "SELECT id, language, version FROM base_resumes WHERE id = ?", (row["base_resume_id"],)
+    ).fetchone()
+    return {"id": base["id"], "language": base["language"], "version": base["version"]} \
+        if base else None
 
 
 def get(conn: sqlite3.Connection, document_id: int) -> dict:
     row = conn.execute("SELECT * FROM documents WHERE id = ?", (document_id,)).fetchone()
     if row is None:
         raise JobTrackerError("not_found", f"There is no document {document_id}")
-    return _dict(row)
+    return _dict(conn, row)
 
 
 def list_for(conn: sqlite3.Connection, job_id: str) -> list[dict]:
     row = applications._row(conn, job_id)
-    return [_dict(r) for r in conn.execute(
+    return [_dict(conn, r) for r in conn.execute(
         "SELECT * FROM documents WHERE application_id = ? ORDER BY kind, version DESC",
         (row["id"],))]
 
@@ -242,7 +268,7 @@ def list_for(conn: sqlite3.Connection, job_id: str) -> list[dict]:
 def current(conn: sqlite3.Connection, application_id: int, kind: str) -> dict | None:
     row = conn.execute("SELECT * FROM documents WHERE application_id = ? AND kind = ?"
                        " AND is_current = 1", (application_id, kind)).fetchone()
-    return _dict(row) if row else None
+    return _dict(conn, row) if row else None
 
 
 # ── comparison with the base resume ───────────────────────────────────────
@@ -253,7 +279,7 @@ def _lines(text: str) -> list[str]:
 
 def diff(conn: sqlite3.Connection, paths: Paths, job_id: str,
          document_id: int | None = None) -> dict:
-    """The passages of a proposed resume that differ from the current base resume."""
+    """The passages of a proposed resume that differ from the base resume it came from."""
     from . import resume
 
     app_row = applications._row(conn, job_id)
@@ -268,7 +294,10 @@ def diff(conn: sqlite3.Connection, paths: Paths, job_id: str,
         if found is None or doc["kind"] != "resume_proposed":
             raise JobTrackerError("not_found",
                                   f"{job_id} has no proposed resume {document_id}")
-    base = resume.current(conn, paths)
+    if doc["base_resume"] is not None:
+        base = resume.by_id(conn, paths, doc["base_resume"]["id"])
+    else:  # registered before languages were recorded
+        base = resume.current(conn, paths)
     if base is None:
         raise JobTrackerError("no_base_resume", "There is no base resume to compare with")
     base_text = Path(base["text_path"]).read_text(encoding="utf-8")
@@ -287,7 +316,8 @@ def diff(conn: sqlite3.Connection, paths: Paths, job_id: str,
         added += j2 - j1
     return {
         "document": doc,
-        "base_resume": {"version": base["version"], "original_name": base["original_name"]},
+        "base_resume": {"version": base["version"], "language": base["language"],
+                        "original_name": base["original_name"]},
         "hunks": hunks,
         "stats": {"base_lines": len(old), "proposed_lines": len(new),
                   "added": added, "removed": removed},

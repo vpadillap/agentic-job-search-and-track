@@ -82,7 +82,8 @@ def pending(conn: sqlite3.Connection) -> list[dict]:
     items: list[dict] = []
     # A score judged against an earlier base resume (the base resume import
     # records `rescore_since`) needs a new score for every open posting.
-    base = conn.execute("SELECT version FROM base_resumes WHERE is_current = 1").fetchone()
+    base = conn.execute(
+        "SELECT version FROM base_resumes WHERE is_current = 1 AND is_main = 1").fetchone()
     if resume.rescore_since(conn) and base is not None:
         run_id = search.latest_run_id(conn)
         for row in conn.execute(
@@ -92,11 +93,15 @@ def pending(conn: sqlite3.Connection) -> list[dict]:
             " WHERE s.is_current = 1 AND s.resume_kind = 'base'"
             " AND NOT EXISTS (SELECT 1 FROM documents d WHERE d.application_id = a.id"
             "      AND d.kind = 'resume_sent' AND d.is_current = 1)"
-            " AND (s.resume_ref IS NULL OR s.resume_ref != ?)"
+            # stale: judged against a version that a newer main version replaced
+            " AND (s.resume_ref IS NULL OR EXISTS (SELECT 1 FROM base_resumes r"
+            "      WHERE CAST(r.version AS TEXT) = s.resume_ref AND r.is_current = 0"
+            "      AND EXISTS (SELECT 1 FROM base_resumes m WHERE m.is_current = 1"
+            "      AND m.is_main = 1 AND COALESCE(m.language, '') = COALESCE(r.language, ''))))"
             " AND NOT EXISTS (SELECT 1 FROM dismissals d WHERE d.posting_id = s.posting_id)"
             " AND (a.job_id IS NOT NULL OR EXISTS (SELECT 1 FROM run_results r"
             "      WHERE r.posting_id = s.posting_id AND r.run_id = ? AND r.outcome = 'new'))"
-            " ORDER BY s.posting_id", (str(base["version"]), run_id),
+            " ORDER BY s.posting_id", (run_id,),
         ):
             items.append({"kind": "rescore", "posting_id": row["posting_id"],
                           "job_id": row["job_id"], "title": row["title"],

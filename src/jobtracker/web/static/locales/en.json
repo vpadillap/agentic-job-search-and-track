@@ -442,5 +442,7 @@
   "history.answer_edited": "You edited answer {position}",
   "history.answer_picked": "Answer {position}: another version chosen",
   "history.cover_letter_need.required": "Cover letter: required",
-  "history.cover_letter_need.not_required": "Cover letter: not required"
+  "history.cover_letter_need.not_required": "Cover letter: not required",
+  "detail.fromBase": "From your {language} resume (v{version})",
+  "detail.fromBaseUnknown": "From your main resume (v{version})"
 }

@@ -152,7 +152,8 @@ def set_score(
     weights = active_weights(conn)
     checked = validate(submission, weights["weights"], language)
     if checked["resume_ref"] is None and checked["resume_kind"] == "base":
-        base = conn.execute("SELECT version FROM base_resumes WHERE is_current = 1").fetchone()
+        base = conn.execute("SELECT version FROM base_resumes WHERE is_current = 1"
+                            " AND is_main = 1").fetchone()
         checked["resume_ref"] = str(base["version"]) if base else None
     previous = current(conn, posting_id)
     now = now_iso()

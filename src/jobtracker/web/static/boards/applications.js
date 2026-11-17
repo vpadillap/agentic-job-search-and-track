@@ -235,6 +235,9 @@ function ProposedResume({ app, doc }) {
     <span class="mono">${doc.file_name}</span>
     <span class="small">${t('detail.agentOn', { date: fmt.dayMonth(doc.created_at) })}
       ${doc.language ? ' · ' + t('detail.language', { language: doc.language.toUpperCase() }) : ''}</span>
+    ${doc.base_resume && html`<span class="small">${doc.base_resume.language
+      ? t('detail.fromBase', { language: doc.base_resume.language.toUpperCase(), version: doc.base_resume.version })
+      : t('detail.fromBaseUnknown', { version: doc.base_resume.version })}</span>`}
     ${doc.summary && html`<p class="doc-summary">${doc.summary}</p>`}
     ${doc.level && doc.level !== 'light' && html`<span class="small">${t('detail.level.' + doc.level)}</span>`}
     ${doc.gaps && doc.gaps.length > 0 && html`

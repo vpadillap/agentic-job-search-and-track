@@ -167,13 +167,14 @@ def validate(data: object) -> dict:
 # ── storage ───────────────────────────────────────────────────────────────
 
 def _base_resume(conn: sqlite3.Connection) -> dict | None:
-    row = conn.execute("SELECT * FROM base_resumes WHERE is_current = 1").fetchone()
+    row = conn.execute(
+        "SELECT * FROM base_resumes WHERE is_current = 1 AND is_main = 1").fetchone()
     if row is None:
         return None
     return {
         "version": row["version"], "file_name": row["file_name"], "text_name": row["text_name"],
         "original_name": row["original_name"], "imported_at": row["imported_at"],
-        "text_source": row["text_source"],
+        "text_source": row["text_source"], "language": row["language"],
     }
 
 
