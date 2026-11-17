@@ -7,15 +7,15 @@ the CLI.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, File, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from jobtracker import __version__
-from jobtracker.core import board, config, db, providers, skills, tracking
+from jobtracker.core import applications, board, config, db, providers, skills, tracking
 from jobtracker.core.errors import JobTrackerError
 from jobtracker.core.paths import get_paths
 from jobtracker.core.workspace import is_initialized
@@ -62,6 +62,33 @@ class LanguageRequest(BaseModel):
 
 class ProviderRequest(BaseModel):
     enabled: bool
+
+
+class StatusChange(BaseModel):
+    job_ids: list[str] = Field(min_length=1, max_length=500)
+    status: str | int
+    stage: Literal["to_apply", "applied", "interview", "offer", "closed_positive",
+                   "closed_negative"] | None = None
+
+
+class TagChange(BaseModel):
+    add: list[str] = Field(default_factory=list, max_length=50)
+    remove: list[str] = Field(default_factory=list, max_length=50)
+
+
+class NewStatus(BaseModel):
+    name: str = Field(min_length=1, max_length=40)
+    stage: Literal["to_apply", "applied", "interview", "offer", "closed_positive",
+                   "closed_negative"]
+
+
+class StatusEdit(BaseModel):
+    name: str | None = Field(default=None, max_length=40)
+    retired: bool | None = None
+
+
+def _language() -> str:
+    return str(config.load(get_paths().config)["language"])
 
 
 def create_app() -> FastAPI:
@@ -178,6 +205,84 @@ def create_app() -> FastAPI:
         skills.sync(str(settings["language"]))
         return {"ok": True, "language": settings["language"],
                 "commands": skills.command_list(str(settings["language"]))}
+
+    # ── applications ──────────────────────────────────────────────────────
+
+    @app.get("/api/applications")
+    def application_board() -> dict:
+        language = _language()
+        with db.session(get_paths()) as conn:
+            items = applications.list_applications(conn, language)
+            return {"ok": True, "applications": items, "funnel": applications.funnel(items),
+                    "attention": applications.attention(items),
+                    "statuses": applications.list_statuses(conn, language),
+                    "thresholds": applications.thresholds(conn)}
+
+    @app.get("/api/applications/{job_id}")
+    def application_detail(job_id: str) -> dict:
+        with db.session(get_paths()) as conn:
+            return {"ok": True, "application": applications.detail(conn, job_id, _language())}
+
+    @app.post("/api/applications/status")
+    def change_status(body: StatusChange) -> dict:
+        with db.session(get_paths()) as conn:
+            return {"ok": True, "job_ids": applications.set_status(
+                conn, body.job_ids, body.status, stage=body.stage)}
+
+    @app.post("/api/applications/{job_id}/details")
+    def change_details(job_id: str, body: dict) -> dict:
+        with db.session(get_paths()) as conn:
+            return {"ok": True,
+                    "application": applications.update_details(conn, job_id, body)}
+
+    @app.post("/api/applications/{job_id}/tags")
+    def change_tags(job_id: str, body: TagChange) -> dict:
+        with db.session(get_paths()) as conn:
+            return {"ok": True, "tags": applications.set_tags(conn, job_id, body.add,
+                                                               body.remove)}
+
+    @app.post("/api/statuses")
+    def new_status(body: NewStatus) -> dict:
+        with db.session(get_paths()) as conn:
+            return {"ok": True, "status": applications.create_status(conn, body.name,
+                                                                      body.stage)}
+
+    @app.post("/api/statuses/{status_id}")
+    def edit_status(status_id: int, body: StatusEdit) -> dict:
+        with db.session(get_paths()) as conn:
+            result = None
+            if body.name is not None:
+                result = applications.rename_status(conn, status_id, body.name)
+            if body.retired is not None:
+                result = applications.retire_status(conn, status_id, body.retired)
+            if result is None:
+                raise JobTrackerError("invalid_status", "nothing to change")
+            return {"ok": True, "status": result}
+
+    @app.post("/api/applications/{job_id}/resume-sent")
+    def upload_resume(job_id: str, file: Annotated[UploadFile, File()]) -> dict:
+        data = file.file.read(applications.MAX_UPLOAD_BYTES + 1)
+        paths = get_paths()
+        with db.session(paths) as conn:
+            return {"ok": True, "document": applications.upload_sent_resume(
+                conn, paths, job_id, file.filename or "", data)}
+
+    @app.get("/api/applications/{job_id}/documents/{document_id}")
+    def download(job_id: str, document_id: int) -> FileResponse:
+        paths = get_paths()
+        with db.session(paths) as conn:
+            path = applications.document_path(conn, paths, job_id, document_id)
+        return FileResponse(path, media_type="application/octet-stream", filename=path.name,
+                            content_disposition_type="attachment")
+
+    @app.get("/api/applications/{job_id}/documents/{document_id}/text")
+    def document_text(job_id: str, document_id: int) -> dict:
+        paths = get_paths()
+        with db.session(paths) as conn:
+            path = applications.document_path(conn, paths, job_id, document_id)
+        if path.suffix.lower() not in (".md", ".txt"):
+            raise JobTrackerError("not_text", "Only text documents can be copied")
+        return {"ok": True, "text": path.read_text(encoding="utf-8")}
 
     # ── frontend ──────────────────────────────────────────────────────────
 

@@ -305,7 +305,7 @@ function SalaryCell({ salary }) {
 function TrackedLink({ application }) {
   const { t } = useUi();
   return html`<a class="tracked" href="#applications">
-    ${Icon.Check()}${application.status === 'applied' ? t('action.trackedApplied') : t('action.tracked')}
+    ${Icon.Check()}${application.stage && application.stage !== 'to_apply' ? t('action.trackedApplied') : t('action.tracked')}
     <span class="sr-only">· ${application.job_id}</span></a>`;
 }
 

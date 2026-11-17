@@ -7,6 +7,7 @@ removed with `jobtracker demo clear`.
 """
 from __future__ import annotations
 
+import shutil
 import sqlite3
 from datetime import UTC, date, datetime, timedelta
 
@@ -124,7 +125,7 @@ def _record(row: tuple, today: date) -> dict:
 
 
 def _score(conn: sqlite3.Connection, posting_id: int, row: tuple, language: str,
-           run_id: int) -> None:
+           run_id: int, resume: dict | None = None) -> None:
     title, mode, contract, extra, points = row[2], row[5], row[6], row[11], row[12]
     notes = NOTES.get(language, NOTES["en"])
     values = {"title": title, "extra": extra, "years": 5, "mode": MODES[mode],
@@ -135,8 +136,10 @@ def _score(conn: sqlite3.Connection, posting_id: int, row: tuple, language: str,
     }
     components["skills"].update(matched=["Python", "SQL", "Airflow", "dbt", "BigQuery"],
                                 missing=[extra])
-    scoring.set_score(conn, posting_id, {"components": components}, run_id=run_id,
-                      language=language)
+    submission: dict = {"components": components}
+    if resume:
+        submission["resume"] = resume
+    scoring.set_score(conn, posting_id, submission, run_id=run_id, language=language)
 
 
 def _evidence(conn: sqlite3.Connection, posting_id: int, currency: str, amounts: list,
@@ -189,6 +192,93 @@ def _run(conn: sqlite3.Connection, paths: Paths, started: datetime, rows: tuple,
     return run_id, ids
 
 
+# An older search whose postings the user has been following for weeks: one per
+# stage, so the Applications board has something to show.
+OLDER = (
+    ("ceibo", "linkedin", "Lead Data Engineer", "Ceibo Pagos", "San Isidro", "hybrid",
+     "full-time", "Senior", 2, 0, [], "Kafka", (22, 28, 13, 13)),
+    ("lumen", "indeed", "Analytics Engineer", "Lumen Edu", "Lima", "remote", "full-time",
+     "Senior", 1, 3, [], "Looker", (18, 25, 12, 14)),
+    ("puna", "computrabajo", "Data Engineer", "Puna Energía", "Surco", "onsite", "full-time",
+     "Senior", 3, 0, [], "Spark", (20, 24, 13, 9)),
+    ("huaral", "bumeran", "Senior Data Engineer", "Huaral Minerals", "Lima", "remote",
+     "full-time", "Senior", 2, 4, [], "Kafka", (25, 22, 15, 14)),
+    ("quipu", "linkedin", "Data Engineer", "Quipu Analytics", "Lima", "remote", "contractor",
+     "Senior", 1, 3, [], "dbt", (21, 26, 13, 12)),
+    ("altiplano", "indeed", "BI Developer", "Altiplano Seguros", "Miraflores", "hybrid",
+     "full-time", "Senior", 4, 0, [], "Power BI", (12, 18, 12, 12)),
+    ("tika", "bumeran", "Data Engineer", "Tika Foods", "Lima", "remote", "full-time",
+     "Senior", 2, 0, [], "Airflow", (20, 26, 13, 13)),
+)
+DEMO_PDF = b"%PDF-1.4\n% Fictional demo resume. Not a real person.\n"
+DEMO_DOCX = b"PK\x03\x04 Fictional demo resume. Not a real person."
+DEMO_LETTER = ("Estimado equipo de Huaral Minerals:\n\nCarta de presentación ficticia, "
+               "generada para la demo del panel.\n\nSaludos.")
+
+
+def _older_applications(conn: sqlite3.Connection, paths: Paths, now: datetime, language: str,
+                        today: date) -> int:
+    from . import applications
+
+    started = now - timedelta(days=20)
+    run_id, ids = _run(conn, paths, started, OLDER, (), [], language)
+    for provider in ("linkedin", "bumeran", "indeed", "computrabajo"):
+        search.record_provider(conn, run_id, provider, "ok")
+    search.finish_run(conn, run_id)
+    posting = {row[0]: ids[f"demo-{row[0]}"] for row in OLDER}
+    _suggest(conn, posting["ceibo"], "PEN", [(15500, 17000), (16000, 16800)], today)
+    _suggest(conn, posting["huaral"], "PEN", [(14000, 16000), (14500, 15500)], today)
+    _suggest(conn, posting["puna"], "PEN", [(12000, 13500), (12500, 13200)], today)
+    salary.mark_no_data(conn, posting["lumen"], ["Glassdoor (demo): no reports for this role"])
+    tracked = tracking.track(conn, [posting[key] for key, *_ in OLDER])
+    job = {key: item["job_id"] for (key, *_), item in zip(OLDER, tracked, strict=True)}
+
+    def applied(key: str, days_ago: int, status: str, stage: str | None = None,
+                **details: object) -> None:
+        applications.set_status(conn, [job[key]], status, stage=stage)
+        when = now - timedelta(days=days_ago)
+        conn.execute("UPDATE applications SET applied_on = ?, status_changed_at = ?"
+                     " WHERE job_id = ?",
+                     (when.astimezone().date().isoformat(), when.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                      job[key]))
+        if details:
+            applications.update_details(conn, job[key], details)
+        conn.execute("UPDATE application_snapshots SET captured_at = ? WHERE application_id = ?",
+                     (when.strftime("%Y-%m-%dT%H:%M:%SZ"), job[key]))
+
+    in_days = lambda n: (today + timedelta(days=n)).isoformat()  # noqa: E731
+    applied("ceibo", 14, "interview", channel="Company site",
+            asked_salary={"amount": 17000, "currency": "PEN"},
+            next_step_on=in_days(3), next_step_note="Technical interview")
+    applications.set_tags(conn, job["ceibo"], ["Technical 2 of 3"])
+    applied("lumen", 25, "applied", channel="Referral",
+            asked_salary={"amount": 11500, "currency": "PEN"})
+    applications.set_tags(conn, job["lumen"], ["Referral"])
+    applied("puna", 27, "offer", channel="Computrabajo",
+            asked_salary={"amount": 13000, "currency": "PEN"},
+            next_step_on=in_days(4), next_step_note="Answer the offer")
+    applied("altiplano", 30, "rejected", channel="Indeed")
+    applied("tika", 18, "Position frozen", stage="closed_negative", channel="Bumeran")
+
+    # Documents for one application: proposed and sent resume, cover letter, rescore.
+    folder = applications.folder(conn, paths, job["huaral"])
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "resume-proposed-v1.docx").write_bytes(DEMO_DOCX)
+    applications.register_document(conn, paths, job["huaral"], "resume_proposed",
+                                   "resume-proposed-v1.docx", "agent")
+    (folder / "cover-letter-v1.md").write_text(DEMO_LETTER, encoding="utf-8")
+    applications.register_document(conn, paths, job["huaral"], "cover_letter",
+                                   "cover-letter-v1.md", "agent")
+    applications.upload_sent_resume(conn, paths, job["huaral"], "demo-resume-final.pdf",
+                                    DEMO_PDF)
+    applied("huaral", 9, "applied", channel="LinkedIn",
+            asked_salary={"amount": 15000, "currency": "PEN"})
+    huaral = next(row for row in OLDER if row[0] == "huaral")
+    _score(conn, posting["huaral"], (*huaral[:12], (25, 31, 15, 14)), language, run_id,
+           resume={"kind": "sent", "ref": "resume-sent.pdf#v1"})
+    return run_id
+
+
 def seed(paths: Paths) -> dict:
     if not workspace.is_initialized(paths):
         workspace.initialize(paths)
@@ -206,6 +296,8 @@ def seed(paths: Paths) -> dict:
                                   "Demo data is already loaded. Run `demo clear` first.")
         now = datetime.now(UTC).replace(microsecond=0)
         today = datetime.now().date()
+
+        older_id = _older_applications(conn, paths, now, language, today)
 
         earlier_id, earlier_ids = _run(conn, paths, now - timedelta(days=3), EARLIER, (), [],
                                        language)
@@ -237,7 +329,7 @@ def seed(paths: Paths) -> dict:
         tracking.track(conn, [earlier_ids["demo-inti"]], applied=True)
         tracking.dismiss(conn, [posting["pukara"]], "industry")
         bump_changes(conn)
-        return {"seeded": True, "runs": [earlier_id, run_id], "latest_run": summary}
+        return {"seeded": True, "runs": [older_id, earlier_id, run_id], "latest_run": summary}
 
 
 def clear(paths: Paths) -> dict:
@@ -246,8 +338,19 @@ def clear(paths: Paths) -> dict:
         ids = [r[0] for r in conn.execute("SELECT id FROM postings WHERE is_demo = 1")]
         marks = ",".join("?" * len(ids))
         if ids:
-            jobs = [r[0] for r in conn.execute(
-                f"SELECT job_id FROM applications WHERE posting_id IN ({marks})", ids)]
+            found = conn.execute(
+                f"SELECT a.job_id, p.company FROM applications a JOIN postings p"
+                f" ON p.id = a.posting_id WHERE a.posting_id IN ({marks})", ids).fetchall()
+            jobs = [r[0] for r in found]
+            base = paths.applications.resolve()
+            for job_id, company in found:          # demo files only, inside the private home
+                folder = paths.job_folder(job_id, company).resolve()
+                if folder.is_relative_to(base) and folder.is_dir():
+                    shutil.rmtree(folder)
+            if jobs:
+                conn.execute(
+                    f"DELETE FROM application_snapshots WHERE application_id IN"
+                    f" ({','.join('?' * len(jobs))})", jobs)
             conn.execute(f"DELETE FROM salary_research_log WHERE posting_id IN ({marks})", ids)
             conn.execute(f"DELETE FROM salary_suggestions WHERE posting_id IN ({marks})", ids)
             conn.execute(f"DELETE FROM salary_evidence WHERE posting_id IN ({marks})", ids)

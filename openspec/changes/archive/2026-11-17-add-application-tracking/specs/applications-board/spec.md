@@ -68,8 +68,9 @@ pending work to the agent.
 
 ### Requirement: Document access
 The board SHALL let the user open each document of an application and copy the
-text of a cover letter or a form answer.
+text of a cover letter. Copying form answers is defined with the answers
+themselves (`form-answers`).
 
-#### Scenario: Copying an answer
-- **WHEN** the user activates copy on a form answer
-- **THEN** the answer text is placed on the clipboard
+#### Scenario: Copying a cover letter
+- **WHEN** the user activates copy on a cover letter
+- **THEN** the letter text is placed on the clipboard

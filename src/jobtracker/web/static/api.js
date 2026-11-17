@@ -40,4 +40,28 @@ export const api = {
   untrack: (ids) => request('POST', '/api/actions/untrack', { posting_ids: ids }),
   dismiss: (ids, reason, note) => request('POST', '/api/actions/dismiss', { posting_ids: ids, reason, note }),
   undismiss: (ids) => request('POST', '/api/actions/undismiss', { posting_ids: ids }),
+  applications: () => request('GET', '/api/applications'),
+  application: (job) => request('GET', `/api/applications/${encodeURIComponent(job)}`),
+  setStatus: (jobIds, status, stage) => request('POST', '/api/applications/status',
+    { job_ids: jobIds, status, stage: stage || null }),
+  setDetails: (job, fields) => request('POST', `/api/applications/${encodeURIComponent(job)}/details`, fields),
+  setTags: (job, add = [], remove = []) => request('POST', `/api/applications/${encodeURIComponent(job)}/tags`, { add, remove }),
+  documentText: (job, id) => request('GET', `/api/applications/${encodeURIComponent(job)}/documents/${id}/text`),
+  documentUrl: (job, id) => `/api/applications/${encodeURIComponent(job)}/documents/${id}`,
+  async uploadSentResume(job, file) {
+    const form = new FormData();
+    form.append('file', file);
+    let response;
+    try {
+      response = await fetch(`/api/applications/${encodeURIComponent(job)}/resume-sent`, { method: 'POST', body: form });
+    } catch (error) {
+      throw new ApiError('offline', String(error), 0);
+    }
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.ok === false) {
+      const error = data.error || {};
+      throw new ApiError(error.code || 'http_' + response.status, error.message || response.statusText, response.status);
+    }
+    return data;
+  },
 };

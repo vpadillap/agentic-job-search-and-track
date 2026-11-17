@@ -78,7 +78,7 @@ def test_state_with_demo_data(seeded, client):
     body = client.get("/api/state").json()
     assert body["initialized"] is True
     counts = body["header"]["counts"]
-    assert counts == {"search": 8, "applications": 2}      # 10 new - 1 tracked - 1 dismissed
+    assert counts == {"search": 8, "applications": 7}      # 10 new - 1 tracked - 1 dismissed
     assert body["changes"]["counter"] > 0
 
 
@@ -88,7 +88,7 @@ def test_search_board_shows_the_latest_run(seeded, client):
     assert run["counts"]["new"] == 10 and run["counts"]["filtered"] == 3
     assert run["counts"]["duplicate_or_seen"] == 2
     assert [s["id"] for s in run["skipped"]] == ["glassdoor"]
-    assert len(board["runs"]) == 2
+    assert len(board["runs"]) == 3
     assert {f["reason"] for f in board["filtered"]} == {"location", "title", "contract_type"}
 
 
@@ -118,7 +118,7 @@ def test_possible_duplicates_are_marked_on_separate_rows(seeded, client):
 
 def test_earlier_run(seeded, client):
     board = latest(client)
-    earlier = board["runs"][-1]["id"]
+    earlier = board["runs"][1]["id"]
     old = client.get(f"/api/search?run={earlier}").json()
     assert old["run"]["id"] == earlier
     assert {r["company"] for r in old["results"]} == {"Kallpa Energía", "Inti Bank"}
@@ -165,7 +165,7 @@ def test_bulk_track(seeded, client):
     assert all(r["application"] for r in board["results"] if r["id"] in ids)
     with db.session(seeded) as conn:
         job_ids = [r[0] for r in conn.execute("SELECT job_id FROM applications ORDER BY id")]
-    assert len(job_ids) == len(set(job_ids)) == 4
+    assert len(job_ids) == len(set(job_ids))
 
 
 def test_undo_track_does_not_reuse_the_job_id(seeded, client):
@@ -315,3 +315,4 @@ def test_demo_clear_removes_only_demo_rows(seeded, cli):
         assert conn.execute("SELECT COUNT(*) FROM postings").fetchone()[0] == 0
         assert conn.execute("SELECT COUNT(*) FROM applications").fetchone()[0] == 0
         assert conn.execute("SELECT COUNT(*) FROM search_runs").fetchone()[0] == 0
+

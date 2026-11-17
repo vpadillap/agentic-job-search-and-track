@@ -10,7 +10,9 @@ back into future advice.
 > versioned profile, Spanish command aliases), plus `/job-search` (runs,
 > import, filtering, scoring, salary evidence, provider-file validation; no
 > provider files yet) and the panel shell with the Search board
-> (`jobtracker demo seed` loads fictional data). Applications, documents,
+> (`jobtracker demo seed` loads fictional data), and application tracking
+> (statuses, tags, details, sent-resume upload, history, the Applications
+> board, `jobtracker applications …`, `jobtracker pending`). Documents,
 > learning, and seasons are specified in `openspec/changes/` and not built
 > yet. `jobtracker context` lists which commands are available.
 

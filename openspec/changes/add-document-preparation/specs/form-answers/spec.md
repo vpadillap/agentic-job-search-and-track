@@ -50,3 +50,7 @@ copyable individually.
 #### Scenario: Edited answer
 - **WHEN** the user has edited an answer
 - **THEN** it is labeled as edited by the user
+
+#### Scenario: Copying an answer
+- **WHEN** the user activates copy on a form answer in the Applications board
+- **THEN** the answer text is placed on the clipboard

@@ -69,7 +69,9 @@ def counts(conn: sqlite3.Connection) -> dict:
             " AND NOT EXISTS (SELECT 1 FROM applications a WHERE a.posting_id = r.posting_id)",
             (run_id,),
         ).fetchone()[0]
-    active = conn.execute("SELECT COUNT(*) FROM applications").fetchone()[0]
+    active = conn.execute(
+        "SELECT COUNT(*) FROM applications a JOIN statuses s ON s.id = a.status_id"
+        " WHERE s.stage IN ('to_apply', 'applied', 'interview', 'offer')").fetchone()[0]
     return {"search": new, "applications": active}
 
 
@@ -88,6 +90,8 @@ def pending(conn: sqlite3.Connection) -> list[dict]:
             " JOIN postings p ON p.id = s.posting_id"
             " LEFT JOIN applications a ON a.posting_id = s.posting_id"
             " WHERE s.is_current = 1 AND s.resume_kind = 'base'"
+            " AND NOT EXISTS (SELECT 1 FROM documents d WHERE d.application_id = a.id"
+            "      AND d.kind = 'resume_sent' AND d.is_current = 1)"
             " AND (s.resume_ref IS NULL OR s.resume_ref != ?)"
             " AND NOT EXISTS (SELECT 1 FROM dismissals d WHERE d.posting_id = s.posting_id)"
             " AND (a.job_id IS NOT NULL OR EXISTS (SELECT 1 FROM run_results r"
@@ -98,6 +102,20 @@ def pending(conn: sqlite3.Connection) -> list[dict]:
                           "job_id": row["job_id"], "title": row["title"],
                           "company": row["company"],
                           "reason": "the base resume changed after this score"})
+    # The resume the user actually sent replaces whatever the score was judged against.
+    for row in conn.execute(
+        "SELECT a.job_id, a.posting_id, p.title, p.company, d.file_name, d.version,"
+        " sc.resume_kind, sc.resume_ref FROM documents d"
+        " JOIN applications a ON a.id = d.application_id JOIN postings p ON p.id = a.posting_id"
+        " LEFT JOIN scores sc ON sc.posting_id = a.posting_id AND sc.is_current = 1"
+        " WHERE d.kind = 'resume_sent' AND d.is_current = 1 ORDER BY a.id"
+    ):
+        ref = f"{row['file_name']}#v{row['version']}"
+        if row["resume_kind"] != "sent" or row["resume_ref"] != ref:
+            items.append({"kind": "rescore", "posting_id": row["posting_id"],
+                          "job_id": row["job_id"], "title": row["title"],
+                          "company": row["company"], "resume": {"kind": "sent", "ref": ref},
+                          "reason": "the user uploaded the resume actually sent"})
     return items
 
 

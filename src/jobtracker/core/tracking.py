@@ -9,7 +9,6 @@ import json
 import sqlite3
 from datetime import date, datetime, timedelta
 
-from . import scoring
 from .db import bump_changes, now_iso
 from .errors import JobTrackerError
 
@@ -51,11 +50,14 @@ def _next_job_id(conn: sqlite3.Connection) -> str:
 
 
 def application(conn: sqlite3.Connection, posting_id: int) -> dict | None:
-    row = conn.execute("SELECT * FROM applications WHERE posting_id = ?", (posting_id,)
-                       ).fetchone()
+    row = conn.execute(
+        "SELECT a.*, s.key AS status_key, s.name_en, s.stage FROM applications a"
+        " JOIN statuses s ON s.id = a.status_id WHERE a.posting_id = ?", (posting_id,),
+    ).fetchone()
     if row is None:
         return None
-    return {"job_id": row["job_id"], "posting_id": row["posting_id"], "status": row["status"],
+    return {"job_id": row["job_id"], "posting_id": row["posting_id"],
+            "status": row["status_key"] or row["name_en"], "stage": row["stage"],
             "applied_on": row["applied_on"], "created_at": row["created_at"]}
 
 
@@ -76,35 +78,26 @@ def track(conn: sqlite3.Connection, posting_ids: object, applied: bool = False,
             raise JobTrackerError(
                 "dismissed", f"Posting {posting_id} is dismissed. Restore it before tracking it."
             )
+    from . import applications  # local import: applications builds on this module's records
+
     today = today or datetime.now().date()
     now = now_iso()
+    new_status = conn.execute("SELECT id FROM statuses WHERE key = 'new'").fetchone()["id"]
     for posting_id in ids:
         existing = application(conn, posting_id)
         if existing is None:
             job_id = _next_job_id(conn)
-            status = "applied" if applied else "new"
             conn.execute(
-                "INSERT INTO applications (job_id, posting_id, status, applied_on, created_at,"
-                " updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (job_id, posting_id, status, today.isoformat() if applied else None, now, now),
+                "INSERT INTO applications (job_id, posting_id, status_id, status_changed_at,"
+                " created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (job_id, posting_id, new_status, now, now, now),
             )
             _event(conn, "posting", str(posting_id), "tracked", {"job_id": job_id}, now)
-            _event(conn, "application", job_id, "created", {"status": status}, now)
-        elif applied and existing["status"] != "applied":
-            job_id = existing["job_id"]
-            conn.execute(
-                "UPDATE applications SET status = 'applied', applied_on = ?, updated_at = ?"
-                " WHERE job_id = ?", (today.isoformat(), now, job_id),
-            )
-            _event(conn, "application", job_id, "status_changed",
-                   {"from": existing["status"], "to": "applied"}, now)
+            _event(conn, "application", job_id, "created", {"status": "new"}, now)
         else:
-            continue
-        if applied:
-            score = scoring.current(conn, posting_id)
-            _event(conn, "application", job_id, "applied",
-                   {"applied_on": today.isoformat(), "score_id": score["id"] if score else None},
-                   now)
+            job_id = existing["job_id"]
+        if applied and (existing is None or existing["stage"] == "to_apply"):
+            applications.set_status(conn, [job_id], "applied", today=today)
     bump_changes(conn)
     return [application(conn, i) for i in ids]  # type: ignore[misc]
 
@@ -125,6 +118,8 @@ def untrack(conn: sqlite3.Connection, posting_ids: object) -> list[int]:
     stamp = now_iso()
     for posting_id in ids:
         existing = application(conn, posting_id)
+        conn.execute("DELETE FROM application_snapshots WHERE application_id = ?",
+                     (existing["job_id"],))  # type: ignore[index]
         conn.execute("DELETE FROM applications WHERE posting_id = ?", (posting_id,))
         _event(conn, "posting", str(posting_id), "untracked",
                {"job_id": existing["job_id"]}, stamp)  # type: ignore[index]

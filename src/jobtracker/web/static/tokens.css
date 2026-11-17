@@ -64,6 +64,22 @@
   --warn-bg: #FFF1E0;
   --warn-fg: #8A4105;
   --neutral-fg: #454B56;
+  --purple-bg: #F0E9FD;
+  --purple-fg: #5B2AB8;
+  --sent-bg: #F3FAF5;
+  --sent-line: #A9D9B8;
+
+  /* stages and document states */
+  --stage-to_apply: #8A8F99;
+  --stage-applied: #2F4FD8;
+  --stage-interview: #7C3AED;
+  --stage-offer: #1F8A4C;
+  --stage-closed_positive: #1F8A4C;
+  --stage-closed_negative: #C9CCC5;
+  --doc-ok: #1F8A4C;
+  --doc-missing: #C2410C;
+  --doc-missing-fg: #8A3108;
+  --doc-na: #C9CCC5;
 
   /* shape and space */
   --radius-sm: 5px;

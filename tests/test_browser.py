@@ -107,7 +107,7 @@ def test_reload_keeps_the_tab(seeded, page):
 def test_tabs_have_counters_and_placeholders(seeded, page):
     open_board(page)
     expect(page.locator(".tab", has_text="Search").locator(".count")).to_have_text("8")
-    expect(page.locator(".tab", has_text="Applications").locator(".count")).to_have_text("2")
+    expect(page.locator(".tab", has_text="Applications").locator(".count")).to_have_text("7")
     page.get_by_role("link", name="Learning").click()
     expect(page.get_by_role("heading", name=re.compile("coming in a later update"))).to_be_visible()
 
@@ -277,7 +277,7 @@ def test_track(seeded, page):
     open_board(page)
     row(page, "Mistral Pagos").get_by_role("button", name="Track", exact=True).click()
     expect(row(page, "Mistral Pagos").locator("a.tracked")).to_have_text(re.compile("Tracked"))
-    expect(page.locator(".tab", has_text="Applications").locator(".count")).to_have_text("3")
+    expect(page.locator(".tab", has_text="Applications").locator(".count")).to_have_text("8")
     assert row(page, "Mistral Pagos").locator("a.tracked").get_attribute("href") == "#applications"
 
 
@@ -287,8 +287,9 @@ def test_track_and_mark_applied(seeded, page):
     expect(row(page, "Quena Labs").locator("a.tracked")).to_have_text(re.compile("Applied"))
     with db.session(seeded) as conn:
         status, applied_on = conn.execute(
-            "SELECT a.status, a.applied_on FROM applications a JOIN postings p"
-            " ON p.id = a.posting_id WHERE p.company = 'Quena Labs'").fetchone()
+            "SELECT s.key, a.applied_on FROM applications a JOIN postings p"
+            " ON p.id = a.posting_id JOIN statuses s ON s.id = a.status_id"
+            " WHERE p.company = 'Quena Labs'").fetchone()
     assert status == "applied" and applied_on == datetime.now().date().isoformat()
 
 
@@ -381,3 +382,177 @@ def test_expand_and_sort_by_keyboard(seeded, page):
     page.keyboard.press("Enter")
     header = page.locator("th", has=page.get_by_role("button", name="Published"))
     expect(header).to_have_attribute("aria-sort", "descending")
+
+
+# ── applications-board ────────────────────────────────────────────────────
+
+def app_row(page, company: str):
+    return page.locator("tbody tr").filter(has=page.locator(".job-company", has_text=company))
+
+
+def test_score_changed_by_the_sent_resume(seeded, page):
+    open_board(page, "applications")
+    row_ = app_row(page, "Huaral Minerals")
+    expect(row_.locator(".score")).to_have_text("90")
+    expect(row_.locator(".delta")).to_have_text("+9 with your sent resume")
+
+
+def test_closed_applications_are_hidden_by_default(seeded, page):
+    open_board(page, "applications")
+    expect(page.locator("tbody .job-company")).to_have_count(7)
+    expect(app_row(page, "Altiplano Seguros")).to_have_count(0)
+    expect(app_row(page, "Tika Foods")).to_have_count(0)          # custom closed status
+    expect(page.locator(".footer")).to_contain_text("2 closed hidden")
+    page.get_by_role("checkbox", name=re.compile("Show closed")).check()
+    expect(app_row(page, "Tika Foods").locator(".status-chip")).to_have_text("Position frozen")
+    expect(page.locator("tbody .job-company")).to_have_count(9)
+
+
+def test_applications_type_ahead(seeded, page):
+    open_board(page, "applications")
+    box = page.get_by_role("searchbox", name="Search applications")
+    box.type("Ceibo")
+    expect(page.locator("tbody .job-company")).to_have_count(1)
+    box.fill("")
+    box.type("referral")                                         # tags are searched too
+    expect(page.locator("tbody .job-company")).to_have_count(1)
+    expect(app_row(page, "Lumen Edu")).to_have_count(1)
+
+
+def test_funnel_card_filters_by_stage(seeded, page):
+    open_board(page, "applications")
+    card = page.locator(".funnel-card", has_text="Interview")
+    card.click()
+    expect(card).to_have_attribute("aria-pressed", "true")
+    expect(page.locator("tbody .job-company")).to_have_count(1)
+    expect(app_row(page, "Ceibo Pagos")).to_have_count(1)
+
+
+def test_inline_status_change_persists(seeded, page):
+    open_board(page, "applications")
+    quipu = app_row(page, "Quipu Analytics")
+    quipu.get_by_role("button", name="Change status or add a tag").click()
+    page.get_by_role("radio", name="Applied").check()
+    expect(app_row(page, "Quipu Analytics").locator(".status-chip")).to_have_text("Applied")
+    page.reload()
+    expect(app_row(page, "Quipu Analytics").locator(".status-chip")).to_have_text("Applied")
+
+
+def test_inline_status_creation_and_tags(seeded, page):
+    open_board(page, "applications")
+    menu = "Change status or add a tag"
+    app_row(page, "Finlima S.A.").get_by_role("button", name=menu).click()
+    page.get_by_role("textbox", name="New status").fill("On hold")
+    page.get_by_label("Stage").select_option("applied")
+    page.get_by_role("button", name="Create and apply").click()
+    expect(app_row(page, "Finlima S.A.").locator(".status-chip")).to_have_text("On hold")
+    app_row(page, "Finlima S.A.").get_by_role("button", name=menu).click()
+    page.get_by_role("textbox", name="Add tag").fill("Remote friendly")
+    page.get_by_role("button", name="Add tag", exact=True).click()
+    expect(app_row(page, "Finlima S.A.").locator(".tag-chip")).to_contain_text("Remote friendly")
+    page.keyboard.press("Escape")
+    app_row(page, "Finlima S.A.").get_by_role("button", name="Remove tag Remote friendly").click()
+    expect(app_row(page, "Finlima S.A.").locator(".tag-chip")).to_have_count(0)
+
+
+def test_application_without_a_form(seeded, page):
+    open_board(page, "applications")
+    app_row(page, "Puna Energía").get_by_role("button", name=re.compile("Show details")).click()
+    expect(page.locator(".detail")).to_contain_text("no visible application form")
+
+
+def test_detail_shows_documents_questions_and_history(seeded, page):
+    open_board(page, "applications")
+    app_row(page, "Huaral Minerals").get_by_role("button", name=re.compile("Show details")).click()
+    detail = page.locator(".detail")
+    expect(detail.locator(".doc-card.sent")).to_contain_text("resume-sent.pdf")
+    expect(detail.locator(".qa")).to_have_count(4)
+    expect(detail.locator(".qa").first).to_contain_text("No proposed answer yet")
+    expect(detail.locator(".history-row").first).to_contain_text("Found on Bumeran")
+    expect(detail.locator(".history")).to_contain_text("Status: Applied")
+
+
+def test_missing_documents_summary_filters(seeded, page):
+    open_board(page, "applications")
+    page.get_by_role("button", name="2 without a tailored resume").click()
+    expect(page.locator("tbody .job-company")).to_have_count(2)
+    expect(app_row(page, "Quipu Analytics")).to_have_count(1)
+    expect(app_row(page, "Finlima S.A.")).to_have_count(1)
+    expect(page.locator(".attention .command-box code")).to_have_text("/prepare-documents pending")
+
+
+def test_copying_a_cover_letter(seeded, page):
+    open_board(page, "applications")
+    app_row(page, "Huaral Minerals").get_by_role("button", name=re.compile("Show details")).click()
+    page.get_by_role("button", name="Copy text").click()
+    expect(page.get_by_role("button", name="Copied")).to_be_visible()
+    assert page.evaluate("navigator.clipboard.readText()").startswith("Estimado equipo")
+
+
+def test_opening_a_document_downloads_it(seeded, page):
+    open_board(page, "applications")
+    app_row(page, "Huaral Minerals").get_by_role("button", name=re.compile("Show details")).click()
+    with page.expect_download() as download:
+        page.locator(".doc-card.sent").get_by_role("link", name="Open").click()
+    assert download.value.suggested_filename == "resume-sent.pdf"
+
+
+def test_details_save_on_change_and_persist(seeded, page):
+    open_board(page, "applications")
+    app_row(page, "Finlima S.A.").get_by_role("button", name=re.compile("Show details")).click()
+    notes = page.get_by_role("textbox", name="Notes")
+    notes.fill("Recruiter asked for references.")
+    page.get_by_role("textbox", name="Contact").click()          # leaving the field saves it
+    expect(page.locator(".field-state.saved")).to_be_visible()
+    page.reload()
+    app_row(page, "Finlima S.A.").get_by_role("button", name=re.compile("Show details")).click()
+    expect(page.get_by_role("textbox", name="Notes")).to_have_value(
+        "Recruiter asked for references.")
+
+
+def test_uploading_the_sent_resume_from_the_board(seeded, page):
+    open_board(page, "applications")
+    app_row(page, "Finlima S.A.").get_by_role("button", name=re.compile("Show details")).click()
+    page.locator(".detail input[type=file]").set_input_files(
+        {"name": "final.pdf", "mimeType": "application/pdf", "buffer": b"%PDF-1.4 fictional"})
+    expect(page.locator(".toast")).to_contain_text("Resume uploaded")
+    expect(app_row(page, "Finlima S.A.").locator(".doc-line").first).to_have_text("Resume sent")
+    expect(page.get_by_role("link", name=re.compile("1 pending for the agent"))).to_be_visible()
+
+
+def test_unsupported_upload_shows_the_reason(seeded, page):
+    open_board(page, "applications")
+    app_row(page, "Finlima S.A.").get_by_role("button", name=re.compile("Show details")).click()
+    page.locator(".detail input[type=file]").set_input_files(
+        {"name": "notes.txt", "mimeType": "text/plain", "buffer": b"hello"})
+    expect(page.locator(".toast")).to_contain_text("PDF or DOCX")
+
+
+def test_ghost_is_proposed_and_confirmed_by_the_user(seeded, page):
+    open_board(page, "applications")
+    row_ = app_row(page, "Lumen Edu")
+    expect(row_.locator(".status-chip")).to_have_text("Applied")
+    expect(row_).to_contain_text("days without a response")
+    row_.get_by_role("button", name="Mark as ghosted?").click()
+    expect(app_row(page, "Lumen Edu")).to_have_count(0)          # now closed, hidden
+    expect(page.locator(".footer")).to_contain_text("3 closed hidden")
+
+
+def test_applications_board_in_spanish(seeded, page):
+    open_board(page, "applications")
+    page.get_by_role("button", name="ES", exact=True).click()
+    expect(page.locator(".funnel-card", has_text="Por postular")).to_be_visible()
+    expect(app_row(page, "Ceibo Pagos").locator(".status-chip")).to_have_text("Entrevista")
+
+
+def test_search_track_actions_land_on_the_applications_board(seeded, page):
+    open_board(page)
+    row(page, "Mistral Pagos").get_by_role("button", name="Track", exact=True).click()
+    row(page, "Quena Labs").get_by_role("button", name="Track and mark applied").click()
+    expect(row(page, "Quena Labs").locator("a.tracked")).to_have_text(re.compile("Applied"))
+    row(page, "Mistral Pagos").locator("a.tracked").click()
+    expect(page).to_have_url(re.compile("#applications$"))
+    expect(app_row(page, "Mistral Pagos").locator(".status-chip")).to_have_text("New")
+    quena = app_row(page, "Quena Labs")
+    expect(quena.locator(".status-chip")).to_have_text("Applied")
+    expect(quena).to_contain_text("Follow up")                   # applied today: follow-up date set

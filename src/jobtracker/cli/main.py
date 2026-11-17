@@ -10,6 +10,8 @@ import sys
 from pathlib import Path
 
 from jobtracker.core import (
+    applications,
+    board,
     config,
     context,
     db,
@@ -347,6 +349,72 @@ def cmd_salary_show(args: argparse.Namespace) -> dict:
         return {"salary": salary.current(conn, args.id)}
 
 
+def cmd_applications_list(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        items = applications.list_applications(conn, _language(), args.stage,
+                                               include_closed=not args.hide_closed)
+        return {"applications": items, "funnel": applications.funnel(items),
+                "attention": applications.attention(items)}
+
+
+def cmd_applications_show(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"application": applications.detail(conn, args.job_id, _language())}
+
+
+def cmd_applications_set_status(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        changed = applications.set_status(conn, args.job_ids, args.to, stage=args.stage)
+        return {"applications": [applications.application(conn, j, _language())
+                                 for j in changed]}
+
+
+def cmd_applications_update(args: argparse.Namespace) -> dict:
+    changes = _read_json(args.file)
+    with db.session(get_paths()) as conn:
+        return {"application": applications.update_details(conn, args.job_id, changes)}
+
+
+def cmd_applications_tag(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"tags": applications.set_tags(conn, args.job_id, args.add, args.remove)}
+
+
+def cmd_applications_upload_resume(args: argparse.Namespace) -> dict:
+    paths = get_paths()
+    source = Path(args.file)
+    if not source.is_file():
+        raise JobTrackerError("not_found", f"There is no file at '{source}'")
+    with db.session(paths) as conn:
+        return {"document": applications.upload_sent_resume(
+            conn, paths, args.job_id, source.name, source.read_bytes())}
+
+
+def cmd_statuses_list(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"statuses": applications.list_statuses(conn, _language(), args.all)}
+
+
+def cmd_statuses_create(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"status": applications.create_status(conn, args.name, args.stage)}
+
+
+def cmd_statuses_rename(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"status": applications.rename_status(conn, args.id, args.name)}
+
+
+def cmd_statuses_retire(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"status": applications.retire_status(conn, args.id, not args.restore)}
+
+
+def cmd_pending(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"pending": board.pending(conn)}
+
+
 def cmd_demo_seed(args: argparse.Namespace) -> dict:
     return demo.seed(get_paths())
 
@@ -564,6 +632,57 @@ def build_parser() -> argparse.ArgumentParser:
     salary_show = salary_sub.add_parser("show")
     salary_show.add_argument("id", type=int, help="posting id")
     salary_show.set_defaults(run=cmd_salary_show)
+
+    apps_parser = sub.add_parser("applications", help="tracked applications")
+    apps_sub = apps_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)
+    apps_list = apps_sub.add_parser("list")
+    apps_list.add_argument("--stage", choices=applications.STAGES)
+    apps_list.add_argument("--hide-closed", action="store_true",
+                           help="leave out the closed negative stage")
+    apps_list.set_defaults(run=cmd_applications_list)
+    apps_show = apps_sub.add_parser("show", help="details, documents, questions, history")
+    apps_show.add_argument("job_id")
+    apps_show.set_defaults(run=cmd_applications_show)
+    apps_status = apps_sub.add_parser("set-status", help="change the status of applications")
+    apps_status.add_argument("job_ids", nargs="+")
+    apps_status.add_argument("--to", required=True, help="status name, key, or id")
+    apps_status.add_argument("--stage", choices=applications.STAGES,
+                             help="create the status in this stage if it does not exist")
+    apps_status.set_defaults(run=cmd_applications_set_status)
+    apps_update = apps_sub.add_parser("update", help="change application details")
+    apps_update.add_argument("job_id")
+    apps_update.add_argument("file", help="JSON object with the fields to change, or -")
+    apps_update.set_defaults(run=cmd_applications_update)
+    apps_tag = apps_sub.add_parser("tag", help="add or remove free-form tags")
+    apps_tag.add_argument("job_id")
+    apps_tag.add_argument("--add", action="append", default=[])
+    apps_tag.add_argument("--remove", action="append", default=[])
+    apps_tag.set_defaults(run=cmd_applications_tag)
+    apps_upload = apps_sub.add_parser("upload-resume", help="store the resume actually sent")
+    apps_upload.add_argument("job_id")
+    apps_upload.add_argument("file", help="PDF or DOCX")
+    apps_upload.set_defaults(run=cmd_applications_upload_resume)
+    statuses_parser = apps_sub.add_parser("statuses", help="built-in and custom statuses")
+    statuses_sub = statuses_parser.add_subparsers(
+        dest="status_action", required=True, parser_class=_Parser)
+    statuses_list = statuses_sub.add_parser("list")
+    statuses_list.add_argument("--all", action="store_true", help="include retired statuses")
+    statuses_list.set_defaults(run=cmd_statuses_list)
+    statuses_create = statuses_sub.add_parser("create")
+    statuses_create.add_argument("name")
+    statuses_create.add_argument("--stage", required=True, choices=applications.STAGES)
+    statuses_create.set_defaults(run=cmd_statuses_create)
+    statuses_rename = statuses_sub.add_parser("rename")
+    statuses_rename.add_argument("id", type=int)
+    statuses_rename.add_argument("name")
+    statuses_rename.set_defaults(run=cmd_statuses_rename)
+    statuses_retire = statuses_sub.add_parser("retire", help="stop offering a custom status")
+    statuses_retire.add_argument("id", type=int)
+    statuses_retire.add_argument("--restore", action="store_true")
+    statuses_retire.set_defaults(run=cmd_statuses_retire)
+
+    sub.add_parser("pending", help="work items waiting for the agent").set_defaults(
+        run=cmd_pending)
 
     demo_parser = sub.add_parser("demo", help="fictional data for trying the panel")
     demo_sub = demo_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)

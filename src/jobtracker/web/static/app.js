@@ -5,6 +5,7 @@ import { loadCatalogs, makeTranslator, initialLanguage, rememberLanguage } from 
 import { makeFormat } from './format.js';
 import { Ui, TABS, Header, Banner, Toast, EmptyState, Placeholder } from './components/shell.js';
 import { SearchBoard } from './boards/search.js';
+import { ApplicationsBoard } from './boards/applications.js';
 
 const POLL_MS = 3000;
 
@@ -36,6 +37,7 @@ function App({ initialState }) {
   const [lang, setLang] = useState(() => initialLanguage(initialState && initialState.language));
   const [tab, setTab] = useState(tabFromHash);
   const [board, setBoard] = useState(null);
+  const [apps, setApps] = useState(null);
   const [runId, setRunId] = useState(null);
   const [stale, setStale] = useState(false);
   const [toast, setToast] = useState(null);
@@ -62,17 +64,18 @@ function App({ initialState }) {
       const next = await api.state();
       setState(next);
       if (next.changes) counter.current = next.changes.counter;
-      if (next.initialized) setBoard(await api.search(wantedRun));
-      else setBoard(null);
+      if (!next.initialized) setBoard(null);
+      else if (tab === 'applications') setApps(await api.applications());
+      else if (tab === 'search') setBoard(await api.search(wantedRun));
       setStale(false);
     } catch (error) {
       if (error.status === 404 && wantedRun) { setRunId(null); return reload(null); }
       showError(error);
     }
     return undefined;
-  }, [runId, ui]);
+  }, [runId, ui, tab]);
 
-  useEffect(() => { reload(runId); }, [runId]);
+  useEffect(() => { reload(runId); }, [runId, tab]);
 
   // Freshness: poll the change counter while the page is visible.
   useEffect(() => {
@@ -101,6 +104,7 @@ function App({ initialState }) {
       try {
         const result = await api.setLanguage(next);
         setState((s) => ({ ...s, language: result.language, commands: result.commands }));
+        await reload();                     // server-localized names (statuses) follow the switch
       } catch (error) { showError(error); }
     }
   };
@@ -136,6 +140,9 @@ function App({ initialState }) {
   } else if (tab === 'search') {
     content = html`<${SearchBoard} data=${board} runId=${runId} onRunChange=${setRunId}
       commands=${state && state.commands} setupRequired=${state && state.setup_required} onAction=${onAction} />`;
+  } else if (tab === 'applications') {
+    content = html`<${ApplicationsBoard} data=${apps} version=${state && state.changes ? state.changes.counter : 0}
+      commands=${state && state.commands} onAction=${onAction} onReload=${() => reload()} />`;
   } else {
     content = html`<${Placeholder} tab=${tab} />`;
   }

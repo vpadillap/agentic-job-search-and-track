@@ -199,14 +199,13 @@ def history(conn: sqlite3.Connection, posting_id: int) -> list[dict]:
 
 def at_application(conn: sqlite3.Connection, posting_id: int) -> dict | None:
     """The score that was current when the user marked the posting as applied."""
-    event = conn.execute(
-        "SELECT e.data FROM events e JOIN applications a ON a.job_id = e.entity_id"
-        " WHERE e.entity_type = 'application' AND e.kind = 'applied' AND a.posting_id = ?"
-        " ORDER BY e.id LIMIT 1", (posting_id,),
+    found = conn.execute(
+        "SELECT s.data FROM application_snapshots s JOIN applications a"
+        " ON a.job_id = s.application_id WHERE a.posting_id = ?", (posting_id,),
     ).fetchone()
-    if event is None:
+    if found is None:
         return None
-    score_id = json.loads(event["data"]).get("score_id")
+    score_id = json.loads(found["data"]).get("score_id")
     if score_id is None:
         return None
     row = conn.execute("SELECT * FROM scores WHERE id = ?", (score_id,)).fetchone()

@@ -25,7 +25,7 @@ The project is being built in stages. What works today:
 | Private workspace, database, `jobtracker` command-line interface, privacy guard | Works |
 | Panel: Search tab (results, filters, score and salary detail, track and dismiss) | Works |
 | Job search (`/job-search`), scoring, salary evidence, job-site recipe format | Works, but no job site is added yet: each one arrives with its own update |
-| Applications tab, statuses, uploads | Planned |
+| Applications tab, statuses, uploads | Works |
 | Tailored resumes, cover letters, form answers (`/prepare-documents`, `/form-answers`) | Planned |
 | Learning: insights, lessons, predictions, recommendations (`/analyze-results`) | Planned |
 | Seasons and resets (`/new-season`), Profile & agent tab, `/panel` | Planned |
@@ -196,10 +196,11 @@ Todo lo personal se queda en tu computadora, en una sola carpeta que git ignora.
 
 El proyecto se construye por etapas. Hoy funciona la configuración inicial
 (`/configurar`), el espacio de trabajo privado, la interfaz de línea de
-comandos, la protección de privacidad, la pestaña Búsqueda del panel y la
-búsqueda (`/buscar-empleos`) con puntaje y evidencia salarial; aún no hay
-portales de empleo: cada uno llega con su propia actualización. Los documentos,
-el seguimiento y el aprendizaje están especificados en
+comandos, la protección de privacidad, las pestañas Búsqueda y Postulaciones
+del panel (estados, etiquetas, CV enviado, historial) y la búsqueda
+(`/buscar-empleos`) con puntaje y evidencia salarial; aún no hay portales de
+empleo: cada uno llega con su propia actualización. Los documentos y el
+aprendizaje están especificados en
 [`openspec/changes/`](openspec/changes/) y en desarrollo.
 
 ## Requisitos
