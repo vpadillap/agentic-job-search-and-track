@@ -44,7 +44,7 @@
 
 - [ ] 6.1 Write `.claude/skills/analyze-results/SKILL.md`: read insights and candidates, review for confounding, word lessons, store proposals, refit and validate, report
 - [ ] 6.2 Analysis guide reference: what the agent may and may not conclude, wording of evidence
-- [ ] 6.3 Spanish alias `analizar-resultados`
+- [ ] 6.3 Spanish alias `analizar-resultados` (template exists in `i18n/skill-aliases/es/`; verify it installs once the skill is built)
 - [ ] 6.4 Update search, scoring, and document skills to cite the rules they applied
 - [ ] 6.5 Run the analysis on seeded histories at each maturity level and review the output
 

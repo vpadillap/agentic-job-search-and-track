@@ -4,6 +4,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from .db import bump_changes, now_iso
+from .errors import JobTrackerError
 from .paths import repo_root
 
 SKIPPED_FILES = {"readme.md", "_template.md"}
@@ -52,3 +54,31 @@ def list_providers(directory: Path | None = None) -> list[dict[str, object]]:
         meta["file"] = path.name
         found.append(meta)
     return found
+
+
+def with_state(conn) -> list[dict[str, object]]:
+    """Every provider file with this user's state (enabled unless switched off)."""
+    state = {row["provider_id"]: row for row in conn.execute("SELECT * FROM providers_state")}
+    result = []
+    for provider in list_providers():
+        row = state.get(str(provider["id"]))
+        result.append({
+            **provider,
+            "enabled": bool(row["enabled"]) if row else True,
+            "last_status": row["last_status"] if row else None,
+            "last_run_at": row["last_run_at"] if row else None,
+        })
+    return result
+
+
+def set_enabled(conn, provider_id: str, enabled: bool) -> list[dict[str, object]]:
+    if provider_id not in {str(p["id"]) for p in list_providers()}:
+        raise JobTrackerError("not_found", f"There is no provider '{provider_id}'")
+    conn.execute(
+        "INSERT INTO providers_state (provider_id, enabled, updated_at) VALUES (?, ?, ?)"
+        " ON CONFLICT(provider_id) DO UPDATE SET enabled = excluded.enabled,"
+        " updated_at = excluded.updated_at",
+        (provider_id, int(enabled), now_iso()),
+    )
+    bump_changes(conn)
+    return with_state(conn)

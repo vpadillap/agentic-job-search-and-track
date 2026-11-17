@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from .errors import JobTrackerError
-from .paths import Paths
+from .paths import Paths, cli_name
 
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 BUSY_TIMEOUT_MS = 5000
@@ -94,7 +94,7 @@ def connect(paths: Paths, *, create: bool = False) -> sqlite3.Connection:
     if not paths.database.is_file() and not create:
         raise JobTrackerError(
             "not_initialized",
-            "The workspace is not initialized. Run /setup (or `jobtracker init`).",
+            f"The workspace is not initialized. Run /setup (or `{cli_name()} init`).",
         )
     conn = _open(paths.database)
     try:

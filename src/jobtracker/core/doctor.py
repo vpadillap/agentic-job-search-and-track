@@ -9,7 +9,7 @@ import sys
 from contextlib import closing
 
 from . import db, providers
-from .paths import Paths, repo_root
+from .paths import Paths, cli_name, repo_root
 from .workspace import is_initialized
 
 MIN_PYTHON = (3, 11)
@@ -18,6 +18,7 @@ REQUIRED_PACKAGES = {  # import name -> distribution name
     "uvicorn": "uvicorn",
     "pydantic": "pydantic",
     "multipart": "python-multipart",
+    "pypdf": "pypdf",
 }
 INSTALL_HINT = "Run `uv sync --extra dev`, or `pip install -e .` inside a virtual environment."
 
@@ -91,7 +92,7 @@ def run(paths: Paths) -> dict:
     else:
         checks.append(_check(
             "workspace", "fail", f"not initialized (expected at {paths.home})",
-            "Run /setup in Claude Code (or `jobtracker init`).",
+            f"Run /setup in Claude Code (or `{cli_name()} init`).",
         ))
 
     stored = db.stored_schema_version(paths.database)

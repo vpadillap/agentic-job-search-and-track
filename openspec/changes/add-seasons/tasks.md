@@ -12,7 +12,7 @@
 
 - [ ] 2.1 Write `.claude/skills/new-season/SKILL.md`: explain the three restart levels, offer export, handle open applications, rerun profile steps with defaults
 - [ ] 2.2 Write `.claude/skills/panel/SKILL.md`: start, stop, port handling
-- [ ] 2.3 Spanish alias `nueva-temporada`
+- [ ] 2.3 Spanish alias `nueva-temporada` (template exists in `i18n/skill-aliases/es/`; verify it installs once the skill is built)
 - [ ] 2.4 Dry-run each restart level with the fictional persona
 
 ## 3. Profile & agent board

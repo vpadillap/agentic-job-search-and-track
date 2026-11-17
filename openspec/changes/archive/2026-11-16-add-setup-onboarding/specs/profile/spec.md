@@ -23,13 +23,30 @@ negative signals.
 - **WHEN** the user excludes a title that was included
 - **THEN** later searches do not query that title and postings matching it are flagged
 
+#### Scenario: Deciding on several titles at once
+- **WHEN** the states of several titles are set together
+- **THEN** exactly one new profile version is created
+
+#### Scenario: Removing a mistyped title
+- **WHEN** a title is removed from the profile
+- **THEN** it no longer appears in any state
+
+### Requirement: Facts confirmed by the user
+The profile SHALL be able to hold facts about the user that are not on the
+resume and that the user confirmed, and these SHALL count as part of the
+profile for the purpose of what documents may state.
+
+#### Scenario: Skill not on the resume
+- **WHEN** the user confirms a skill that the resume does not mention
+- **THEN** it is stored with the profile as an additional fact
+
 ### Requirement: Base resume history
 The system SHALL keep every base resume the user has provided and SHALL mark
 open postings for rescoring when the base resume changes.
 
 #### Scenario: Updated base resume
 - **WHEN** the user provides a new base resume
-- **THEN** the previous file is kept under a versioned name and every open posting appears in the pending work as needing a rescore
+- **THEN** the previous file is kept under a versioned name and the system records that open postings need a rescore from that moment
 
 ### Requirement: Profile is readable by agents and the panel
 The system SHALL expose the active profile, including title states and the

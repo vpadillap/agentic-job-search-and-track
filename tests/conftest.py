@@ -8,6 +8,14 @@ from jobtracker.cli.main import main
 from jobtracker.core.paths import HOME_ENV, Paths
 
 
+@pytest.fixture(autouse=True)
+def skills_target(tmp_path, monkeypatch):
+    """Alias installation goes to a temporary folder, never into the real repo."""
+    target = tmp_path / "installed-skills"
+    monkeypatch.setenv("JOBTRACKER_SKILLS_DIR", str(target))
+    return target
+
+
 @pytest.fixture
 def home(tmp_path, monkeypatch) -> Paths:
     """An empty private home in a temporary directory."""

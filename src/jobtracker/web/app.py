@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from jobtracker import __version__
-from jobtracker.core import db
+from jobtracker.core import config, db, skills
 from jobtracker.core.errors import JobTrackerError
 from jobtracker.core.paths import get_paths
 from jobtracker.core.workspace import is_initialized
@@ -33,5 +33,10 @@ def create_app() -> FastAPI:
     def changes() -> dict:
         with db.session(get_paths()) as conn:
             return {"ok": True, **db.change_state(conn)}
+
+    @app.get("/api/commands")
+    def commands() -> dict:
+        language = str(config.load(get_paths().config)["language"])
+        return {"ok": True, "language": language, "commands": skills.command_list(language)}
 
     return app

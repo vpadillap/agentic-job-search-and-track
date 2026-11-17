@@ -19,9 +19,21 @@ searching and extracting fields.
 The agent SHALL use the access method and pacing stated in the provider file
 and SHALL NOT use a method the file marks as unreliable or forbidden.
 
-#### Scenario: Browser-extension provider
-- **WHEN** a provider file requires the user's own browser session
-- **THEN** the search uses that session and no other access method for that provider
+#### Scenario: Stated access method
+- **WHEN** a provider file states how the site must be accessed
+- **THEN** the search uses that method and no other for that provider
+
+### Requirement: Anonymous access only
+The agent SHALL read job and salary sites as a logged-out visitor and SHALL NOT
+use the user's logged-in account or browser session on those sites.
+
+#### Scenario: Sign-in required
+- **WHEN** a site shows the needed content only after signing in
+- **THEN** the agent does not sign in, and the run reports what could not be read
+
+#### Scenario: Sign-in prompt over public content
+- **WHEN** a site shows a sign-in prompt over content that is public
+- **THEN** the agent follows the provider file's instructions for that case without signing in, or skips the provider and reports it
 
 ### Requirement: Read-only behavior
 Provider instructions and the agent SHALL NOT submit applications, send

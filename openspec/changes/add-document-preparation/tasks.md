@@ -31,7 +31,7 @@
 - [ ] 5.2 Tailoring guide reference: truthfulness rule, change levels, consent handling, support list
 - [ ] 5.3 Cover letter guide reference: when to write, structure, length
 - [ ] 5.4 Write `.claude/skills/form-answers/SKILL.md` with the grounding rules
-- [ ] 5.5 Spanish aliases `preparar-documentos` and `formulario`
+- [ ] 5.5 Spanish aliases `preparar-documentos` and `formulario` (template exists in `i18n/skill-aliases/es/`; verify it installs once the skill is built)
 - [ ] 5.6 End-to-end batch with the fictional persona; review output against every `document-preparation` scenario
 
 ## 6. Panel

@@ -1,9 +1,10 @@
-## Purpose
+# setup-onboarding Specification
 
+## Purpose
 Defines the first-run experience that takes a freshly cloned repository to a
 personalized, working installation and leaves the user knowing how to use it.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Environment check before anything else
 The setup flow SHALL check the environment first, tell the user what is
@@ -68,6 +69,19 @@ guard and SHALL create all personal files only inside the private home.
 #### Scenario: After setup
 - **WHEN** setup completes
 - **THEN** version control reports no new or modified tracked files and the private terms file exists in the private home
+
+### Requirement: Preferences without duplication
+The setup flow SHALL record a standing preference as a rule only when it adds
+to the rules already in force, and SHALL let the user reword or retire their
+own rules when revising.
+
+#### Scenario: User keeps the default
+- **WHEN** the user is satisfied that the resume layout is never changed, which is already a system rule
+- **THEN** no additional rule is stored
+
+#### Scenario: Revising preferences
+- **WHEN** the preferences step is repeated and the user changes an earlier preference
+- **THEN** the existing rule is reworded or retired instead of a second rule being added
 
 ### Requirement: Resumable setup
 The setup flow SHALL resume from the first incomplete step when run again and

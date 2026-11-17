@@ -1,11 +1,13 @@
 """The bundle an agent loads before doing anything."""
 from __future__ import annotations
 
-import json
+from pathlib import Path
 
-from . import config, db, providers, rules
+from . import config, db, profile, providers, resume, rules, setup, skills
 from .paths import Paths
 from .workspace import is_initialized
+
+PANEL_INDEX = Path(__file__).resolve().parent.parent / "web" / "static" / "index.html"
 
 
 def build(paths: Paths) -> dict:
@@ -18,43 +20,40 @@ def build(paths: Paths) -> dict:
             "language": None,
             "season": None,
             "profile": None,
+            "base_resume": None,
             "rules": [],
             "pending": [],
             "providers": [],
+            "commands": skills.command_list("en"),
+            "setup": None,
         }
 
     settings = config.load(paths.config)
+    language = str(settings["language"])
     with db.session(paths) as conn:
         season = conn.execute("SELECT * FROM seasons WHERE is_active = 1").fetchone()
-        profile = conn.execute("SELECT * FROM profile_versions WHERE is_active = 1").fetchone()
-        active_rules = rules.list_rules(conn, "active")
-        state = {row["provider_id"]: row for row in conn.execute("SELECT * FROM providers_state")}
-        changes = db.change_state(conn)
-
-    provider_list = []
-    for provider in providers.list_providers():
-        row = state.get(str(provider["id"]))
-        provider_list.append({
-            **provider,
-            "enabled": bool(row["enabled"]) if row else True,
-            "last_status": row["last_status"] if row else None,
-        })
-
-    return {
-        "initialized": True,
-        "setup_required": profile is None,
-        "home": str(paths.home),
-        "language": settings["language"],
-        "season": {
-            "number": season["number"], "label": season["label"],
-            "started_at": season["started_at"],
-        } if season else None,
-        "profile": {
-            "version": profile["version"], "created_at": profile["created_at"],
-            **json.loads(profile["data"]),
-        } if profile else None,
-        "rules": active_rules,
-        "pending": [],
-        "providers": provider_list,
-        "changes": changes,
-    }
+        active_profile = profile.get_active(conn)
+        setup_status = setup.status(conn)
+        return {
+            "initialized": True,
+            "setup_required": active_profile is None or not setup_status["complete"],
+            "home": str(paths.home),
+            "language": language,
+            "season": {
+                "number": season["number"], "label": season["label"],
+                "started_at": season["started_at"],
+            } if season else None,
+            "profile": active_profile,
+            "base_resume": resume.current(conn, paths),
+            "rescore_since": resume.rescore_since(conn),
+            "rules": rules.list_rules(conn, "active", language),
+            "pending": [],
+            "providers": providers.with_state(conn),
+            "commands": skills.command_list(language),
+            "setup": setup_status,
+            "panel": {
+                "url": f"http://{settings['host']}:{settings['port']}",
+                "interface_ready": PANEL_INDEX.is_file(),
+            },
+            "changes": db.change_state(conn),
+        }

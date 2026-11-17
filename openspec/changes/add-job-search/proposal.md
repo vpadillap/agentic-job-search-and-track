@@ -16,7 +16,9 @@ number.
   weights.
 - Add evidence-gated salary suggestions.
 - Add the first provider files: LinkedIn, Indeed, Bumeran, Computrabajo (jobs)
-  and Glassdoor, Indeed (salary), plus per-user provider state.
+  and Glassdoor, Indeed (salary), plus per-user provider state. Each file comes
+  from its own study of the live site, read logged out; the agent never uses
+  the user's logged-in session on a job site.
 
 ## Non-goals
 
@@ -48,6 +50,7 @@ None.
   salary tables (migration), CLI commands `jobtracker run …`,
   `jobtracker postings import`, `jobtracker score set`, `jobtracker salary set`,
   `jobtracker providers …`.
-- Optional per-provider dependencies (Playwright, Scrapling, Claude in Chrome).
+- Optional per-provider dependencies, decided by each provider's study (for example
+  Playwright).
 - Depends on `add-setup-onboarding` (profile) and `add-panel-search-tab`
   (postings model and board).

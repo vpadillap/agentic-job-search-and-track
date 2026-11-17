@@ -2,11 +2,11 @@
 
 - [ ] 1.1 Provider file parser and validator; `jobtracker providers list|validate|enable|disable`
 - [ ] 1.2 Per-user provider state and per-provider dependency checks in `doctor`
-- [ ] 1.3 Write and hand-verify `providers/linkedin.md`
-- [ ] 1.4 Write and hand-verify `providers/indeed.md` (jobs and salary)
-- [ ] 1.5 Write and hand-verify `providers/bumeran.md`
-- [ ] 1.6 Write and hand-verify `providers/computrabajo.md`
-- [ ] 1.7 Write and hand-verify `providers/glassdoor.md` (salary, live walk)
+- [ ] 1.3 Study LinkedIn's public, logged-out job search (`https://www.linkedin.com/jobs/search`), including the intermittent sign-in pop-up, then write and hand-verify `providers/linkedin.md`
+- [ ] 1.4 Study, write, and hand-verify `providers/indeed.md` (jobs and salary), logged out
+- [ ] 1.5 Study, write, and hand-verify `providers/bumeran.md`, logged out
+- [ ] 1.6 Study, write, and hand-verify `providers/computrabajo.md`, logged out
+- [ ] 1.7 Study what Glassdoor shows logged out; write and hand-verify `providers/glassdoor.md` (salary) or document it as not usable
 - [ ] 1.8 Tests for every `provider-recipes` scenario
 
 ## 2. Run and import
@@ -23,7 +23,7 @@
 - [ ] 3.1 Migration: weights versions, scores history
 - [ ] 3.2 `jobtracker score set|show` with validation against active weights
 - [ ] 3.3 Neutral history component until the learning loop supplies it
-- [ ] 3.4 Rescore queue entries when the judged resume changes
+- [ ] 3.4 Rescore queue entries when the judged resume changes (derive one pending item per open posting scored before `rescore_since`, recorded by the base resume import)
 - [ ] 3.5 Tests for every `posting-scoring` scenario
 
 ## 4. Salary
@@ -39,5 +39,5 @@
 - [ ] 5.1 Write `.claude/skills/job-search/SKILL.md` following the pipeline in design J1
 - [ ] 5.2 Scoring guide (how to judge each component, examples) as a skill reference file
 - [ ] 5.3 Salary research guide (what counts as comparable, what to record) as a skill reference file
-- [ ] 5.4 Spanish alias `buscar-empleos`
+- [ ] 5.4 Spanish alias `buscar-empleos` (template exists in `i18n/skill-aliases/es/`; verify it installs once the skill is built)
 - [ ] 5.5 End-to-end run with the fictional persona against live providers; confirm the Search board matches the run report

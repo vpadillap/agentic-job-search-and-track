@@ -42,7 +42,8 @@ def test_usage_error_is_json_too(home, cli):
 
 
 def test_runs_from_the_clone_without_installation(tmp_path):
-    env = {"JOBTRACKER_HOME": str(tmp_path / "home"), "PATH": "", "SYSTEMROOT": "C:\\Windows"}
+    env = {"JOBTRACKER_HOME": str(tmp_path / "home"), "PATH": "", "SYSTEMROOT": "C:\\Windows",
+           "JOBTRACKER_NO_VENV": "1"}
     result = subprocess.run(
         [sys.executable, "-S", str(REPO / "scripts" / "jt.py"), "doctor"],
         capture_output=True, text=True, env=env, encoding="utf-8",
@@ -91,36 +92,38 @@ def test_doctor_reports_missing_provider_tools(workspace, cli, tmp_path, monkeyp
 
 # ── migrations ────────────────────────────────────────────────────────────
 
-def test_older_database_is_backed_up_then_migrated(workspace, cli, tmp_path, monkeypatch):
+def _with_extra_migration(tmp_path, monkeypatch, sql: str) -> int:
+    """Pretend the code ships one more migration than the database has."""
     migrations = tmp_path / "migrations"
     migrations.mkdir()
     for path in db.MIGRATIONS_DIR.glob("*.sql"):
         (migrations / path.name).write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
-    (migrations / "0002_test.sql").write_text("CREATE TABLE extra (id INTEGER);", encoding="utf-8")
+    current = db.current_schema_version()
+    (migrations / f"{current + 1:04d}_test.sql").write_text(sql, encoding="utf-8")
     monkeypatch.setattr(db, "MIGRATIONS_DIR", migrations)
+    return current
+
+
+def test_older_database_is_backed_up_then_migrated(workspace, cli, tmp_path, monkeypatch):
+    current = _with_extra_migration(tmp_path, monkeypatch, "CREATE TABLE extra (id INTEGER);")
 
     assert list(workspace.backups.iterdir()) == []
     code, _, _ = cli("rules", "list")
     assert code == 0
-    assert _user_version(workspace.database) == 2
-    backups = list(workspace.backups.glob("jobtracker-v0001-*.db"))
+    assert _user_version(workspace.database) == current + 1
+    backups = list(workspace.backups.glob(f"jobtracker-v{current:04d}-*.db"))
     assert len(backups) == 1
-    assert _user_version(backups[0]) == 1
+    assert _user_version(backups[0]) == current
 
 
 def test_failed_migration_leaves_the_database_unchanged(workspace, cli, tmp_path, monkeypatch):
-    migrations = tmp_path / "migrations"
-    migrations.mkdir()
-    for path in db.MIGRATIONS_DIR.glob("*.sql"):
-        (migrations / path.name).write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
-    (migrations / "0002_bad.sql").write_text(
-        "CREATE TABLE half (id INTEGER);\nTHIS IS NOT SQL;", encoding="utf-8")
-    monkeypatch.setattr(db, "MIGRATIONS_DIR", migrations)
+    current = _with_extra_migration(
+        tmp_path, monkeypatch, "CREATE TABLE half (id INTEGER);\nTHIS IS NOT SQL;")
 
     code, out, _ = cli("rules", "list")
     assert code == 1
     assert out["ok"] is False
-    assert _user_version(workspace.database) == 1
+    assert _user_version(workspace.database) == current
     with closing(sqlite3.connect(workspace.database)) as conn:
         tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert "half" not in tables

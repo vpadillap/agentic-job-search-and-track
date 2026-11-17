@@ -77,6 +77,39 @@ command with an example, where the data lives and why it is private, and what
 to do next (`/job-search`). The README carries the same content permanently,
 with an English main body and a Spanish section.
 
+### S7. Changes made after verification
+
+The skill was dry-run end to end by a separate agent with the fictional
+persona. It completed, and its friction report led to these changes:
+
+- Titles are set in bulk (`profile titles`), so setup creates a handful of
+  profile versions instead of one per title. A proposal's reason is dropped
+  when the title's state changes; a mistyped title can be removed.
+- The profile gained `remote_region` (which region "region" means) and
+  `additional_facts` (things the user confirmed that are not on the resume).
+  The truthful-documents system rule now explicitly allows those facts.
+- The cover-letter default became a system rule, so it exists in the rule
+  list and not only in skill text. The skill stores a preference only when it
+  adds something to the listed rules.
+- System rules are shown in the panel language, and their text is refreshed
+  from the code on initialization. User and learned rules can be reworded and
+  retired (`rules edit`, `rules retire`); system rules cannot.
+- `privacy terms list` exists; extra terms found in the resume are registered
+  in the resume step.
+- Messages name the command the user actually runs (`python scripts/jt.py`).
+- A command that is not built yet is shown under the name it will have in the
+  panel language; a built command is shown by its alias only when the alias is
+  installed.
+- Skipped questions are simply left out; an earlier answer is cleared by
+  sending `null` explicitly.
+
+Deferred: when the base resume changes the system records the moment
+(`rescore_since` in the context bundle). Turning that into one pending item per
+open posting needs postings, so it is a task of `add-job-search`.
+
+*Alternative considered for aliases of unbuilt commands:* showing English
+names until each is built (the tour would teach names that later change).
+
 ## Risks / Trade-offs
 
 - [Scanned or image-only resume yields no text] → detect empty extraction and

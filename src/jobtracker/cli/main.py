@@ -9,9 +9,22 @@ import json
 import sys
 from pathlib import Path
 
-from jobtracker.core import config, context, db, doctor, rules, workspace
+from jobtracker.core import (
+    config,
+    context,
+    db,
+    doctor,
+    privacy,
+    profile,
+    providers,
+    resume,
+    rules,
+    setup,
+    skills,
+    workspace,
+)
 from jobtracker.core.errors import JobTrackerError
-from jobtracker.core.paths import get_paths, next_version_path
+from jobtracker.core.paths import cli_name, get_paths, next_version_path
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -75,13 +88,118 @@ def cmd_config_set(args: argparse.Namespace) -> dict:
     settings = config.set_value(paths.config, args.key, args.value)
     with db.session(paths) as conn:
         db.bump_changes(conn)
-    return {"config": settings}
+    result: dict = {"config": settings}
+    if args.key == "language":
+        result["skills"] = skills.sync(str(settings["language"]))
+    return result
+
+
+def cmd_profile_show(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        if args.version is not None:
+            return {"profile": profile.get_version(conn, args.version)}
+        return {"profile": profile.get_active(conn)}
+
+
+def cmd_profile_set(args: argparse.Namespace) -> dict:
+    changes = _read_json(args.file)
+    with db.session(get_paths()) as conn:
+        return {"profile": profile.update(conn, changes)}
+
+
+def cmd_profile_title(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"profile": profile.set_title_state(conn, args.title, args.state, args.reason)}
+
+
+def cmd_profile_titles(args: argparse.Namespace) -> dict:
+    changes = _read_json(args.file)
+    with db.session(get_paths()) as conn:
+        return {"profile": profile.set_titles(conn, changes)}
+
+
+def cmd_profile_remove_title(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"profile": profile.remove_title(conn, args.title)}
+
+
+def cmd_profile_history(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"versions": profile.history(conn)}
+
+
+def cmd_resume_import(args: argparse.Namespace) -> dict:
+    paths = get_paths()
+    text_file = Path(args.text) if args.text else None
+    with db.session(paths) as conn:
+        return {"resume": resume.import_resume(conn, paths, Path(args.file), text_file)}
+
+
+def cmd_resume_show(args: argparse.Namespace) -> dict:
+    paths = get_paths()
+    with db.session(paths) as conn:
+        return {"resume": resume.current(conn, paths)}
+
+
+def cmd_privacy_terms_add(args: argparse.Namespace) -> dict:
+    return privacy.add_terms(get_paths(), args.terms)
+
+
+def cmd_privacy_terms_list(args: argparse.Namespace) -> dict:
+    return {"terms": privacy.list_terms(get_paths())}
+
+
+def cmd_skills_sync(args: argparse.Namespace) -> dict:
+    language = str(config.load(get_paths().config)["language"])
+    return skills.sync(language)
+
+
+def cmd_skills_list(args: argparse.Namespace) -> dict:
+    language = str(config.load(get_paths().config)["language"])
+    return {"commands": skills.command_list(language)}
+
+
+def cmd_setup_status(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return setup.status(conn)
+
+
+def cmd_setup_done(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return setup.mark_done(conn, args.steps)
+
+
+def cmd_setup_redo(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return setup.redo(conn, args.step)
+
+
+def cmd_providers_list(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"providers": providers.with_state(conn)}
+
+
+def cmd_providers_enable(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"providers": providers.set_enabled(conn, args.provider, args.enabled)}
 
 
 def cmd_rules_list(args: argparse.Namespace) -> dict:
     status = None if args.status == "all" else args.status
+    paths = get_paths()
+    language = str(config.load(paths.config)["language"])
+    with db.session(paths) as conn:
+        return {"rules": rules.list_rules(conn, status, language)}
+
+
+def cmd_rules_edit(args: argparse.Namespace) -> dict:
     with db.session(get_paths()) as conn:
-        return {"rules": rules.list_rules(conn, status)}
+        return {"rule": rules.edit_rule(conn, args.id, args.text)}
+
+
+def cmd_rules_retire(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"rule": rules.retire_rule(conn, args.id)}
 
 
 def cmd_rules_add(args: argparse.Namespace) -> dict:
@@ -123,7 +241,7 @@ def cmd_panel(args: argparse.Namespace) -> dict:
 # ── parser ────────────────────────────────────────────────────────────────
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = _Parser(prog="jobtracker", description="Job Tracker data interface for agents.")
+    parser = _Parser(prog=cli_name(), description="Job Tracker data interface for agents.")
     sub = parser.add_subparsers(dest="command", required=True, parser_class=_Parser)
 
     sub.add_parser("doctor", help="check the environment (changes nothing)").set_defaults(
@@ -151,6 +269,71 @@ def build_parser() -> argparse.ArgumentParser:
     config_set.add_argument("value")
     config_set.set_defaults(run=cmd_config_set)
 
+    profile_parser = sub.add_parser("profile", help="job needs and target titles")
+    profile_sub = profile_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)
+    profile_show = profile_sub.add_parser("show")
+    profile_show.add_argument("--version", type=int)
+    profile_show.set_defaults(run=cmd_profile_show)
+    profile_set = profile_sub.add_parser("set", help="change fields; creates a new version")
+    profile_set.add_argument("file", help="JSON object with the fields to change, or - for stdin")
+    profile_set.set_defaults(run=cmd_profile_set)
+    profile_title = profile_sub.add_parser("title", help="set the state of one target title")
+    profile_title.add_argument("title")
+    profile_title.add_argument("state", choices=profile.TITLE_STATES)
+    profile_title.add_argument("--reason")
+    profile_title.set_defaults(run=cmd_profile_title)
+    profile_titles = profile_sub.add_parser(
+        "titles", help="set the state of several titles at once (one new version)")
+    profile_titles.add_argument("file", help="JSON list of {title, state, reason}, or - for stdin")
+    profile_titles.set_defaults(run=cmd_profile_titles)
+    profile_remove = profile_sub.add_parser("remove-title", help="delete a mistyped title")
+    profile_remove.add_argument("title")
+    profile_remove.set_defaults(run=cmd_profile_remove_title)
+    profile_sub.add_parser("history").set_defaults(run=cmd_profile_history)
+
+    resume_parser = sub.add_parser("resume", help="the base resume")
+    resume_sub = resume_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)
+    resume_import = resume_sub.add_parser("import", help="store a resume as the base resume")
+    resume_import.add_argument("file")
+    resume_import.add_argument("--text", help="text of the resume when it cannot be extracted")
+    resume_import.set_defaults(run=cmd_resume_import)
+    resume_sub.add_parser("show").set_defaults(run=cmd_resume_show)
+
+    privacy_parser = sub.add_parser("privacy", help="privacy guard settings")
+    privacy_sub = privacy_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)
+    terms = privacy_sub.add_parser("terms")
+    terms_sub = terms.add_subparsers(dest="terms_action", required=True, parser_class=_Parser)
+    terms_add = terms_sub.add_parser("add", help="register identifying terms (name, email...)")
+    terms_add.add_argument("terms", nargs="+")
+    terms_add.set_defaults(run=cmd_privacy_terms_add)
+    terms_sub.add_parser("list", help="show the registered terms").set_defaults(
+        run=cmd_privacy_terms_list)
+
+    skills_parser = sub.add_parser("skills", help="agent commands and their aliases")
+    skills_sub = skills_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)
+    skills_sub.add_parser("sync", help="install aliases for the panel language").set_defaults(
+        run=cmd_skills_sync)
+    skills_sub.add_parser("list").set_defaults(run=cmd_skills_list)
+
+    setup_parser = sub.add_parser("setup", help="first-run progress")
+    setup_sub = setup_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)
+    setup_sub.add_parser("status").set_defaults(run=cmd_setup_status)
+    setup_done = setup_sub.add_parser("done")
+    setup_done.add_argument("steps", nargs="+", choices=setup.STEP_IDS)
+    setup_done.set_defaults(run=cmd_setup_done)
+    setup_redo = setup_sub.add_parser("redo")
+    setup_redo.add_argument("step", choices=setup.STEP_IDS)
+    setup_redo.set_defaults(run=cmd_setup_redo)
+
+    providers_parser = sub.add_parser("providers", help="job sites")
+    providers_sub = providers_parser.add_subparsers(
+        dest="action", required=True, parser_class=_Parser)
+    providers_sub.add_parser("list").set_defaults(run=cmd_providers_list)
+    for action, enabled in (("enable", True), ("disable", False)):
+        toggle = providers_sub.add_parser(action)
+        toggle.add_argument("provider")
+        toggle.set_defaults(run=cmd_providers_enable, enabled=enabled)
+
     rules_parser = sub.add_parser("rules", help="rules the agent obeys")
     rules_sub = rules_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)
     rules_list = rules_sub.add_parser("list")
@@ -162,6 +345,13 @@ def build_parser() -> argparse.ArgumentParser:
     rules_add.add_argument("--origin", default="user")
     rules_add.add_argument("--evidence")
     rules_add.set_defaults(run=cmd_rules_add)
+    rules_edit = rules_sub.add_parser("edit", help="reword a user or learned rule")
+    rules_edit.add_argument("id", type=int)
+    rules_edit.add_argument("--text", required=True)
+    rules_edit.set_defaults(run=cmd_rules_edit)
+    rules_retire = rules_sub.add_parser("retire", help="stop applying a user or learned rule")
+    rules_retire.add_argument("id", type=int)
+    rules_retire.set_defaults(run=cmd_rules_retire)
     rules_import = rules_sub.add_parser("import", help="add several rules from a JSON list")
     rules_import.add_argument("file", help="JSON file, or - for standard input")
     rules_import.set_defaults(run=cmd_rules_import)

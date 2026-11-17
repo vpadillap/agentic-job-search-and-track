@@ -15,6 +15,13 @@ from pathlib import Path
 from .errors import JobTrackerError
 
 HOME_ENV = "JOBTRACKER_HOME"
+PROG_ENV = "JOBTRACKER_PROG"
+
+
+def cli_name() -> str:
+    """How the user invokes the CLI, for messages: set by scripts/jt.py."""
+    return os.environ.get(PROG_ENV) or "jobtracker"
+
 DEFAULT_HOME_NAME = "user-data"
 SUBDIRECTORIES = ("profile", "applications", "searches", "exports", "backups", "archive")
 JOB_ID_PATTERN = re.compile(r"^J\d{4,}$")

@@ -5,10 +5,11 @@ agent (primarily Claude Code) searches, scores, and prepares application
 documents; a local web panel shows and edits the results; every outcome feeds
 back into future advice.
 
-> Status: the foundation is implemented (private workspace, database, the
-> `jobtracker` CLI, privacy guard, a placeholder panel). The user-facing skills
-> (`/setup`, `/job-search`, …) and the panel boards are specified in
-> `openspec/changes/` and not built yet.
+> Status: the foundation and first-run setup are implemented (private
+> workspace, database, the `jobtracker` CLI, privacy guard, `/setup`, the
+> versioned profile, Spanish command aliases, a placeholder panel). Search, the
+> panel boards, documents, and learning are specified in `openspec/changes/`
+> and not built yet. `jobtracker context` lists which commands are available.
 
 ## Which mode are you in?
 
@@ -41,7 +42,9 @@ If it is unclear, ask.
 6. **Respect active rules.** Before any search, scoring, or document work, load
    the active rules (user preferences and approved lessons) and follow them.
 7. **Provider files are binding.** For each job site, follow
-   `providers/<name>.md` (access method, pacing, what not to do).
+   `providers/<name>.md` (access method, pacing, what not to do). Job sites
+   are read as a logged-out visitor: never sign in and never use the user's
+   logged-in browser session or cookies on them.
 8. **Language.** The panel language (en/es) is a UI setting. Documents and form
    answers are written in the language of each job posting.
 
@@ -50,6 +53,8 @@ If it is unclear, ask.
 | Path | Purpose |
 |---|---|
 | `docs/workspace-layout.md` | Storage contract: where/how private data is stored and named |
+| `.claude/skills/` | User-facing skills (canonical, English names) |
+| `i18n/skill-aliases/` | Templates of the Spanish command names; installed by `jobtracker skills sync`, never edited in `.claude/skills/` |
 | `providers/` | One file per job site: how the agent must access and read it |
 | `openspec/` | Specs and change proposals (spec-driven development) |
 | `design/` | UX reference for the panel (four boards: Search, Applications, Learning, Profile & agent) |
