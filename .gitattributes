@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Shell hooks must keep LF endings on every platform
+.githooks/* text eol=lf
+*.sh text eol=lf

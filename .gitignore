@@ -1,0 +1,56 @@
+# ── Private user data ─────────────────────────────────────────────────────
+# Everything personal (resume, profile, database, generated documents, raw
+# captures) lives under user-data/ and must never be committed.
+# See docs/workspace-layout.md. scripts/check_private.py enforces this too.
+/user-data/
+/user-data-*/
+*.local.md
+.env
+.env.*
+
+# ── Local agent/tooling state ─────────────────────────────────────────────
+.claude/settings.local.json
+.claude/worktrees/
+# OpenSpec is used for development, but its generated skills/commands are
+# per-developer tooling and are intentionally not part of this repo.
+# Regenerate locally with: openspec init --tools claude
+.claude/skills/openspec-*/
+.claude/commands/opsx/
+# Spanish skill aliases are installed by /setup from i18n/skill-aliases/es/
+.claude/skills/configurar/
+.claude/skills/buscar-empleos/
+.claude/skills/preparar-documentos/
+.claude/skills/formulario/
+.claude/skills/analizar-resultados/
+.claude/skills/nueva-temporada/
+
+# ── Python ────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# ── Databases and browser automation leftovers ────────────────────────────
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+playwright-report/
+test-results/
+.playwright-mcp/
+
+# ── OS / editor ───────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

@@ -1,0 +1,33 @@
+schema: spec-driven
+
+context: |
+  Claude Job Tracker: a clone-and-run, local-first job search assistant.
+  An AI agent (primarily Claude Code) performs searches, scoring, salary
+  research, and document preparation through skills stored in this repo; a
+  local web panel (127.0.0.1) displays and edits the data; outcomes feed a
+  learning loop that adjusts future advice.
+
+  Tech stack: Python 3.11+, FastAPI + uvicorn, SQLite (stdlib sqlite3, WAL),
+  pydantic, a `jobtracker` CLI as the agent's only write path, and a no-build
+  frontend (static ES modules, vendored Preact + htm, self-hosted fonts).
+  No Node toolchain is required to run the project.
+
+  Hard constraints:
+  - Privacy boundary: all personal data lives under user-data/ (JOBTRACKER_HOME)
+    per docs/workspace-layout.md. Specs, examples, and tests use fictional data.
+  - No invented facts: salary suggestions need >= 2 comparable linked sources.
+  - The panel never runs the agent; it shows commands to paste into Claude Code.
+  - The agent never submits applications.
+  - UI is bilingual (en/es); repo content is English.
+  - UX reference: design/ (four boards: Search, Applications, Learning,
+    Profile & agent).
+
+rules:
+  proposal:
+    - Include a "Non-goals" section.
+  specs:
+    - Never use real personal data in scenarios; use the fictional persona.
+  design:
+    - Record alternatives considered for every decision.
+  tasks:
+    - Every task group ends with tests for the behavior it adds.

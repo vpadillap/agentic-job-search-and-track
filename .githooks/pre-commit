@@ -1,0 +1,7 @@
+#!/bin/sh
+# Privacy guard. Enable once per clone with: git config core.hooksPath .githooks
+root="$(git rev-parse --show-toplevel)"
+if command -v python3 >/dev/null 2>&1 && python3 -c "" >/dev/null 2>&1; then
+  exec python3 "$root/scripts/check_private.py"
+fi
+exec python "$root/scripts/check_private.py"
