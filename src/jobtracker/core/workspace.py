@@ -84,4 +84,9 @@ def reset(paths: Paths, confirmation: str | None, label: str = "reset") -> dict:
         shutil.move(str(entry), str(target / entry.name))
 
     result = initialize(paths)
-    return {"archived_to": str(target), "archived_entries": len(entries), **result}
+    # The privacy guard keeps protecting the user's identifying terms after a reset.
+    terms = target / paths.private_terms.name
+    if terms.is_file():
+        shutil.copyfile(terms, paths.private_terms)
+    return {"archived_to": str(target), "archived_entries": len(entries),
+            "setup_required": True, **result}

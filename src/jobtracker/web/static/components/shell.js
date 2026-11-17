@@ -55,6 +55,34 @@ export function CommandChip({ command, label, note = true }) {
     </div>`;
 }
 
+/** An icon button that copies `text` and confirms. */
+export function CopyButton({ text, label }) {
+  const { t } = useUi();
+  const [copied, setCopied] = useState(false);
+  const timer = useRef(null);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const copy = async () => {
+    if (await copyText(text)) {
+      setCopied(true);
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => setCopied(false), 2000);
+    }
+  };
+  return html`<button type="button" class="btn-icon pa-copy" onClick=${copy}
+    aria-label=${copied ? t('command.copied') : label} title=${copied ? t('command.copied') : label}>
+    ${copied ? Icon.Check(16) : Icon.Copy()}</button>`;
+}
+
+/** Shown on a board while an earlier season is viewed. */
+export function SeasonBanner({ season, onBack }) {
+  const { t } = useUi();
+  return html`
+    <div class="season-banner" role="status">
+      <span>${t('season.viewing', { number: season })}</span>
+      <button type="button" class="btn btn-sm" onClick=${onBack}>${t('season.back')}</button>
+    </div>`;
+}
+
 export function EmptyState({ title, body, command, heading = 'h1' }) {
   const Heading = heading;
   return html`
@@ -98,7 +126,7 @@ function PendingList({ commands, count, changes }) {
     </div>`;
 }
 
-export function Header({ state, lang, onLanguage, onReload, tab, counts }) {
+export function Header({ state, lang, onLanguage, onReload, tab, counts, viewSeason }) {
   const { t, fmt } = useUi();
   const header = state && state.header;
   const profile = header && header.profile;
@@ -116,10 +144,11 @@ export function Header({ state, lang, onLanguage, onReload, tab, counts }) {
         </div>
         <div class="header-tools">
           ${state && state.initialized && html`
-            <a class="header-chip" href="#profile">
-              ${profile
-                ? (profile.title ? t('header.profile', profile) : t('header.profileNoTitle', profile))
-                : t('header.noProfile')}
+            <a class=${'header-chip' + (viewSeason ? ' viewing' : '')} href="#profile">
+              ${viewSeason ? t('header.seasonViewing', { number: viewSeason })
+                : profile
+                  ? (profile.title ? t('header.profile', profile) : t('header.profileNoTitle', profile))
+                  : t('header.noProfile')}
             </a>
             <${Menu} buttonClass="header-chip raised" align="right"
               label=${html`<span class=${'dot' + (pending ? '' : ' idle')}></span>${t('header.pending', { count: pending })}`}>

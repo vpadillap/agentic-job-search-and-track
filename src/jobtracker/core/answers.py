@@ -120,7 +120,7 @@ def _insert(conn: sqlite3.Connection, application_id: int, item: dict, origin: s
 def propose(conn: sqlite3.Connection, job_id: str, proposals: object, *,
             as_alternative: bool = False) -> dict:
     """Store the agent's answers. Never overwrites an answer the user edited."""
-    row = applications._row(conn, job_id)
+    row = applications._editable_row(conn, job_id)
     questions = _questions(conn, row["posting_id"])
     if not questions:
         raise JobTrackerError("no_form", f"{job_id} has no captured form questions to answer")
@@ -155,7 +155,7 @@ def propose(conn: sqlite3.Connection, job_id: str, proposals: object, *,
 
 def edit(conn: sqlite3.Connection, job_id: str, position: int, text: str) -> dict:
     """The user's own wording. It becomes the current answer and is never overwritten."""
-    row = applications._row(conn, job_id)
+    row = applications._editable_row(conn, job_id)
     questions = _questions(conn, row["posting_id"])
     if position not in questions:
         raise JobTrackerError("not_found", f"{job_id} has no question at position {position}")
@@ -186,7 +186,7 @@ def edit(conn: sqlite3.Connection, job_id: str, position: int, text: str) -> dic
 
 def pick(conn: sqlite3.Connection, job_id: str, answer_id: int) -> dict:
     """Make an alternative the current answer. The replaced answer is kept."""
-    row = applications._row(conn, job_id)
+    row = applications._editable_row(conn, job_id)
     chosen = conn.execute(
         "SELECT * FROM form_answers WHERE id = ? AND application_id = ?", (answer_id, row["id"]),
     ).fetchone()

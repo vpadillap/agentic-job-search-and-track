@@ -154,7 +154,7 @@ def register(conn: sqlite3.Connection, paths: Paths, job_id: str, kind: str, fil
             f"'{name}' does not follow the naming rule; get the path from `documents path`",
         )
     checked = validate_meta(conn, kind, meta)
-    app_row = applications._row(conn, job_id)
+    app_row = applications._editable_row(conn, job_id)
     if conn.execute("SELECT 1 FROM documents WHERE application_id = ? AND file_name = ?",
                     (app_row["id"], name)).fetchone():
         raise JobTrackerError("already_registered",
@@ -199,7 +199,7 @@ def set_cover_letter_need(conn: sqlite3.Connection, job_id: str, need: str,
     if need not in COVER_LETTER_NEEDS:
         raise JobTrackerError("invalid_document",
                               f"need must be one of: {', '.join(COVER_LETTER_NEEDS)}")
-    row = applications._row(conn, job_id)
+    row = applications._editable_row(conn, job_id)
     clean = " ".join((reason or "").split()) or None
     if clean and len(clean) > 300:
         raise JobTrackerError("invalid_document", "the reason is longer than 300 characters")

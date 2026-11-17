@@ -104,12 +104,12 @@ def test_reload_keeps_the_tab(seeded, page):
     expect(page.locator('.tab[aria-current="page"]')).to_contain_text("Applications")
 
 
-def test_tabs_have_counters_and_placeholders(seeded, page):
+def test_tabs_have_counters(seeded, page):
     open_board(page)
     expect(page.locator(".tab", has_text="Search").locator(".count")).to_have_text("8")
     expect(page.locator(".tab", has_text="Applications").locator(".count")).to_have_text("7")
     page.get_by_role("link", name="Profile & agent").click()
-    expect(page.get_by_role("heading", name=re.compile("coming in a later update"))).to_be_visible()
+    expect(page.get_by_role("heading", name="Agent memory")).to_be_visible()
 
 
 def test_switching_language_without_reload_and_it_persists(seeded, page):

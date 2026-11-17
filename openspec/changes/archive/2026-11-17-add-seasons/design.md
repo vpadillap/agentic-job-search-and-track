@@ -20,8 +20,8 @@ by choice.
 runs the profile part of setup again with the previous answers as defaults
 (new resume optional, questionnaire, title research). Previous applications
 stay in the same database, hidden from default views and shown under "earlier
-seasons", read-only except for status updates (a late reply can still be
-recorded).
+seasons", read-only except for status updates and the offered salary (a late
+reply, or a late offer, can still be recorded; both feed learning).
 *Alternative:* a new database file per season (cleaner separation, but
 cross-season learning and viewing need multi-database queries).
 
@@ -35,7 +35,9 @@ cross-season learning and viewing need multi-database queries).
 
 The agent explains the three, recommends the default, and requires an explicit
 confirmation for full reset. A full reset is a directory move plus
-`jobtracker init`, so it is reversible by moving the folder back.
+`jobtracker init`, so it is reversible by moving the folder back. The user's
+private terms are copied back into the new home so the privacy guard keeps
+protecting them.
 
 ### N3. Open applications at season change
 

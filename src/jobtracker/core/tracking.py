@@ -83,14 +83,16 @@ def track(conn: sqlite3.Connection, posting_ids: object, applied: bool = False,
     today = today or datetime.now().date()
     now = now_iso()
     new_status = conn.execute("SELECT id FROM statuses WHERE key = 'new'").fetchone()["id"]
+    season = conn.execute("SELECT id FROM seasons WHERE is_active = 1").fetchone()
     for posting_id in ids:
         existing = application(conn, posting_id)
         if existing is None:
             job_id = _next_job_id(conn)
             conn.execute(
                 "INSERT INTO applications (job_id, posting_id, status_id, status_changed_at,"
-                " created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (job_id, posting_id, new_status, now, now, now),
+                " created_at, updated_at, season_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (job_id, posting_id, new_status, now, now, now,
+                 season["id"] if season else None),
             )
             _event(conn, "posting", str(posting_id), "tracked", {"job_id": job_id}, now)
             _event(conn, "application", job_id, "created", {"status": "new"}, now)

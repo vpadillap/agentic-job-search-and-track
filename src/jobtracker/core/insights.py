@@ -96,8 +96,8 @@ def outcomes(conn: sqlite3.Connection, today: date | None = None,
     ghost_days = applications.thresholds(conn)["ghost_after_days"]
     result = []
     for row in conn.execute(
-        "SELECT a.id, a.job_id, a.applied_on, a.posting_id, s.key AS status_key, s.ends,"
-        " s.name_en, s.name_es, p.title, p.company, p.language,"
+        "SELECT a.id, a.job_id, a.applied_on, a.posting_id, a.season_id, s.key AS status_key,"
+        " s.ends, s.name_en, s.name_es, p.title, p.company, p.language,"
         " p.work_mode, p.work_mode_source, p.provider, p.description"
         " FROM applications a JOIN statuses s ON s.id = a.status_id"
         " JOIN postings p ON p.id = a.posting_id WHERE a.applied_on IS NOT NULL"
@@ -129,6 +129,7 @@ def outcomes(conn: sqlite3.Connection, today: date | None = None,
         resolved = reached["interview"] or now["closed"] or waited > ghost_days
         result.append({
             "job_id": row["job_id"], "posting_id": row["posting_id"],
+            "season_id": row["season_id"],
             "applied_on": applied_on.isoformat() if applied_on else None,
             "status": row["name_es"] if language == "es" else row["name_en"],
             "status_key": row["status_key"],
@@ -153,9 +154,11 @@ def _in_period(conn: sqlite3.Connection, items: list[dict], period: str,
         raise JobTrackerError("invalid_period", f"period must be one of: {', '.join(PERIODS)}")
     if period == "all":
         return items
-    if period == "season":
-        season = conn.execute("SELECT started_at FROM seasons WHERE is_active = 1").fetchone()
-        since = _day(season["started_at"]) if season else None
+    if period == "season":  # applications of the active season, carried ones included
+        season = conn.execute("SELECT id FROM seasons WHERE is_active = 1").fetchone()
+        if season is None:
+            return items
+        return [i for i in items if i.get("season_id") == season["id"]]
     else:
         since = today - timedelta(days=int(period))
     return [i for i in items if since is None or (i[key] and _day(i[key]) >= since)]

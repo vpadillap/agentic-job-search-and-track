@@ -20,6 +20,7 @@ from jobtracker.core import (
     doctor,
     documents,
     docx_tools,
+    export,
     insights,
     learning,
     predict,
@@ -33,6 +34,7 @@ from jobtracker.core import (
     salary,
     scoring,
     search,
+    seasons,
     setup,
     skills,
     workspace,
@@ -516,7 +518,8 @@ def _yes_no(value: str | None) -> bool | None:
 def cmd_applications_list(args: argparse.Namespace) -> dict:
     with db.session(get_paths()) as conn:
         items = applications.list_applications(conn, _language(), _status_ref(args.status),
-                                               include_ended=not args.hide_ended)
+                                               include_ended=not args.hide_ended,
+                                               season=args.season)
         return {"applications": items,
                 "funnel": applications.funnel(conn, items, _language()),
                 "attention": applications.attention(items)}
@@ -695,6 +698,34 @@ def cmd_demo_seed(args: argparse.Namespace) -> dict:
 
 def cmd_demo_clear(args: argparse.Namespace) -> dict:
     return demo.clear(get_paths())
+
+
+def cmd_season_show(args: argparse.Namespace) -> dict:
+    paths = get_paths()
+    with db.session(paths) as conn:
+        result = seasons.show(conn, paths, args.number)
+        result["open_applications"] = seasons.open_applications(conn, args.number)
+        return {"season": result}
+
+
+def cmd_season_list(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"seasons": seasons.list_seasons(conn)}
+
+
+def cmd_season_new(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        carry = args.carry
+        if args.carry_all_open:
+            carry = [i["job_id"] for i in seasons.open_applications(conn)]
+        return seasons.start(conn, learning=args.learning, carry=carry,
+                             leave_open=args.leave_open, label=args.label)
+
+
+def cmd_export(args: argparse.Namespace) -> dict:
+    paths = get_paths()
+    with db.session(paths) as conn:
+        return export.export(conn, paths)
 
 
 def cmd_reset(args: argparse.Namespace) -> dict:
@@ -947,6 +978,8 @@ def build_parser() -> argparse.ArgumentParser:
     apps_list.add_argument("--status", help="only this status (name, key, or id)")
     apps_list.add_argument("--hide-ended", action="store_true",
                            help="leave out applications whose status ended them")
+    apps_list.add_argument("--season", type=int,
+                           help="an earlier season's number (default: the active season)")
     apps_list.set_defaults(run=cmd_applications_list)
     apps_show = apps_sub.add_parser("show", help="details, documents, questions, history")
     apps_show.add_argument("job_id")
@@ -1155,6 +1188,29 @@ def build_parser() -> argparse.ArgumentParser:
         decide = experiments_sub.add_parser(decision)
         decide.add_argument("id", type=int)
         decide.set_defaults(run=cmd_experiments_decide, decision=decision)
+
+    season_parser = sub.add_parser("season", help="search campaigns")
+    season_sub = season_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)
+    season_show = season_sub.add_parser(
+        "show", help="a season with its profile, resumes, and open applications")
+    season_show.add_argument("number", type=int, nargs="?", help="default: the active season")
+    season_show.set_defaults(run=cmd_season_show)
+    season_sub.add_parser("list").set_defaults(run=cmd_season_list)
+    season_new = season_sub.add_parser(
+        "new", help="close the active season and start the next one")
+    season_new.add_argument("--learning", required=True, choices=seasons.LEARNING_CHOICES,
+                            help="keep the applied lessons, or reset learning")
+    season_new.add_argument("--carry", nargs="+", default=[],
+                            help="open applications that continue in the new season")
+    season_new.add_argument("--carry-all-open", action="store_true",
+                            help="carry every open application")
+    season_new.add_argument("--leave-open", action="store_true",
+                            help="open applications not carried stay in the earlier season")
+    season_new.add_argument("--label", help="a short name for the new season")
+    season_new.set_defaults(run=cmd_season_new)
+
+    sub.add_parser("export", help="applications, history, and rules as JSON and CSV"
+                   ).set_defaults(run=cmd_export)
 
     reset = sub.add_parser("reset", help="archive all data and start empty")
     reset.add_argument("--confirm")

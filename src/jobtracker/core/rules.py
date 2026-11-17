@@ -125,6 +125,7 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
         "effect": json.loads(row["effect"]) if row["effect"] else None,
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
+        "applied_at": row["applied_at"],
     }
 
 
@@ -140,6 +141,11 @@ def list_rules(
         params = (status,)
     query += " ORDER BY CASE origin WHEN 'system' THEN 0 WHEN 'user' THEN 1 ELSE 2 END, id"
     result = [_row_to_dict(row) for row in conn.execute(query, params)]
+    from .seasons import earlier_season_rules
+
+    earlier = earlier_season_rules(conn)
+    for rule in result:
+        rule["earlier_season"] = rule["id"] in earlier
     if language == "es":
         for rule in result:
             if rule["origin"] == "system" and rule["key"] in SYSTEM_RULES_ES:

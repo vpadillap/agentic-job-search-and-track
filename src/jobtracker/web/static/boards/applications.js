@@ -104,9 +104,9 @@ function StatusTagMenu({ app, statuses, onStatus, onTags }) {
           </form>`}
       </${Menu}>
       ${app.tags.map((item) => html`<span class="tag-chip">${item}
-        <button type="button" class="tag-remove" aria-label=${t('tags.remove', { tag: item })}
-          onClick=${() => onTags(app, [], [item])}>×</button></span>`)}
-      <${Menu} label=${html`<svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        ${onTags && html`<button type="button" class="tag-remove" aria-label=${t('tags.remove', { tag: item })}
+          onClick=${() => onTags(app, [], [item])}>×</button>`}</span>`)}
+      ${onTags && html`<${Menu} label=${html`<svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>`}
         buttonClass="add-chip" menuLabel=${t('row.addTag')}>
         ${() => html`
@@ -122,7 +122,7 @@ function StatusTagMenu({ app, statuses, onStatus, onTags }) {
               onInput=${(e) => setTag(e.currentTarget.value)} />
             <button type="submit" class="btn btn-sm" disabled=${!tag.trim()}>${t('tags.add')}</button>
           </form>`}
-      </${Menu}>
+      </${Menu}>`}
     </div>`;
 }
 
@@ -427,6 +427,7 @@ function historyText(item, t, fmt, statusName) {
 }
 
 function YourApplication({ app, detail, onSaved, statusName }) {
+  const locked = app.earlier_season;   // an earlier season: only the offered salary changes
   const { t, fmt } = useUi();
   const initial = () => ({
     applied_on: app.applied_on || '', asked: app.asked_salary ? String(app.asked_salary.amount) : '',
@@ -454,6 +455,7 @@ function YourApplication({ app, detail, onSaved, statusName }) {
   };
   const bind = (field, transform) => ({
     value: values[field],
+    disabled: locked,
     onInput: (e) => setValues({ ...values, [field]: e.currentTarget.value }),
     onChange: () => save(field, { [field]: transform ? transform(values[field]) : (values[field] || null) }),
   });
@@ -472,9 +474,10 @@ function YourApplication({ app, detail, onSaved, statusName }) {
           <input type="date" ...${bind('applied_on')} /></${Field}>
         <${Field} label=${t('field.asked')} state=${states.asked}>
           <span class="money-input">
-            <input type="text" inputmode="numeric" class="mono" value=${values.asked}
+            <input type="text" inputmode="numeric" class="mono" value=${values.asked} disabled=${locked}
               onInput=${(e) => setValues({ ...values, asked: e.currentTarget.value })} onChange=${saveAsked} />
             <input type="text" maxlength="3" class="mono currency" aria-label=${t('field.currency')} value=${values.currency}
+              disabled=${locked}
               onInput=${(e) => setValues({ ...values, currency: e.currentTarget.value.toUpperCase() })} onChange=${saveAsked} />
           </span></${Field}>
         <${Field} label=${t('field.offered')} state=${states.offered}>
@@ -506,6 +509,7 @@ function YourApplication({ app, detail, onSaved, statusName }) {
 }
 
 function ApplicationDetail({ app, version, onUpload, onSaved, statusName }) {
+  const { t } = useUi();
   const [detail, setDetail] = useState(null);
   useEffect(() => {
     let live = true;
@@ -516,9 +520,12 @@ function ApplicationDetail({ app, version, onUpload, onSaved, statusName }) {
     <div class="detail app-detail">
       <${PostingDescription} text=${detail ? detail.description : null} url=${app.posting.url}
         site=${providerName(app.posting.provider)} capturedAt=${app.posting.captured_at} />
+      ${app.earlier_season && html`<p class="note season-readonly">${t('season.readOnly', { number: app.season })}</p>`}
       <div class="detail-grid apps">
-        <${DocumentsCard} app=${app} onUpload=${onUpload} />
-        <${FormCard} app=${app} detail=${detail} onSaved=${onSaved} />
+        <fieldset class="season-lock" disabled=${app.earlier_season}>
+          <${DocumentsCard} app=${app} onUpload=${onUpload} /></fieldset>
+        <fieldset class="season-lock" disabled=${app.earlier_season}>
+          <${FormCard} app=${app} detail=${detail} onSaved=${onSaved} /></fieldset>
         <${YourApplication} app=${app} detail=${detail} onSaved=${onSaved} statusName=${statusName} />
       </div>
       <${EstimatePanel} estimate=${app.estimate} />
@@ -621,7 +628,8 @@ export function ApplicationsBoard({ data, version, commands, onAction, onReload 
         <span class="small mono">${a.job_id}</span>
       </div>` },
     { key: 'status', label: t('col.statusTags'), sortable: true, render: (a) => html`
-      <${StatusTagMenu} app=${a} statuses=${statuses} onStatus=${changeStatus} onTags=${changeTags} />` },
+      <${StatusTagMenu} app=${a} statuses=${statuses} onStatus=${changeStatus}
+        onTags=${a.earlier_season ? null : changeTags} />` },
     { key: 'documents', label: t('col.documents'), width: '190px', render: (a) => html`<${DocLines} app=${a} />` },
     { key: 'applied', label: t('col.applied'), sortable: true, width: '110px', render: (a) => html`<div class="stack">
       <span>${a.applied_on ? fmt.dayMonth(a.applied_on) : t('row.notApplied')}</span>

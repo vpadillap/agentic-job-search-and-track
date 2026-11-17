@@ -174,12 +174,17 @@ def with_state(conn) -> list[dict[str, object]]:
     repository never runs without the user's choice.
     """
     state = {row["provider_id"]: row for row in conn.execute("SELECT * FROM providers_state")}
+    switched = {row["entity_id"]: row["created_at"] for row in conn.execute(
+        "SELECT entity_id, MAX(created_at) AS created_at FROM events"
+        " WHERE entity_type = 'provider' AND kind IN ('enabled', 'disabled')"
+        " GROUP BY entity_id")}
     result = []
     for provider in list_providers():
         row = state.get(str(provider["id"]))
         result.append({
             **provider,
             "enabled": bool(row["enabled"]) if row else False,
+            "switched_at": switched.get(str(provider["id"])),
             "last_status": row["last_status"] if row else None,
             "last_error": row["last_error"] if row else None,
             "last_run_at": row["last_run_at"] if row else None,
@@ -190,11 +195,16 @@ def with_state(conn) -> list[dict[str, object]]:
 def set_enabled(conn, provider_id: str, enabled: bool) -> list[dict[str, object]]:
     if provider_id not in {str(p["id"]) for p in list_providers()}:
         raise JobTrackerError("not_found", f"There is no provider '{provider_id}'")
+    now = now_iso()
     conn.execute(
         "INSERT INTO providers_state (provider_id, enabled, updated_at) VALUES (?, ?, ?)"
         " ON CONFLICT(provider_id) DO UPDATE SET enabled = excluded.enabled,"
         " updated_at = excluded.updated_at",
-        (provider_id, int(enabled), now_iso()),
+        (provider_id, int(enabled), now),
+    )
+    conn.execute(
+        "INSERT INTO events (entity_type, entity_id, kind, created_at)"
+        " VALUES ('provider', ?, ?, ?)", (provider_id, "enabled" if enabled else "disabled", now),
     )
     bump_changes(conn)
     return with_state(conn)

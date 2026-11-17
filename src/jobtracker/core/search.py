@@ -191,9 +191,24 @@ def finish_run(conn: sqlite3.Connection, run_id: int) -> dict:
     return summary(conn, run_id)
 
 
-def latest_run_id(conn: sqlite3.Connection) -> int | None:
-    row = conn.execute("SELECT id FROM search_runs ORDER BY started_at DESC, id DESC LIMIT 1"
-                       ).fetchone()
+def _season_clause(conn: sqlite3.Connection, season: int | None) -> tuple[str, tuple]:
+    """Runs of one season: the active one unless `season` names another."""
+    from . import seasons
+
+    if season is None:
+        sid = seasons.active_id(conn)
+        if sid is None:
+            return "", ()
+    else:
+        sid = seasons.season_id(conn, season)
+    return " WHERE season_id = ?", (sid,)
+
+
+def latest_run_id(conn: sqlite3.Connection, season: int | None = None) -> int | None:
+    """The latest run of the active season (or of season `season`)."""
+    where, params = _season_clause(conn, season)
+    row = conn.execute(f"SELECT id FROM search_runs{where} ORDER BY started_at DESC, id DESC"
+                       " LIMIT 1", params).fetchone()
     return int(row["id"]) if row else None
 
 
@@ -253,9 +268,11 @@ def summary(conn: sqlite3.Connection, run_id: int, top: int = 5) -> dict:
     }
 
 
-def list_runs(conn: sqlite3.Connection) -> list[dict]:
+def list_runs(conn: sqlite3.Connection, season: int | None = None) -> list[dict]:
     result = []
-    for row in conn.execute("SELECT * FROM search_runs ORDER BY started_at DESC, id DESC"):
+    where, params = _season_clause(conn, season)
+    for row in conn.execute(f"SELECT * FROM search_runs{where}"
+                            " ORDER BY started_at DESC, id DESC", params):
         result.append({
             "id": row["id"], "started_at": row["started_at"], "status": row["status"],
             "posting_age_days": row["posting_age_days"], "counts": _counts(conn, row["id"]),

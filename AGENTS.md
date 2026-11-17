@@ -17,9 +17,10 @@ back into future advice.
 > preparation (`/prepare-documents`, `/form-answers`, `jobtracker documents …`,
 > `jobtracker answers …`), and the learning loop (`jobtracker learning refresh`
 > before scoring and tailoring, insights, lessons the user applies, validated
-> estimates, the Learning board, `/analyze-results`). Seasons are specified in
-> `openspec/changes/` and not built yet. `jobtracker context` lists which
-> commands are available.
+> estimates, the Learning board, `/analyze-results`), and seasons (`/new-season`,
+> `jobtracker season …`, `jobtracker export`, full reset to an archive, the
+> Profile & agent board, `/panel`). `jobtracker context` lists which commands
+> are available.
 
 ## Which mode are you in?
 

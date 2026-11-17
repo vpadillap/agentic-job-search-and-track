@@ -3,10 +3,11 @@ import { html, render, useState, useEffect, useRef, useMemo, useCallback } from 
 import { api } from './api.js';
 import { loadCatalogs, makeTranslator, initialLanguage, rememberLanguage } from './i18n.js';
 import { makeFormat } from './format.js';
-import { Ui, TABS, Header, Banner, Toast, EmptyState, Placeholder } from './components/shell.js';
+import { Ui, TABS, Header, Banner, Toast, EmptyState, Placeholder, SeasonBanner } from './components/shell.js';
 import { SearchBoard } from './boards/search.js';
 import { ApplicationsBoard } from './boards/applications.js';
 import { LearningBoard } from './boards/learning.js';
+import { ProfileBoard } from './boards/profile.js';
 
 const POLL_MS = 3000;
 
@@ -40,6 +41,7 @@ function App({ initialState }) {
   const [board, setBoard] = useState(null);
   const [apps, setApps] = useState(null);
   const [runId, setRunId] = useState(null);
+  const [viewSeason, setViewSeason] = useState(null);   // an earlier season, or null
   const [stale, setStale] = useState(false);
   const [toast, setToast] = useState(null);
   const counter = useRef(initialState && initialState.changes ? initialState.changes.counter : null);
@@ -66,17 +68,28 @@ function App({ initialState }) {
       setState(next);
       if (next.changes) counter.current = next.changes.counter;
       if (!next.initialized) setBoard(null);
-      else if (tab === 'applications') setApps(await api.applications());
-      else if (tab === 'search') setBoard(await api.search(wantedRun));
+      else if (tab === 'applications') setApps(await api.applications(viewSeason));
+      else if (tab === 'search') setBoard(await api.search(wantedRun, viewSeason));
       setStale(false);
     } catch (error) {
       if (error.status === 404 && wantedRun) { setRunId(null); return reload(null); }
       showError(error);
     }
     return undefined;
-  }, [runId, ui, tab]);
+  }, [runId, ui, tab, viewSeason]);
 
-  useEffect(() => { reload(runId); }, [runId, tab]);
+  useEffect(() => { reload(runId); }, [runId, tab, viewSeason]);
+
+  const openSeason = (number) => {
+    setRunId(null);
+    setApps(null);
+    setBoard(null);
+    setViewSeason(number);
+    location.hash = '#applications';
+  };
+  // An earlier season is a view of Search and Applications; other tabs return to the current one.
+  useEffect(() => { if (!['search', 'applications'].includes(tab)) setViewSeason(null); }, [tab]);
+  const backToActive = () => { setRunId(null); setApps(null); setBoard(null); setViewSeason(null); };
 
   // Freshness: poll the change counter while the page is visible.
   useEffect(() => {
@@ -144,20 +157,25 @@ function App({ initialState }) {
   } else if (tab === 'applications') {
     content = html`<${ApplicationsBoard} data=${apps} version=${state && state.changes ? state.changes.counter : 0}
       commands=${state && state.commands} onAction=${onAction} onReload=${() => reload()} />`;
+  } else if (tab === 'profile') {
+    content = html`<${ProfileBoard} version=${state && state.changes ? state.changes.counter : 0}
+      onAction=${onAction} onViewSeason=${openSeason} />`;
   } else if (tab === 'learning') {
     content = html`<${LearningBoard} version=${state && state.changes ? state.changes.counter : 0}
       commands=${state && state.commands} onAction=${onAction} />`;
   } else {
     content = html`<${Placeholder} tab=${tab} />`;
   }
+  const seasonBanner = viewSeason && ['search', 'applications'].includes(tab)
+    && html`<${SeasonBanner} season=${viewSeason} onBack=${backToActive} />`;
 
   return html`
     <${Ui.Provider} value=${ui}>
       <${Header} state=${state} lang=${lang} onLanguage=${changeLanguage} onReload=${() => reload()}
-        tab=${tab} counts=${{ search: counts.search ?? null, applications: counts.applications ?? null,
+        tab=${tab} viewSeason=${viewSeason} counts=${{ search: counts.search ?? null, applications: counts.applications ?? null,
           learning: counts.learning ? counts.learning : null }} />
       ${stale && html`<${Banner} onLoad=${() => reload()} />`}
-      <main class="main" id="main">${content}</main>
+      <main class="main" id="main">${seasonBanner}${content}</main>
       <${Toast} toast=${toast} onClose=${() => setToast(null)} />
     </${Ui.Provider}>`;
 }

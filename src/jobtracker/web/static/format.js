@@ -30,6 +30,11 @@ export function makeFormat(lang) {
       if (!isoDate) return '';
       return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(parseDay(isoDate));
     },
+    /** "1 Sep 2026" from a calendar date or timestamp. */
+    longDate(iso) {
+      if (!iso) return '';
+      return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', year: 'numeric' }).format(parseDay(iso));
+    },
     /** "Oct 2026" */
     monthYear(isoDate) {
       if (!isoDate) return '';

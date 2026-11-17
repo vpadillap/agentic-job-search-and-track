@@ -319,6 +319,20 @@ def set_title_state(
     return set_titles(conn, [{"title": title, "state": state, "reason": reason}])
 
 
+def decide_suggested(conn: sqlite3.Connection, title: str, state: str) -> dict:
+    """The user includes or excludes a title the agent suggested (from the panel)."""
+    if state not in ("included", "excluded"):
+        raise JobTrackerError("invalid_profile", "a suggested title is included or excluded",
+                              field="titles")
+    current = _require_profile(conn)
+    name = " ".join(title.split()).casefold()
+    item = next((t for t in current["titles"] if t["title"].casefold() == name), None)
+    if item is None or item["state"] != "suggested":
+        raise JobTrackerError("not_suggested",
+                              f"'{title}' is not a title the agent suggested")
+    return set_titles(conn, [{"title": item["title"], "state": state}])
+
+
 def remove_title(conn: sqlite3.Connection, title: str) -> dict:
     """Take a title out of the profile entirely (for example a mistyped one)."""
     current = _require_profile(conn)

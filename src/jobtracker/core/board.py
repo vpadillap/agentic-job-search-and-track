@@ -31,10 +31,12 @@ def _row(conn: sqlite3.Connection, posting_id: int, run_id: int) -> dict:
     return item
 
 
-def search_board(conn: sqlite3.Connection, run_id: int | None = None) -> dict:
-    """The Search board: a run's summary, its new postings, and what was filtered out."""
-    runs = search.list_runs(conn)
-    run_id = run_id or search.latest_run_id(conn)
+def search_board(conn: sqlite3.Connection, run_id: int | None = None,
+                 season: int | None = None) -> dict:
+    """The Search board: a run's summary, its new postings, and what was filtered out.
+    Runs of the active season unless `season` names an earlier one."""
+    runs = search.list_runs(conn, season)
+    run_id = run_id or search.latest_run_id(conn, season)
     if run_id is None:
         return {"run": None, "runs": runs, "results": [], "filtered": [],
                 "default_min_score": default_min_score(conn)}
@@ -78,7 +80,8 @@ def counts(conn: sqlite3.Connection) -> dict:
         ).fetchone()[0]
     active = conn.execute(
         "SELECT COUNT(*) FROM applications a JOIN statuses s ON s.id = a.status_id"
-        " WHERE s.ends = 0").fetchone()[0]
+        " WHERE s.ends = 0 AND a.season_id = (SELECT id FROM seasons WHERE is_active = 1)"
+    ).fetchone()[0]
     proposed = conn.execute("SELECT COUNT(*) FROM rules WHERE origin = 'learned'"
                             " AND status = 'proposed'").fetchone()[0]
     return {"search": new, "applications": active, "learning": proposed}
@@ -105,8 +108,9 @@ def pending(conn: sqlite3.Connection) -> list[dict]:
             " AND (s.resume_ref IS NULL OR EXISTS (SELECT 1 FROM base_resumes r"
             "      WHERE CAST(r.version AS TEXT) = s.resume_ref AND r.is_current = 0))"
             " AND NOT EXISTS (SELECT 1 FROM dismissals d WHERE d.posting_id = s.posting_id)"
-            " AND (a.job_id IS NOT NULL OR EXISTS (SELECT 1 FROM run_results r"
-            "      WHERE r.posting_id = s.posting_id AND r.run_id = ? AND r.outcome = 'new'))"
+            " AND (a.season_id = (SELECT id FROM seasons WHERE is_active = 1)"
+            "      OR (a.id IS NULL AND EXISTS (SELECT 1 FROM run_results r"
+            "      WHERE r.posting_id = s.posting_id AND r.run_id = ? AND r.outcome = 'new')))"
             " ORDER BY s.posting_id", (run_id,),
         ):
             items.append({"kind": "rescore", "posting_id": row["posting_id"],
@@ -119,7 +123,8 @@ def pending(conn: sqlite3.Connection) -> list[dict]:
         " sc.resume_kind, sc.resume_ref FROM documents d"
         " JOIN applications a ON a.id = d.application_id JOIN postings p ON p.id = a.posting_id"
         " LEFT JOIN scores sc ON sc.posting_id = a.posting_id AND sc.is_current = 1"
-        " WHERE d.kind = 'resume_sent' AND d.is_current = 1 ORDER BY a.id"
+        " WHERE d.kind = 'resume_sent' AND d.is_current = 1"
+        " AND a.season_id = (SELECT id FROM seasons WHERE is_active = 1) ORDER BY a.id"
     ):
         ref = f"{row['file_name']}#v{row['version']}"
         if row["resume_kind"] != "sent" or row["resume_ref"] != ref:
@@ -134,6 +139,7 @@ def pending(conn: sqlite3.Connection) -> list[dict]:
         " JOIN applications a ON a.id = d.application_id JOIN postings p ON p.id = a.posting_id"
         " LEFT JOIN scores sc ON sc.posting_id = a.posting_id AND sc.is_current = 1"
         " WHERE d.kind = 'resume_proposed' AND d.is_current = 1"
+        " AND a.season_id = (SELECT id FROM seasons WHERE is_active = 1)"
         " AND NOT EXISTS (SELECT 1 FROM documents s WHERE s.application_id = a.id"
         "      AND s.kind = 'resume_sent' AND s.is_current = 1) ORDER BY a.id"
     ):
@@ -153,7 +159,7 @@ def pending(conn: sqlite3.Connection) -> list[dict]:
         " LEFT JOIN statuses st ON st.id = a.status_id"
         " WHERE sc.is_current = 1 AND sc.weights_version != ?"
         " AND NOT EXISTS (SELECT 1 FROM dismissals d WHERE d.posting_id = sc.posting_id)"
-        " AND (st.ends = 0"
+        " AND ((st.ends = 0 AND a.season_id = (SELECT id FROM seasons WHERE is_active = 1))"
         "      OR (a.id IS NULL AND EXISTS (SELECT 1 FROM run_results r"
         "          WHERE r.posting_id = sc.posting_id AND r.run_id = ? AND r.outcome = 'new')))"
         " ORDER BY sc.posting_id", (active["version"] if active else 0, run_id),
@@ -192,6 +198,7 @@ def _document_items(conn: sqlite3.Connection) -> list[dict]:
         " JOIN postings p ON p.id = a.posting_id"
         " LEFT JOIN scores sc ON sc.posting_id = a.posting_id AND sc.is_current = 1"
         " WHERE a.applied_on IS NULL AND s.ends = 0"
+        " AND a.season_id = (SELECT id FROM seasons WHERE is_active = 1)"
         " ORDER BY COALESCE(sc.total, -1) DESC, a.id"
     ):
         base = {"posting_id": row["posting_id"], "job_id": row["job_id"],
@@ -214,7 +221,10 @@ def _document_items(conn: sqlite3.Connection) -> list[dict]:
 def header(conn: sqlite3.Connection) -> dict:
     active = profile_service.get_active(conn)
     titles = profile_service.included_titles(active)
+    season = conn.execute("SELECT number, label, started_at FROM seasons WHERE is_active = 1"
+                          ).fetchone()
     return {
+        "season": dict(season) if season else None,
         "profile": {"version": active["version"], "title": titles[0] if titles else None}
         if active else None,
         "pending": len(pending(conn)),

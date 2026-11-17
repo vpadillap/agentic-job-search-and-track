@@ -23,9 +23,13 @@ from jobtracker.core import (
     db,
     documents,
     learning,
+    profile,
     providers,
     recommend,
+    resume,
+    rules,
     search,
+    seasons,
     skills,
     tracking,
 )
@@ -106,6 +110,11 @@ class AnswerPick(BaseModel):
     answer_id: int
 
 
+class SuggestedTitle(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    state: Literal["included", "excluded"]
+
+
 class StatusEdit(BaseModel):
     name: str | None = Field(default=None, max_length=40)
     retired: bool | None = None
@@ -178,9 +187,38 @@ def create_app() -> FastAPI:
             }
 
     @app.get("/api/search")
-    def search_board(run: int | None = None) -> dict:
+    def search_board(run: int | None = None, season: int | None = None) -> dict:
         with db.session(get_paths()) as conn:
-            return {"ok": True, **board.search_board(conn, run)}
+            return {"ok": True, **board.search_board(conn, run, season)}
+
+    @app.get("/api/profile-board")
+    def profile_board() -> dict:
+        """The Profile & agent board: season, profile, memory, and providers."""
+        paths = get_paths()
+        language = _language()
+        with db.session(paths) as conn:
+            return {
+                "ok": True,
+                "season": seasons.show(conn, paths),
+                "seasons": seasons.list_seasons(conn),
+                "profile": profile.get_active(conn),
+                "base_resumes": resume.list_current(conn, paths),
+                "rescore_since": resume.rescore_since(conn),
+                "rules": rules.list_rules(conn, "active", language),
+                "providers": providers.with_state(conn),
+                "commands": skills.command_list(language),
+            }
+
+    @app.get("/api/resumes/{resume_id}")
+    def base_resume(resume_id: int) -> FileResponse:
+        paths = get_paths()
+        with db.session(paths) as conn:
+            item = resume.by_id(conn, paths, resume_id)
+        path = Path(item["path"]).resolve()
+        if not path.is_relative_to(paths.profile.resolve()) or not path.is_file():
+            raise JobTrackerError("not_found", f"The file of base resume {resume_id} is missing")
+        return FileResponse(path, media_type="application/octet-stream", filename=path.name,
+                            content_disposition_type="attachment")
 
     @app.get("/api/providers")
     def provider_list() -> dict:
@@ -224,6 +262,12 @@ def create_app() -> FastAPI:
             return {"ok": True,
                     "providers": providers.set_enabled(conn, provider_id, body.enabled)}
 
+    @app.post("/api/profile/suggested-title")
+    def decide_suggested_title(body: SuggestedTitle) -> dict:
+        with db.session(get_paths()) as conn:
+            return {"ok": True,
+                    "profile": profile.decide_suggested(conn, body.title, body.state)}
+
     @app.post("/api/settings/language")
     def set_language(body: LanguageRequest) -> dict:
         paths = get_paths()
@@ -239,10 +283,10 @@ def create_app() -> FastAPI:
     # ── applications ──────────────────────────────────────────────────────
 
     @app.get("/api/applications")
-    def application_board() -> dict:
+    def application_board(season: int | None = None) -> dict:
         language = _language()
         with db.session(get_paths()) as conn:
-            items = applications.list_applications(conn, language)
+            items = applications.list_applications(conn, language, season=season)
             estimates = learning.estimates_for(conn, [i["posting_id"] for i in items])
             for item in items:
                 item["estimate"] = estimates[item["posting_id"]]["interview"]

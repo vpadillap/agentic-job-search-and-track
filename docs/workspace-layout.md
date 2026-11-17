@@ -40,6 +40,7 @@ user-data/                                  private home (gitignored)
 ├── learning/
 │   └── history.jsonl                       complete history for the agent, rewritten by `learning refresh`
 ├── exports/                                anything the user asks to export
+│   └── <YYYYMMDD-HHMM>/                    one `jobtracker export`: applications, events, rules (.json and .csv)
 ├── backups/                                automatic DB copies before migrations and resets
 └── archive/
     └── <YYYYMMDD>-<label>/                 a previous home moved aside by a full reset

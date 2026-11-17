@@ -30,6 +30,7 @@ DATED_KEYS = ("interview", "offer")
 FOLLOW_UP_DAYS = 7
 GHOST_DAYS = 21
 SALARY_DETAILS = ("asked_salary", "offered_salary")
+LATE_OUTCOME_FIELDS = {"offered_salary"}  # still editable on an earlier season
 DETAIL_FIELDS = ("applied_on", *SALARY_DETAILS, "channel", "contact", "notes", "next_step_on",
                  "next_step_note")
 SENT_RESUME_TYPES = {".pdf": b"%PDF", ".docx": b"PK"}
@@ -157,6 +158,15 @@ def _row(conn: sqlite3.Connection, job_id: str) -> sqlite3.Row:
     ).fetchone()
     if row is None:
         raise JobTrackerError("not_found", f"There is no tracked application {job_id}")
+    return row
+
+
+def _editable_row(conn: sqlite3.Connection, job_id: str) -> sqlite3.Row:
+    """An application whose details may change: not one from an earlier season."""
+    from . import seasons
+
+    row = _row(conn, job_id)
+    seasons.require_current(conn, job_id, row["season_id"])
     return row
 
 
@@ -320,7 +330,7 @@ def set_status(
 
 def set_tags(conn: sqlite3.Connection, job_id: str, add: list | None = None,
              remove: list | None = None) -> list[str]:
-    row = _row(conn, job_id)
+    row = _editable_row(conn, job_id)
     now = now_iso()
     for tag in add or []:
         clean = " ".join(str(tag).split())
@@ -411,7 +421,10 @@ def update_details(conn: sqlite3.Connection, job_id: str, changes: object) -> di
     if unknown:
         raise JobTrackerError("invalid_details", f"'{unknown[0]}' is not an application detail",
                               field=unknown[0])
-    row = _row(conn, job_id)
+    # A late outcome on an earlier season's application: its status, and the salary
+    # the company offered. Everything else stays as it was.
+    row = _row(conn, job_id) if set(changes) <= LATE_OUTCOME_FIELDS \
+        else _editable_row(conn, job_id)
     columns: dict[str, object] = {}
     if "applied_on" in changes:
         columns["applied_on"] = _optional_date("applied_on", changes["applied_on"])
@@ -483,7 +496,7 @@ def register_document(conn: sqlite3.Connection, paths: Paths, job_id: str, kind:
     if kind not in DOCUMENT_KINDS:
         raise JobTrackerError("invalid_document",
                               f"kind must be one of: {', '.join(DOCUMENT_KINDS)}")
-    row = _row(conn, job_id)
+    row = _editable_row(conn, job_id)
     base = folder(conn, paths, job_id).resolve()
     path = (base / file_name).resolve()
     if not path.is_relative_to(base) or not path.is_file():
@@ -522,7 +535,7 @@ def upload_sent_resume(conn: sqlite3.Connection, paths: Paths, job_id: str, orig
     if not data.startswith(SENT_RESUME_TYPES[extension]):
         raise JobTrackerError("unsupported_file",
                               f"The file is not a real {extension[1:].upper()} document.")
-    row = _row(conn, job_id)
+    row = _editable_row(conn, job_id)
     base = folder(conn, paths, job_id)
     base.mkdir(parents=True, exist_ok=True)
     previous = conn.execute(
@@ -592,10 +605,15 @@ def application(conn: sqlite3.Connection, job_id: str, language: str = "en",
     docs = {kind: _current_document(conn, row["id"], kind) for kind in DOCUMENT_KINDS}
     from . import answers as answers_service
     from . import documents as documents_service
-    from . import search  # local import: search imports this module's tables only
+    from . import (
+        search,  # local import: search imports this module's tables only
+        seasons,
+    )
 
     posting = search.posting(conn, row["posting_id"], detail=False)
     next_step = _next_step(row, docs, limits, today)
+    season = conn.execute("SELECT number FROM seasons WHERE id = ?",
+                          (row["season_id"],)).fetchone()
     for kind in ("resume_proposed", "cover_letter"):
         if docs[kind]:
             docs[kind] = documents_service.current(conn, row["id"], kind)
@@ -606,6 +624,8 @@ def application(conn: sqlite3.Connection, job_id: str, language: str = "en",
                    "name_en": row["name_en"], "name_es": row["name_es"],
                    "ends": bool(row["ends"]), "builtin": bool(row["is_builtin"])},
         "ended": bool(row["ends"]),
+        "season": season["number"] if season else None,
+        "earlier_season": seasons.is_earlier(conn, row["season_id"]),
         "tags": tags(conn, row["id"]),
         "applied_on": row["applied_on"], "channel": row["channel"], "contact": row["contact"],
         "notes": row["notes"], "next_step_on": row["next_step_on"],
@@ -631,12 +651,15 @@ def application(conn: sqlite3.Connection, job_id: str, language: str = "en",
 
 def list_applications(conn: sqlite3.Connection, language: str = "en",
                       status: object = None, include_ended: bool = True,
-                      today: date | None = None) -> list[dict]:
+                      today: date | None = None, season: int | None = None) -> list[dict]:
+    """Applications of one season: the active one unless `season` names another."""
+    from . import seasons
+
     limits = thresholds(conn)
     today = today or _today()
     query = ("SELECT a.job_id FROM applications a JOIN statuses s ON s.id = a.status_id")
-    params: list = []
-    clauses = []
+    params: list = [seasons.season_id(conn, season)]
+    clauses = ["a.season_id = ?"]
     if status is not None:
         target = _status_row(conn, status)
         if target is None:
@@ -645,8 +668,7 @@ def list_applications(conn: sqlite3.Connection, language: str = "en",
         params.append(target["id"])
     if not include_ended:
         clauses.append("s.ends = 0")
-    if clauses:
-        query += " WHERE " + " AND ".join(clauses)
+    query += " WHERE " + " AND ".join(clauses)
     query += " ORDER BY a.id"
     return [application(conn, r["job_id"], language, today, limits)
             for r in conn.execute(query, params)]
