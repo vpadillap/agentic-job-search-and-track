@@ -19,6 +19,7 @@ REQUIRED_PACKAGES = {  # import name -> distribution name
     "pydantic": "pydantic",
     "multipart": "python-multipart",
     "pypdf": "pypdf",
+    "docx": "python-docx",
 }
 INSTALL_HINT = "Run `uv sync --extra dev`, or `pip install -e .` inside a virtual environment."
 

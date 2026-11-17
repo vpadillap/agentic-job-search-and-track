@@ -225,3 +225,21 @@ def test_invalid_config_is_rejected(workspace, cli):
     assert out["error"]["code"] == "invalid_config"
     _, shown, _ = cli("config", "show")
     assert shown["config"]["host"] == "127.0.0.1"
+
+
+def test_json_on_standard_input_is_read_as_utf8_whatever_the_console(home, tmp_path):
+    """Windows consoles default to cp1252; piped JSON with accents must survive."""
+    payload = json.dumps([{"text": "Diseñé pipelines “robustos” en Perú", "area": "search"}],
+                         ensure_ascii=False).encode("utf-8")
+    env = {**__import__("os").environ, "JOBTRACKER_HOME": str(tmp_path / "home"),
+           "PYTHONIOENCODING": "cp1252", "PYTHONUTF8": "0"}
+    run = lambda *args, data=None: subprocess.run(  # noqa: E731
+        [sys.executable, str(REPO / "scripts" / "jt.py"), *args], input=data,
+        capture_output=True, env=env)
+    assert run("init").returncode == 0
+    result = run("rules", "import", "-", data=payload)
+    assert result.returncode == 0, result.stdout.decode("utf-8", "replace")
+    listed = json.loads(run("rules", "list").stdout.decode("utf-8"))
+    assert "Diseñé pipelines “robustos” en Perú" in [r["text"] for r in listed["rules"]]
+    bad = run("rules", "import", "-", data="[{\"text\": \"Diseñé\"}]".encode("cp1252"))
+    assert json.loads(bad.stdout.decode("utf-8"))["error"]["code"] == "invalid_json"

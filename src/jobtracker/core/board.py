@@ -116,6 +116,67 @@ def pending(conn: sqlite3.Connection) -> list[dict]:
                           "job_id": row["job_id"], "title": row["title"],
                           "company": row["company"], "resume": {"kind": "sent", "ref": ref},
                           "reason": "the user uploaded the resume actually sent"})
+    # A tailored resume replaces the base one, unless the user uploaded the one they sent.
+    for row in conn.execute(
+        "SELECT a.job_id, a.posting_id, p.title, p.company, d.file_name, d.version,"
+        " sc.resume_kind, sc.resume_ref FROM documents d"
+        " JOIN applications a ON a.id = d.application_id JOIN postings p ON p.id = a.posting_id"
+        " LEFT JOIN scores sc ON sc.posting_id = a.posting_id AND sc.is_current = 1"
+        " WHERE d.kind = 'resume_proposed' AND d.is_current = 1"
+        " AND NOT EXISTS (SELECT 1 FROM documents s WHERE s.application_id = a.id"
+        "      AND s.kind = 'resume_sent' AND s.is_current = 1) ORDER BY a.id"
+    ):
+        ref = f"{row['file_name']}#v{row['version']}"
+        if row["resume_kind"] != "tailored" or row["resume_ref"] != ref:
+            items.append({"kind": "rescore", "posting_id": row["posting_id"],
+                          "job_id": row["job_id"], "title": row["title"],
+                          "company": row["company"], "resume": {"kind": "tailored", "ref": ref},
+                          "reason": "a tailored resume was registered"})
+    # One rescore per posting, against the most specific resume: sent > tailored > base.
+    rank = {"sent": 2, "tailored": 1}
+    best: dict[int, dict] = {}
+    for item in items:
+        kind = rank.get((item.get("resume") or {}).get("kind"), 0)
+        held = best.get(item["posting_id"])
+        if held is None or kind > rank.get((held.get("resume") or {}).get("kind"), 0):
+            best[item["posting_id"]] = item
+    items = [item for item in items if best[item["posting_id"]] is item]
+    items.extend(_document_items(conn))
+    return items
+
+
+def _document_items(conn: sqlite3.Connection) -> list[dict]:
+    """Documents missing on applications not yet applied to, most promising first."""
+    items: list[dict] = []
+    for row in conn.execute(
+        "SELECT a.id, a.job_id, a.posting_id, a.cover_letter_need, p.title, p.company,"
+        " sc.total,"
+        " (SELECT COUNT(*) FROM form_questions q WHERE q.posting_id = a.posting_id) AS questions,"
+        " (SELECT COUNT(*) FROM form_answers f WHERE f.application_id = a.id"
+        "    AND f.state = 'current') AS answered,"
+        " EXISTS (SELECT 1 FROM documents d WHERE d.application_id = a.id AND d.is_current = 1"
+        "    AND d.kind IN ('resume_proposed', 'resume_sent')) AS has_resume,"
+        " EXISTS (SELECT 1 FROM documents d WHERE d.application_id = a.id AND d.is_current = 1"
+        "    AND d.kind = 'cover_letter') AS has_letter"
+        " FROM applications a JOIN statuses s ON s.id = a.status_id"
+        " JOIN postings p ON p.id = a.posting_id"
+        " LEFT JOIN scores sc ON sc.posting_id = a.posting_id AND sc.is_current = 1"
+        " WHERE s.stage = 'to_apply' ORDER BY COALESCE(sc.total, -1) DESC, a.id"
+    ):
+        base = {"posting_id": row["posting_id"], "job_id": row["job_id"],
+                "title": row["title"], "company": row["company"], "score": row["total"]}
+        if not row["has_resume"]:
+            items.append({**base, "kind": "resume", "reason": "no tailored resume yet"})
+        if row["cover_letter_need"] is None:
+            items.append({**base, "kind": "cover_letter",
+                          "reason": "not decided yet whether a cover letter is needed"})
+        elif row["cover_letter_need"] == "required" and not row["has_letter"]:
+            items.append({**base, "kind": "cover_letter", "reason": "cover letter required"})
+        if row["questions"] > row["answered"]:
+            items.append({**base, "kind": "form_answers",
+                          "reason": f"{row['questions'] - row['answered']} of "
+                                    f"{row['questions']} form questions without an answer",
+                          "missing": row["questions"] - row["answered"]})
     return items
 
 

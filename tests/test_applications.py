@@ -287,7 +287,7 @@ def test_uploading_the_sent_resume(jobs, client):
     item = detail(home, job)
     assert item["documents"]["resume_sent"]["id"] == document["id"]
     with db.session(home) as conn:
-        pending = board.pending(conn)
+        pending = [p for p in board.pending(conn) if p["kind"] == "rescore"]
     assert [(p["job_id"], p["resume"]["ref"]) for p in pending] == [(job, "resume-sent.pdf#v1")]
     assert any(h["kind"] == "document_registered" for h in item["history"])
 
@@ -367,7 +367,7 @@ def test_rescore_against_the_sent_resume_clears_pending_and_shows_the_change(job
     client.post(f"/api/applications/{job}/resume-sent",
                 files={"file": ("cv.pdf", PDF, "application/pdf")})
     _, pending, _ = cli("pending")
-    item = pending["pending"][0]
+    item = next(p for p in pending["pending"] if p["kind"] == "rescore")
     data = submission(skills={"points": 33, "note": "All skills match.", "missing": []})
     data["resume"] = item["resume"]
     path = tmp_path / "s.json"
@@ -375,7 +375,7 @@ def test_rescore_against_the_sent_resume_clears_pending_and_shows_the_change(job
     code, out, _ = cli("score", "set", str(item["posting_id"]), str(path))
     assert code == 0, out
     _, pending, _ = cli("pending")
-    assert pending["pending"] == []
+    assert [p for p in pending["pending"] if p["kind"] == "rescore"] == []
     row = next(a for a in client.get("/api/applications").json()["applications"]
                if a["job_id"] == job)
     assert row["score"]["total"] == 92 and row["score"]["previous_total"] == 86

@@ -531,10 +531,15 @@ def application(conn: sqlite3.Connection, job_id: str, language: str = "en",
     today = today or _today()
     limits = limits or thresholds(conn)
     docs = {kind: _current_document(conn, row["id"], kind) for kind in DOCUMENT_KINDS}
+    from . import answers as answers_service
+    from . import documents as documents_service
     from . import search  # local import: search imports this module's tables only
 
     posting = search.posting(conn, row["posting_id"], detail=False)
     next_step = _next_step(row, docs, limits, today)
+    for kind in ("resume_proposed", "cover_letter"):
+        if docs[kind]:
+            docs[kind] = documents_service.current(conn, row["id"], kind)
     return {
         "job_id": row["job_id"], "posting_id": row["posting_id"],
         "status": {"id": row["status_id"], "key": row["status_key"],
@@ -553,8 +558,10 @@ def application(conn: sqlite3.Connection, job_id: str, language: str = "en",
         "snapshot": snapshot(conn, row["job_id"]),
         "documents": {kind: docs[kind] for kind in ("resume_proposed", "resume_sent",
                                                     "cover_letter")},
+        "cover_letter": documents_service.cover_letter(conn, row["id"]),
         "form_question_count": posting["form_question_count"],
-        "form_answered_count": 0,   # answers arrive with document preparation
+        "form_answered_count": answers_service.answered_count(conn, row["id"]),
+        "form_proposed_count": answers_service.proposed_count(conn, row["id"]),
         "next_step": next_step,
         "flags": {"ghost": next_step["kind"] == "ghost",
                   "follow_up_due": next_step["kind"] == "follow_up" and next_step["due"]},
@@ -600,14 +607,15 @@ def history(conn: sqlite3.Connection, job_id: str) -> list[dict]:
 
 
 def detail(conn: sqlite3.Connection, job_id: str, language: str = "en") -> dict:
+    from . import answers as answers_service
+    from . import documents as documents_service
     from . import search
 
     item = application(conn, job_id, language)
-    row = _row(conn, job_id)
-    item["all_documents"] = documents(conn, row["id"])
-    item["form_questions"] = search.questions(conn, row["posting_id"])
+    item["all_documents"] = documents_service.list_for(conn, job_id)
+    item["form_questions"] = answers_service.list_answers(conn, job_id)
     item["history"] = history(conn, job_id)
-    item["description"] = search.posting(conn, row["posting_id"])["description"]
+    item["description"] = search.posting(conn, item["posting_id"])["description"]
     return item
 
 

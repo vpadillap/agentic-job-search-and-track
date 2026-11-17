@@ -192,7 +192,7 @@ def test_copying_a_command(seeded, page):
 
 def test_pending_indicator_is_shown(seeded, page):
     open_board(page)
-    expect(page.get_by_role("link", name=re.compile("pending for the agent"))).to_be_visible()
+    expect(page.get_by_role("button", name=re.compile("pending for the agent"))).to_be_visible()
 
 
 def test_before_setup(home, page):
@@ -517,7 +517,9 @@ def test_uploading_the_sent_resume_from_the_board(seeded, page):
         {"name": "final.pdf", "mimeType": "application/pdf", "buffer": b"%PDF-1.4 fictional"})
     expect(page.locator(".toast")).to_contain_text("Resume uploaded")
     expect(app_row(page, "Finlima S.A.").locator(".doc-line").first).to_have_text("Resume sent")
-    expect(page.get_by_role("link", name=re.compile("1 pending for the agent"))).to_be_visible()
+    page.get_by_role("button", name=re.compile("pending for the agent")).click()
+    expect(page.get_by_role("region", name="Pending for the agent").locator("li").filter(
+        has_text="Score to recalculate")).to_contain_text("Finlima S.A.")
 
 
 def test_unsupported_upload_shows_the_reason(seeded, page):

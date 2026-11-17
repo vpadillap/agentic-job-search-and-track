@@ -1,6 +1,6 @@
 ---
 name: formulario
-description: "Propone respuestas para el formulario de postulación de una o varias vacantes (ids=…). (Alias en español de /form-answers.)"
+description: "Propone respuestas para el formulario de postulación de una o varias vacantes (ids=…); con alternativa propone otra versión sin reemplazar las actuales. (Alias en español de /form-answers.)"
 ---
 
 # /formulario
@@ -11,5 +11,5 @@ its own.
 1. Read `.claude/skills/form-answers/SKILL.md` and follow it exactly, including
    the reference files it mentions (they are in `.claude/skills/form-answers/`).
 2. Treat the arguments given to this command as the arguments of
-   `/form-answers`.
+   `/form-answers`. Spanish argument names: `alternativa` means `alternative`.
 3. Talk to the user in Spanish, unless they write to you in another language.

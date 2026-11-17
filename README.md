@@ -26,7 +26,7 @@ The project is being built in stages. What works today:
 | Panel: Search tab (results, filters, score and salary detail, track and dismiss) | Works |
 | Job search (`/job-search`), scoring, salary evidence, job-site recipe format | Works, but no job site is added yet: each one arrives with its own update |
 | Applications tab, statuses, uploads | Works |
-| Tailored resumes, cover letters, form answers (`/prepare-documents`, `/form-answers`) | Planned |
+| Tailored resumes, cover letters, form answers (`/prepare-documents`, `/form-answers`) | Works |
 | Learning: insights, lessons, predictions, recommendations (`/analyze-results`) | Planned |
 | Seasons and resets (`/new-season`), Profile & agent tab, `/panel` | Planned |
 
@@ -82,8 +82,8 @@ Spanish command names as well (see the Spanish section).
 |---|---|---|
 | `/setup` | First run, and later changes to your profile | Works |
 | `/job-search days=7` | Searches the enabled job sites and updates the panel | Works (no job sites yet) |
-| `/prepare-documents pending` | Tailored resumes, cover letters, and form answers for tracked jobs that lack them (or `ids=J0007,J0012`) | Planned |
-| `/form-answers ids=J0007` | Answers to a posting's application form | Planned |
+| `/prepare-documents pending` | Tailored resumes, cover letters, and form answers for tracked jobs that lack them (or `ids=J0007,J0012`) | Works |
+| `/form-answers ids=J0007` | Answers to a posting's application form | Works |
 | `/analyze-results` | Reviews your results and proposes adjustments | Planned |
 | `/new-season` | Starts over with a new or updated profile; archives the previous campaign | Planned |
 | `/panel` | Starts or stops the local panel | Planned |
@@ -235,8 +235,8 @@ quedaste.
 |---|---|---|---|
 | `/configurar` | `/setup` | Primera vez, y cambios posteriores a tu perfil | Funciona |
 | `/buscar-empleos dias=7` | `/job-search days=7` | Busca en los proveedores activos y actualiza el panel | Funciona (aún sin portales) |
-| `/preparar-documentos pendientes` | `/prepare-documents pending` | CV, cartas y respuestas de formulario que falten en las vacantes en seguimiento (o `ids=J0007,J0012`) | Planificado |
-| `/formulario ids=J0007` | `/form-answers ids=J0007` | Respuestas del formulario de una vacante | Planificado |
+| `/preparar-documentos pendientes` | `/prepare-documents pending` | CV, cartas y respuestas de formulario que falten en las vacantes en seguimiento (o `ids=J0007,J0012`) | Funciona |
+| `/formulario ids=J0007` | `/form-answers ids=J0007` | Respuestas del formulario de una vacante | Funciona |
 | `/analizar-resultados` | `/analyze-results` | Revisa tus resultados y propone ajustes | Planificado |
 | `/nueva-temporada` | `/new-season` | Empieza de nuevo con un perfil nuevo o actualizado; archiva lo anterior | Planificado |
 | `/panel` | `/panel` | Inicia o detiene el panel local | Planificado |

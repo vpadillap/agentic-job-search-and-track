@@ -48,6 +48,10 @@ export const api = {
   setTags: (job, add = [], remove = []) => request('POST', `/api/applications/${encodeURIComponent(job)}/tags`, { add, remove }),
   documentText: (job, id) => request('GET', `/api/applications/${encodeURIComponent(job)}/documents/${id}/text`),
   documentUrl: (job, id) => `/api/applications/${encodeURIComponent(job)}/documents/${id}`,
+  documentDiff: (job, id) => request('GET', `/api/applications/${encodeURIComponent(job)}/documents/${id}/diff`),
+  editAnswer: (job, position, text) => request('POST', `/api/applications/${encodeURIComponent(job)}/answers/${position}`, { text }),
+  pickAnswer: (job, answerId) => request('POST', `/api/applications/${encodeURIComponent(job)}/answers-pick`, { answer_id: answerId }),
+  pending: () => request('GET', '/api/pending'),
   async uploadSentResume(job, file) {
     const form = new FormData();
     form.append('file', file);

@@ -383,5 +383,64 @@
     "other": "{count} postulaciones: {status}"
   },
   "toast.uploaded": "CV subido; se volverá a puntuar",
-  "toast.statusCreated": "Nuevo estado “{name}” creado"
+  "toast.statusCreated": "Nuevo estado “{name}” creado",
+  "pending.title": "Pendiente para el agente",
+  "pending.loading": "Cargando…",
+  "pending.none": "No hay nada pendiente.",
+  "pending.failed": "No se pudo cargar la lista.",
+  "pending.command": "Hazlo todo con un comando",
+  "pending.kind.resume": "Falta CV adaptado",
+  "pending.kind.cover_letter": "Carta por decidir o escribir",
+  "pending.kind.form_answers": {
+    "one": "{missing} pregunta del formulario sin respuesta",
+    "other": "{missing} preguntas del formulario sin respuesta"
+  },
+  "pending.kind.rescore": "Puntaje por recalcular",
+  "doc.letterNotRequired": "Carta no requerida",
+  "doc.letterMissing": "Falta carta",
+  "doc.letterUndecided": "Carta sin decidir",
+  "doc.formNeedsYou": {
+    "one": "Formulario {answered}/{total} · {count} te necesita",
+    "other": "Formulario {answered}/{total} · {count} te necesitan"
+  },
+  "detail.language": "en {language}",
+  "detail.level.medium": "Cambio medio (secciones o largo), con tu consentimiento",
+  "detail.level.heavy": "Cambio grande (diseño), con tu consentimiento",
+  "detail.gaps": "No se afirma (no lo tienes)",
+  "detail.support": {
+    "one": "{count} término destacado y de dónde sale",
+    "other": "{count} términos destacados y de dónde salen"
+  },
+  "detail.letterNotRequired": "No requerida.",
+  "detail.letterRequired": "Requerida, aún sin escribir.",
+  "diff.title": "Cambios respecto de tu CV base",
+  "diff.loading": "Comparando…",
+  "diff.stats": "{added} líneas añadidas o cambiadas, {removed} líneas quitadas o cambiadas",
+  "diff.none": "No hay diferencias en el texto.",
+  "diff.removed": "En tu CV base",
+  "diff.added": "En el CV propuesto",
+  "diff.show": "Ver cambios vs CV base",
+  "diff.hide": "Ocultar cambios",
+  "answers.copy": "Copiar respuesta",
+  "answers.needsYou": "Necesita tu dato",
+  "answers.edited": "Editada por ti",
+  "answers.agent": "Propuesta por el agente",
+  "answers.yourAnswer": "Tu respuesta",
+  "answers.save": "Guardar",
+  "answers.cancel": "Cancelar",
+  "answers.edit": "Editar",
+  "answers.write": "Escribir respuesta",
+  "answers.alternatives": {
+    "one": "{count} versión más",
+    "other": "{count} versiones más"
+  },
+  "answers.use": "Usar esta versión",
+  "history.answers_proposed": {
+    "one": "El agente propuso {count} respuesta del formulario",
+    "other": "El agente propuso {count} respuestas del formulario"
+  },
+  "history.answer_edited": "Editaste la respuesta {position}",
+  "history.answer_picked": "Respuesta {position}: se eligió otra versión",
+  "history.cover_letter_need.required": "Carta: requerida",
+  "history.cover_letter_need.not_required": "Carta: no requerida"
 }

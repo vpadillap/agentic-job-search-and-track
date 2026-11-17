@@ -245,3 +245,33 @@ dialog.dialog::backdrop { background: rgba(21, 23, 28, .35); }
 .field-state.error { color: var(--warn-fg); }
 .history { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--chip); }
 .history-row { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 8px; font-size: 13px; color: var(--text-2); }
+
+/* ── document preparation ─────────────────────────────────────────────── */
+button.header-chip { color: var(--header-text); font: inherit; font-size: 13px; cursor: pointer; }
+.header .menu { color: var(--ink); min-width: 360px; max-width: 480px; }
+.pending-list { display: flex; flex-direction: column; gap: 8px; padding: 8px; }
+.pending-list h2 { margin: 0; font-size: 14px; font-weight: 600; }
+.pending-list ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
+.pending-list li { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
+.pending-what { font-size: 13px; font-weight: 600; }
+.pending-job { font-size: 12px; color: var(--muted); }
+.doc-line.queued .doc-dot { background: #F5A524; }
+.doc-summary { margin: 0; font-size: 12px; line-height: 1.45; color: var(--neutral-fg); }
+.doc-gaps ul, .doc-support ul { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.45; }
+.doc-gaps .doc-kind { color: var(--warn-fg); }
+.doc-support summary, .alternatives summary { font-size: 12px; font-weight: 500; color: var(--link); cursor: pointer; }
+.diff { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; border-top: 1px solid var(--line); max-height: 360px; overflow-y: auto; }
+.diff-hunk { display: flex; flex-direction: column; gap: 2px; }
+.diff-line { margin: 0; padding: 2px 6px; border-radius: 4px; font-size: 12px; line-height: 1.45; }
+.diff-line.removed { background: var(--warn-bg); color: var(--warn-fg); text-decoration: line-through; }
+.diff-line.added { background: var(--ok-bg, #E3F3E8); color: var(--ok-fg); }
+.qa-head { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+.qa-a { margin: 0; font-size: 13px; line-height: 1.5; color: var(--neutral-fg); white-space: pre-line; }
+.qa textarea { min-height: 72px; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 6px; font: inherit; font-size: 13px; resize: vertical; }
+.qa-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.answer-tag { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 5px; background: var(--chip); color: var(--neutral-fg); }
+.answer-tag.user { background: var(--purple-bg); color: var(--purple-fg); }
+.answer-tag.warn, .answer-tag.basis { background: var(--warn-bg); color: var(--warn-fg); }
+.icon-btn { flex: none; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--neutral-fg); }
+.alternative { display: flex; flex-direction: column; gap: 6px; padding: 8px; margin-top: 6px; border: 1px dashed var(--line-strong); border-radius: 6px; }
+.alternative .btn { align-self: flex-start; }

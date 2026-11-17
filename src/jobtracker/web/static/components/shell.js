@@ -1,6 +1,7 @@
 // The panel frame: header, tabs, command chip, empty states, toast.
 import { html, createContext, useContext, useState, useEffect, useLayoutEffect, useRef } from '../vendor/preact-htm.js';
 import * as Icon from './icons.js';
+import { api } from '../api.js';
 
 /** {t, fmt, lang}: translator, formatter, and the panel language. */
 export const Ui = createContext(null);
@@ -70,6 +71,33 @@ export function Placeholder({ tab }) {
     body=${t('placeholder.' + tab)} />`;
 }
 
+/** What the agent has to do, item by item, and the one command that does it all. */
+function PendingList({ commands, count, changes }) {
+  const { t } = useUi();
+  const [items, setItems] = useState(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let live = true;
+    api.pending().then((r) => { if (live) setItems(r.pending); }).catch(() => live && setFailed(true));
+    return () => { live = false; };
+  }, [count, changes && changes.counter]);
+  const batch = commands.find((c) => c.id === 'prepare-documents');
+  return html`
+    <div class="pending-list" role="region" aria-label=${t('pending.title')}>
+      <h2>${t('pending.title')}</h2>
+      ${failed ? html`<p class="note">${t('pending.failed')}</p>`
+        : items === null ? html`<p class="note">${t('pending.loading')}</p>`
+        : items.length === 0 ? html`<p class="note">${t('pending.none')}</p>`
+        : html`<ul>${items.map((item) => html`
+            <li>
+              <span class="pending-what">${t('pending.kind.' + item.kind, { missing: item.missing || 0 })}</span>
+              <span class="pending-job">${item.job_id ? item.job_id + ' · ' : ''}${item.title} · ${item.company}</span>
+            </li>`)}</ul>`}
+      ${batch && items && items.length > 0 && html`<${CommandChip} command=${batch.example}
+        label=${t('pending.command')} />`}
+    </div>`;
+}
+
 export function Header({ state, lang, onLanguage, onReload, tab, counts }) {
   const { t, fmt } = useUi();
   const header = state && state.header;
@@ -93,9 +121,10 @@ export function Header({ state, lang, onLanguage, onReload, tab, counts }) {
                 ? (profile.title ? t('header.profile', profile) : t('header.profileNoTitle', profile))
                 : t('header.noProfile')}
             </a>
-            <a class="header-chip raised" href="#profile">
-              <span class=${'dot' + (pending ? '' : ' idle')}></span>${t('header.pending', { count: pending })}
-            </a>`}
+            <${Menu} buttonClass="header-chip raised" align="right"
+              label=${html`<span class=${'dot' + (pending ? '' : ' idle')}></span>${t('header.pending', { count: pending })}`}>
+              <${PendingList} commands=${state.commands || []} count=${pending} changes=${changes} />
+            </${Menu}>`}
           <span class="header-meta">
             ${changes ? t('header.updated', { time: fmt.shortDateTime(changes.updated_at) }) : t('header.noData')}
             <button type="button" class="header-icon-btn" onClick=${onReload} aria-label=${t('header.reload')}

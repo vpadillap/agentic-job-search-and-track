@@ -40,7 +40,8 @@ stops and asks.
 ### M3. Format path
 
 DOCX base: copy the base, edit text in place, save as
-`resume-proposed-v<N>.docx`, convert to PDF when a converter is available.
+`resume-proposed-v<N>.docx`. The result is delivered as DOCX: the user opens
+it in Word, adjusts it, and saves it as PDF if an application asks for one.
 PDF-only base: ask for the editable source; otherwise heavy-level consent to
 rebuild. The original base file is never modified.
 
@@ -78,11 +79,48 @@ registered the application is rescored against it.
 Each document records which lessons and rules were applied when it was written,
 so the learning loop can compare outcomes by resume kind and by rule.
 
+### M9. Decisions made while implementing
+
+- `python-docx` is a regular dependency (the proposal listed it as optional),
+  so `/setup` installs it like `pypdf`; without it the CLI reports
+  `missing_dependency`.
+- Whether an application needs a cover letter is stored on the application
+  (`required`, `not_required`, or not decided). Not decided counts as pending,
+  so the batch always settles it; registering a letter marks it required.
+- A tailored resume adds a `rescore` pending item (resume kind `tailored`);
+  the pending list keeps one rescore per posting, against the most specific
+  resume (sent, then tailored, then base).
+- DOCX tailoring supports two edits: replace text inside one paragraph
+  (keeping the formatting of the run where it starts) and move a paragraph.
+  Edits apply all or nothing. The layout check compares paragraph count and
+  text length with the base resume.
+- No PDF conversion (decided by the project owner, 2026-11-17): resumes are
+  delivered as DOCX for the user to review in Word and save as PDF
+  themselves. This replaces task 2.2's converter detection and the page-count
+  part of task 2.3.
+
+### M10. Changes made after the end-to-end run
+
+The batch was run end to end by a separate agent with the fictional persona.
+It met the document-preparation scenarios and left nothing pending, and led
+to these fixes:
+
+- The CLI read JSON piped on standard input with the console's code page
+  (cp1252 on Windows), corrupting accented text. It now always reads UTF-8.
+- The skills now say where the posting text is, that registering a resume
+  adds the rescore item, that a rescore changes only what the resume affects,
+  how to handle translated resumes, and to read a document before registering
+  it (a registered version cannot be removed).
+
+Found but out of scope (recorded in `docs/backlog.md`): withdrawing a
+registered version, an inconsistent demo score note, and the resume reference
+format shown in the job-search scoring guide.
+
 ## Risks / Trade-offs
 
 - [Agent embellishes] → M1 support list, change summary, diff view, and the
   user reviews before sending.
 - [DOCX in-place edits break formatting in complex layouts] → verify by
-  rendering to PDF and comparing page count; fall back to asking the user.
-- [No PDF converter installed] → deliver DOCX and say so.
+  comparing paragraph count and text length, and the user reviews the DOCX
+  in Word before sending it.
 - [Large batches are slow] → ordered by score, resumable, per-item report.

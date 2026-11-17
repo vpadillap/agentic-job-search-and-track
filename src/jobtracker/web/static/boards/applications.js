@@ -126,11 +126,20 @@ function DocLines({ app }) {
   else if (docs.resume_proposed) lines.push(['ok', t('doc.resumeReady')]);
   else if (app.stage === 'to_apply') lines.push(['missing', t('doc.resumeMissing')]);
   else lines.push(['na', t('doc.resumeBase')]);
-  lines.push(docs.cover_letter ? ['ok', t('doc.letterReady')] : ['na', t('doc.letterNone')]);
+  const letter = app.cover_letter || {};
+  if (docs.cover_letter) lines.push(['ok', t('doc.letterReady')]);
+  else if (letter.need === 'not_required') lines.push(['na', t('doc.letterNotRequired')]);
+  else if (letter.need === 'required') lines.push(['missing', t('doc.letterMissing')]);
+  else if (app.stage === 'to_apply') lines.push(['queued', t('doc.letterUndecided')]);
+  else lines.push(['na', t('doc.letterNone')]);
   if (app.form_question_count === 0) lines.push(['na', t('doc.noForm')]);
   else {
-    const done = app.form_answered_count >= app.form_question_count;
-    lines.push([done ? 'ok' : 'missing', t('doc.form', { answered: app.form_answered_count, total: app.form_question_count })]);
+    const total = app.form_question_count;
+    const done = app.form_answered_count >= total;
+    const needsYou = (app.form_proposed_count || 0) - app.form_answered_count;
+    lines.push([done ? 'ok' : needsYou > 0 && app.form_proposed_count >= total ? 'queued' : 'missing',
+      needsYou > 0 ? t('doc.formNeedsYou', { answered: app.form_answered_count, total, count: needsYou })
+        : t('doc.form', { answered: app.form_answered_count, total })]);
   }
   return html`<div class="doc-lines">${lines.map(([state, label]) => html`
     <span class=${'doc-line ' + state}><span class="doc-dot" aria-hidden="true"></span>${label}</span>`)}</div>`;
@@ -196,19 +205,64 @@ function CopyTextButton({ job, document }) {
     <span class="sr-only" role="status">${done ? t('detail.copiedText') : ''}</span>`;
 }
 
+function DiffView({ job, document }) {
+  const { t } = useUi();
+  const [diff, setDiff] = useState(null);
+  const [error, setError] = useState(null);
+  useEffect(() => {
+    let live = true;
+    api.documentDiff(job, document.id).then((r) => live && setDiff(r))
+      .catch((e) => live && setError(e.message));
+    return () => { live = false; };
+  }, [job, document.id]);
+  if (error) return html`<p class="note">${error}</p>`;
+  if (!diff) return html`<p class="note">${t('diff.loading')}</p>`;
+  return html`
+    <div class="diff" role="region" aria-label=${t('diff.title')}>
+      <p class="small">${t('diff.stats', { added: diff.stats.added, removed: diff.stats.removed })}</p>
+      ${diff.hunks.length === 0 ? html`<p class="note">${t('diff.none')}</p>` : diff.hunks.map((hunk) => html`
+        <div class="diff-hunk">
+          ${hunk.base.map((line) => html`<p class="diff-line removed"><span class="sr-only">${t('diff.removed')}: </span>${line}</p>`)}
+          ${hunk.proposed.map((line) => html`<p class="diff-line added"><span class="sr-only">${t('diff.added')}: </span>${line}</p>`)}
+        </div>`)}
+    </div>`;
+}
+
+function ProposedResume({ app, doc }) {
+  const { t, fmt } = useUi();
+  const [compare, setCompare] = useState(false);
+  return html`
+    <span class="mono">${doc.file_name}</span>
+    <span class="small">${t('detail.agentOn', { date: fmt.dayMonth(doc.created_at) })}
+      ${doc.language ? ' · ' + t('detail.language', { language: doc.language.toUpperCase() }) : ''}</span>
+    ${doc.summary && html`<p class="doc-summary">${doc.summary}</p>`}
+    ${doc.level && doc.level !== 'light' && html`<span class="small">${t('detail.level.' + doc.level)}</span>`}
+    ${doc.gaps && doc.gaps.length > 0 && html`
+      <div class="doc-gaps"><span class="doc-kind">${t('detail.gaps')}</span>
+        <ul>${doc.gaps.map((gap) => html`<li>${gap}</li>`)}</ul></div>`}
+    ${doc.support && doc.support.length > 0 && html`
+      <details class="doc-support"><summary>${t('detail.support', { count: doc.support.length })}</summary>
+        <ul>${doc.support.map((s) => html`<li><strong>${s.term}</strong>: ${s.source}</li>`)}</ul></details>`}
+    <div class="filter-group">
+      <a href=${api.documentUrl(app.job_id, doc.id)} download>${t('detail.openDoc')}</a>
+      <button type="button" class="link-btn" aria-expanded=${String(compare)}
+        onClick=${() => setCompare(!compare)}>${compare ? t('diff.hide') : t('diff.show')}</button>
+    </div>
+    ${compare && html`<${DiffView} job=${app.job_id} document=${doc} />`}`;
+}
+
 function DocumentsCard({ app, onUpload }) {
   const { t, fmt } = useUi();
   const input = useRef(null);
   const { resume_proposed: proposed, resume_sent: sent, cover_letter: letter } = app.documents;
   const open = (doc) => html`<a href=${api.documentUrl(app.job_id, doc.id)} download>${t('detail.openDoc')}</a>`;
+  const need = app.cover_letter || {};
   return html`
     <div class="panel">
       <h2>${t('detail.documents')}</h2>
       <div class="doc-card">
         <span class="doc-kind">${t('detail.proposed')}</span>
-        ${proposed ? html`<span class="mono">${proposed.file_name}</span>
-          <span class="small">${t('detail.agentOn', { date: fmt.dayMonth(proposed.created_at) })}</span>
-          <div class="filter-group">${open(proposed)}</div>`
+        ${proposed ? html`<${ProposedResume} app=${app} doc=${proposed} />`
           : html`<span class="note">${t('detail.noProposed')}</span>`}
       </div>
       <div class=${'doc-card' + (sent ? ' sent' : '')}>
@@ -230,12 +284,89 @@ function DocumentsCard({ app, onUpload }) {
         <span class="doc-kind">${t('detail.letter')}</span>
         ${letter ? html`<span class="mono">${letter.file_name}</span>
           <div class="filter-group">${open(letter)}<${CopyTextButton} job=${app.job_id} document=${letter} /></div>`
-          : html`<span class="note">${t('detail.noLetter')}</span>`}
+          : need.need === 'not_required'
+            ? html`<span class="note">${t('detail.letterNotRequired')}${need.reason ? ' ' + need.reason : ''}</span>`
+            : need.need === 'required'
+              ? html`<span class="note">${t('detail.letterRequired')}</span>`
+              : html`<span class="note">${t('detail.noLetter')}</span>`}
       </div>
     </div>`;
 }
 
-function FormCard({ detail }) {
+function CopyAnswer({ text }) {
+  const { t } = useUi();
+  const [done, setDone] = useState(false);
+  const copy = async () => {
+    await navigator.clipboard.writeText(text);
+    setDone(true);
+    setTimeout(() => setDone(false), 2000);
+  };
+  return html`<button type="button" class="icon-btn" onClick=${copy}
+    aria-label=${done ? t('detail.copiedText') : t('answers.copy')} title=${t('answers.copy')}>
+    ${done ? Icon.Check(14) : Icon.Copy(14)}</button>`;
+}
+
+function AnswerBlock({ job, question, onSaved }) {
+  const { t } = useUi();
+  const answer = question.answer;
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState('');
+  const [state, setState] = useState(null);
+  const startEdit = () => { setText(answer ? answer.text : ''); setEditing(true); };
+  const save = async () => {
+    setState({ kind: 'saving' });
+    try {
+      await api.editAnswer(job, question.position, text);
+      setEditing(false);
+      setState(null);
+      onSaved();
+    } catch (error) {
+      setState({ kind: 'error', message: error.message });
+    }
+  };
+  const pick = async (id) => {
+    try { await api.pickAnswer(job, id); onSaved(); } catch (error) { setState({ kind: 'error', message: error.message }); }
+  };
+  const label = !answer ? null
+    : answer.needs_user ? ['warn', t('answers.needsYou')]
+    : answer.origin === 'user' ? ['user', t('answers.edited')] : ['agent', t('answers.agent')];
+  return html`
+    <div class="qa">
+      <div class="qa-head">
+        <span class="qa-q">${question.text}${question.required ? html` <span class="small">(${t('detail.required')})</span>` : ''}</span>
+        ${answer && answer.text && !editing && html`<${CopyAnswer} text=${answer.text} />`}
+      </div>
+      ${editing ? html`
+        <label class="sr-only" for=${'answer-' + job + '-' + question.position}>${t('answers.yourAnswer')}</label>
+        <textarea id=${'answer-' + job + '-' + question.position} rows="3" value=${text}
+          onInput=${(e) => setText(e.currentTarget.value)}></textarea>
+        <div class="filter-group">
+          <button type="button" class="btn btn-sm btn-dark" onClick=${save}>${t('answers.save')}</button>
+          <button type="button" class="btn btn-sm" onClick=${() => setEditing(false)}>${t('answers.cancel')}</button>
+        </div>`
+      : answer ? html`
+        ${answer.text && html`<p class="qa-a">${answer.text}</p>`}
+        ${answer.needs_user && answer.note && html`<p class="note">${answer.note}</p>`}`
+      : html`<span class="note">${t('detail.noAnswer')}</span>`}
+      <div class="qa-meta">
+        ${label && html`<span class=${'answer-tag ' + label[0]}>${label[1]}</span>`}
+        ${answer && answer.basis && html`<span class="answer-tag basis">${answer.basis}</span>`}
+        ${!editing && html`<button type="button" class="link-btn small-btn" onClick=${startEdit}>
+          ${answer && answer.text ? t('answers.edit') : t('answers.write')}</button>`}
+      </div>
+      ${state && state.kind === 'error' && html`<span class="field-state error" role="status">${t('field.error', { message: state.message })}</span>`}
+      ${question.alternatives.length > 0 && html`
+        <details class="alternatives"><summary>${t('answers.alternatives', { count: question.alternatives.length })}</summary>
+          ${question.alternatives.map((alt) => html`
+            <div class="alternative">
+              <p class="qa-a">${alt.text || alt.note}</p>
+              <button type="button" class="btn btn-sm" onClick=${() => pick(alt.id)}>${t('answers.use')}</button>
+            </div>`)}
+        </details>`}
+    </div>`;
+}
+
+function FormCard({ app, detail, onSaved }) {
   const { t } = useUi();
   const questions = detail ? detail.form_questions : [];
   if (detail && questions.length === 0) {
@@ -245,11 +376,7 @@ function FormCard({ detail }) {
   return html`
     <div class="panel">
       <h2>${t('detail.form', { count: questions.length })}</h2>
-      ${questions.map((q) => html`
-        <div class="qa">
-          <span class="qa-q">${q.text}${q.required ? html` <span class="small">(${t('detail.required')})</span>` : ''}</span>
-          <span class="note">${t('detail.noAnswer')}</span>
-        </div>`)}
+      ${questions.map((q) => html`<${AnswerBlock} key=${q.position} job=${app.job_id} question=${q} onSaved=${onSaved} />`)}
     </div>`;
 }
 
@@ -275,6 +402,10 @@ function historyText(item, t, fmt, statusName) {
     case 'tag_removed': return t('history.tag_removed', { tag: d.tag });
     case 'document_registered': return t('history.document_registered', { kind: t('kind.' + d.kind), version: d.version, origin: t('origin.' + d.origin) });
     case 'reposted': return t('history.reposted', { provider: providerName(d.provider) });
+    case 'answers_proposed': return t('history.answers_proposed', { count: (d.current || []).length + (d.alternatives || []).length });
+    case 'answer_edited': return t('history.answer_edited', { position: d.position });
+    case 'answer_picked': return t('history.answer_picked', { position: d.position });
+    case 'cover_letter_need': return t('history.cover_letter_need.' + d.need);
     default: return item.kind;
   }
 }
@@ -357,7 +488,7 @@ function ApplicationDetail({ app, version, onUpload, onSaved, statusName }) {
     <div class="detail app-detail">
       <div class="detail-grid apps">
         <${DocumentsCard} app=${app} onUpload=${onUpload} />
-        <${FormCard} detail=${detail} />
+        <${FormCard} app=${app} detail=${detail} onSaved=${onSaved} />
         <${YourApplication} app=${app} detail=${detail} onSaved=${onSaved} statusName=${statusName} />
       </div>
     </div>`;

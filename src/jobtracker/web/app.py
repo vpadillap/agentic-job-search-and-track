@@ -15,7 +15,17 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from jobtracker import __version__
-from jobtracker.core import applications, board, config, db, providers, skills, tracking
+from jobtracker.core import (
+    answers,
+    applications,
+    board,
+    config,
+    db,
+    documents,
+    providers,
+    skills,
+    tracking,
+)
 from jobtracker.core.errors import JobTrackerError
 from jobtracker.core.paths import get_paths
 from jobtracker.core.workspace import is_initialized
@@ -80,6 +90,14 @@ class NewStatus(BaseModel):
     name: str = Field(min_length=1, max_length=40)
     stage: Literal["to_apply", "applied", "interview", "offer", "closed_positive",
                    "closed_negative"]
+
+
+class AnswerEdit(BaseModel):
+    text: str = Field(max_length=5000)
+
+
+class AnswerPick(BaseModel):
+    answer_id: int
 
 
 class StatusEdit(BaseModel):
@@ -283,6 +301,27 @@ def create_app() -> FastAPI:
         if path.suffix.lower() not in (".md", ".txt"):
             raise JobTrackerError("not_text", "Only text documents can be copied")
         return {"ok": True, "text": path.read_text(encoding="utf-8")}
+
+    @app.get("/api/applications/{job_id}/documents/{document_id}/diff")
+    def document_diff(job_id: str, document_id: int) -> dict:
+        paths = get_paths()
+        with db.session(paths) as conn:
+            return {"ok": True, **documents.diff(conn, paths, job_id, document_id)}
+
+    @app.post("/api/applications/{job_id}/answers/{position}")
+    def edit_answer(job_id: str, position: int, body: AnswerEdit) -> dict:
+        with db.session(get_paths()) as conn:
+            return {"ok": True, "question": answers.edit(conn, job_id, position, body.text)}
+
+    @app.post("/api/applications/{job_id}/answers-pick")
+    def pick_answer(job_id: str, body: AnswerPick) -> dict:
+        with db.session(get_paths()) as conn:
+            return {"ok": True, "question": answers.pick(conn, job_id, body.answer_id)}
+
+    @app.get("/api/pending")
+    def pending() -> dict:
+        with db.session(get_paths()) as conn:
+            return {"ok": True, "pending": board.pending(conn)}
 
     # ── frontend ──────────────────────────────────────────────────────────
 

@@ -383,5 +383,64 @@
     "other": "{count} applications: {status}"
   },
   "toast.uploaded": "Resume uploaded; it will be rescored",
-  "toast.statusCreated": "New status “{name}” created"
+  "toast.statusCreated": "New status “{name}” created",
+  "pending.title": "Pending for the agent",
+  "pending.loading": "Loading…",
+  "pending.none": "Nothing is pending.",
+  "pending.failed": "The list could not be loaded.",
+  "pending.command": "Do all of it with one command",
+  "pending.kind.resume": "Tailored resume missing",
+  "pending.kind.cover_letter": "Cover letter to decide or write",
+  "pending.kind.form_answers": {
+    "one": "{missing} form question without an answer",
+    "other": "{missing} form questions without an answer"
+  },
+  "pending.kind.rescore": "Score to recalculate",
+  "doc.letterNotRequired": "Cover letter not required",
+  "doc.letterMissing": "Cover letter missing",
+  "doc.letterUndecided": "Cover letter not decided",
+  "doc.formNeedsYou": {
+    "one": "Form {answered}/{total} · {count} needs you",
+    "other": "Form {answered}/{total} · {count} need you"
+  },
+  "detail.language": "in {language}",
+  "detail.level.medium": "Medium change (sections or length), with your consent",
+  "detail.level.heavy": "Heavy change (layout), with your consent",
+  "detail.gaps": "Not claimed (you do not have it)",
+  "detail.support": {
+    "one": "{count} emphasized term and where it comes from",
+    "other": "{count} emphasized terms and where they come from"
+  },
+  "detail.letterNotRequired": "Not required.",
+  "detail.letterRequired": "Required, not written yet.",
+  "diff.title": "Changes against your base resume",
+  "diff.loading": "Comparing…",
+  "diff.stats": "{added} lines added or changed, {removed} lines removed or changed",
+  "diff.none": "No differences in the text.",
+  "diff.removed": "In your base resume",
+  "diff.added": "In the proposed resume",
+  "diff.show": "View changes against base resume",
+  "diff.hide": "Hide changes",
+  "answers.copy": "Copy answer",
+  "answers.needsYou": "Needs your input",
+  "answers.edited": "Edited by you",
+  "answers.agent": "Proposed by the agent",
+  "answers.yourAnswer": "Your answer",
+  "answers.save": "Save",
+  "answers.cancel": "Cancel",
+  "answers.edit": "Edit",
+  "answers.write": "Write answer",
+  "answers.alternatives": {
+    "one": "{count} other version",
+    "other": "{count} other versions"
+  },
+  "answers.use": "Use this version",
+  "history.answers_proposed": {
+    "one": "Agent proposed {count} form answer",
+    "other": "Agent proposed {count} form answers"
+  },
+  "history.answer_edited": "You edited answer {position}",
+  "history.answer_picked": "Answer {position}: another version chosen",
+  "history.cover_letter_need.required": "Cover letter: required",
+  "history.cover_letter_need.not_required": "Cover letter: not required"
 }

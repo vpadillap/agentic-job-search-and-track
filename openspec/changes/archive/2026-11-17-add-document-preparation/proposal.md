@@ -43,6 +43,6 @@ None.
 - New: `.claude/skills/prepare-documents/`, `.claude/skills/form-answers/`,
   Spanish aliases, CLI `jobtracker documents …`, `jobtracker answers …`,
   document diff view in the panel.
-- Optional dependencies: `python-docx` for in-place DOCX editing; a DOCX→PDF
-  converter when available (Word or LibreOffice).
+- Dependency: `python-docx` for in-place DOCX editing. Tailored resumes are
+  delivered as DOCX; no PDF conversion.
 - Depends on `add-application-tracking` and `add-job-search`.

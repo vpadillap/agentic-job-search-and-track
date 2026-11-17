@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 from jobtracker.core import (
+    answers,
     applications,
     board,
     config,
@@ -17,6 +18,8 @@ from jobtracker.core import (
     db,
     demo,
     doctor,
+    documents,
+    docx_tools,
     privacy,
     profile,
     providers,
@@ -48,8 +51,15 @@ def _emit(payload: dict) -> None:
 
 def _read_json(source: str) -> object:
     try:
-        text = sys.stdin.read() if source == "-" else Path(source).read_text(encoding="utf-8")
+        if source == "-":
+            # JSON is UTF-8 whatever the console's code page is (cp1252 on Windows).
+            raw = sys.stdin.buffer.read() if hasattr(sys.stdin, "buffer") else sys.stdin.read()
+            text = raw.decode("utf-8-sig") if isinstance(raw, bytes) else raw
+        else:
+            text = Path(source).read_text(encoding="utf-8-sig")
         return json.loads(text)
+    except UnicodeDecodeError as error:
+        raise JobTrackerError("invalid_json", f"'{source}' is not UTF-8 text: {error}") from error
     except OSError as error:
         raise JobTrackerError("unreadable_input", f"Cannot read '{source}': {error}") from error
     except json.JSONDecodeError as error:
@@ -412,7 +422,113 @@ def cmd_statuses_retire(args: argparse.Namespace) -> dict:
 
 def cmd_pending(args: argparse.Namespace) -> dict:
     with db.session(get_paths()) as conn:
-        return {"pending": board.pending(conn)}
+        items = board.pending(conn)
+    if args.ids:
+        wanted = set(args.ids)
+        unknown = sorted(wanted - {i["job_id"] for i in items if i.get("job_id")})
+        items = [i for i in items if i.get("job_id") in wanted]
+        return {"pending": items, "nothing_pending_for": unknown}
+    return {"pending": items}
+
+
+def _in_folder(conn, paths, job_id: str, file_name: str) -> Path:
+    base = applications.folder(conn, paths, job_id).resolve()
+    path = (base / Path(file_name).name).resolve()
+    if not path.is_relative_to(base) or not path.is_file():
+        raise JobTrackerError("not_found",
+                              f"'{file_name}' is not a file in the folder of {job_id}")
+    return path
+
+
+def _base_resume_file(conn, paths) -> Path:
+    base = resume.current(conn, paths)
+    if base is None:
+        raise JobTrackerError("no_base_resume", "There is no base resume. Run /setup.")
+    return Path(base["path"])
+
+
+def cmd_documents_path(args: argparse.Namespace) -> dict:
+    paths = get_paths()
+    with db.session(paths) as conn:
+        path = documents.next_path(conn, paths, args.job_id, args.kind, args.ext)
+    return {"path": str(path), "file_name": path.name}
+
+
+def cmd_documents_register(args: argparse.Namespace) -> dict:
+    meta = _read_json(args.meta)
+    paths = get_paths()
+    with db.session(paths) as conn:
+        return {"document": documents.register(conn, paths, args.job_id, args.kind,
+                                               args.file, meta)}
+
+
+def cmd_documents_list(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        app = applications.application(conn, args.job_id, _language())
+        return {"documents": documents.list_for(conn, args.job_id),
+                "cover_letter": app["cover_letter"]}
+
+
+def cmd_documents_diff(args: argparse.Namespace) -> dict:
+    paths = get_paths()
+    with db.session(paths) as conn:
+        return documents.diff(conn, paths, args.job_id, args.document)
+
+
+def cmd_documents_tailor(args: argparse.Namespace) -> dict:
+    request = _read_json(args.file)
+    if not isinstance(request, dict) or "edits" not in request:
+        raise JobTrackerError("invalid_edit", 'expected an object {"edits": [...]}')
+    paths = get_paths()
+    with db.session(paths) as conn:
+        base = _base_resume_file(conn, paths)
+        target = documents.next_path(conn, paths, args.job_id, "resume-proposed", "docx")
+    result = docx_tools.tailor(base, target, request["edits"])
+    result["file_name"] = target.name
+    result["layout"] = docx_tools.layout_check(base, target)
+    return result
+
+
+def cmd_documents_check(args: argparse.Namespace) -> dict:
+    paths = get_paths()
+    with db.session(paths) as conn:
+        base = _base_resume_file(conn, paths)
+        proposed = _in_folder(conn, paths, args.job_id, args.file)
+    if base.suffix.lower() != ".docx" or proposed.suffix.lower() != ".docx":
+        raise JobTrackerError("invalid_document", "the layout check compares two DOCX files")
+    return {"layout": docx_tools.layout_check(base, proposed)}
+
+
+def cmd_documents_cover_letter(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"cover_letter": documents.set_cover_letter_need(conn, args.job_id, args.need,
+                                                                args.reason)}
+
+
+def cmd_answers_list(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        questions = answers.list_answers(conn, args.job_id)
+    result: dict = {"questions": questions}
+    if not questions:
+        result["message"] = (f"{args.job_id} has no captured form questions: "
+                             "there is no form to answer")
+    return result
+
+
+def cmd_answers_set(args: argparse.Namespace) -> dict:
+    proposals = _read_json(args.file)
+    with db.session(get_paths()) as conn:
+        return answers.propose(conn, args.job_id, proposals, as_alternative=args.alternative)
+
+
+def cmd_answers_edit(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"question": answers.edit(conn, args.job_id, args.position, args.text)}
+
+
+def cmd_answers_pick(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"question": answers.pick(conn, args.job_id, args.answer_id)}
 
 
 def cmd_demo_seed(args: argparse.Namespace) -> dict:
@@ -681,8 +797,71 @@ def build_parser() -> argparse.ArgumentParser:
     statuses_retire.add_argument("--restore", action="store_true")
     statuses_retire.set_defaults(run=cmd_statuses_retire)
 
-    sub.add_parser("pending", help="work items waiting for the agent").set_defaults(
-        run=cmd_pending)
+    pending = sub.add_parser("pending", help="work items waiting for the agent")
+    pending.add_argument("--ids", nargs="+", help="only these applications (job ids)")
+    pending.set_defaults(run=cmd_pending)
+
+    docs_parser = sub.add_parser("documents", help="tailored resumes and cover letters")
+    docs_sub = docs_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)
+    kinds = ("resume-proposed", "cover-letter")
+    docs_path = docs_sub.add_parser("path", help="where to write the next version")
+    docs_path.add_argument("job_id")
+    docs_path.add_argument("--kind", required=True, choices=kinds)
+    docs_path.add_argument("--ext", required=True, help="docx or md")
+    docs_path.set_defaults(run=cmd_documents_path)
+    docs_register = docs_sub.add_parser("register", help="register a document you wrote")
+    docs_register.add_argument("job_id")
+    docs_register.add_argument("kind", choices=kinds)
+    docs_register.add_argument("file", help="file name inside the application folder")
+    docs_register.add_argument("meta", help="JSON: language, summary, support, gaps... or -")
+    docs_register.set_defaults(run=cmd_documents_register)
+    docs_list = docs_sub.add_parser("list")
+    docs_list.add_argument("job_id")
+    docs_list.set_defaults(run=cmd_documents_list)
+    docs_diff = docs_sub.add_parser("diff", help="a proposed resume against the base resume")
+    docs_diff.add_argument("job_id")
+    docs_diff.add_argument("--document", type=int, help="document id (default: current)")
+    docs_diff.set_defaults(run=cmd_documents_diff)
+    docs_tailor = docs_sub.add_parser(
+        "tailor", help="copy the DOCX base resume with text edits, design untouched")
+    docs_tailor.add_argument("job_id")
+    docs_tailor.add_argument("file", help='JSON {"edits": [...]}, or -')
+    docs_tailor.set_defaults(run=cmd_documents_tailor)
+    docs_check = docs_sub.add_parser("check", help="compare a DOCX's shape with the base resume")
+    docs_check.add_argument("job_id")
+    docs_check.add_argument("file")
+    docs_check.set_defaults(run=cmd_documents_check)
+    docs_letter = docs_sub.add_parser("cover-letter", help="record whether one is needed")
+    docs_letter.add_argument("job_id")
+    docs_letter.add_argument("--need", required=True, choices=documents.COVER_LETTER_NEEDS)
+    docs_letter.add_argument("--reason")
+    docs_letter.set_defaults(run=cmd_documents_cover_letter)
+
+    answers_parser = sub.add_parser("answers", help="answers to application-form questions")
+    answers_sub = answers_parser.add_subparsers(dest="action", required=True,
+                                                parser_class=_Parser)
+    answers_list = answers_sub.add_parser("list")
+    answers_list.add_argument("job_id")
+    answers_list.set_defaults(run=cmd_answers_list)
+    answers_set = answers_sub.add_parser(
+        "set", help="propose answers (an answer the user edited is never replaced)")
+    answers_set.add_argument("job_id")
+    answers_set.add_argument("file", help="JSON list of answers, or -")
+    answers_set.set_defaults(run=cmd_answers_set, alternative=False)
+    answers_alt = answers_sub.add_parser("alternative",
+                                         help="propose other versions to pick from")
+    answers_alt.add_argument("job_id")
+    answers_alt.add_argument("file", help="JSON list of answers, or -")
+    answers_alt.set_defaults(run=cmd_answers_set, alternative=True)
+    answers_edit = answers_sub.add_parser("edit", help="the user's own wording for an answer")
+    answers_edit.add_argument("job_id")
+    answers_edit.add_argument("position", type=int)
+    answers_edit.add_argument("--text", required=True)
+    answers_edit.set_defaults(run=cmd_answers_edit)
+    answers_pick = answers_sub.add_parser("pick", help="make an alternative the current answer")
+    answers_pick.add_argument("job_id")
+    answers_pick.add_argument("answer_id", type=int)
+    answers_pick.set_defaults(run=cmd_answers_pick)
 
     demo_parser = sub.add_parser("demo", help="fictional data for trying the panel")
     demo_sub = demo_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)
