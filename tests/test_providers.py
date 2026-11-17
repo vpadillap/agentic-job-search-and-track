@@ -157,8 +157,10 @@ def test_linkedin_is_read_logged_out_over_http():
     linkedin = listed["linkedin"]
     assert (linkedin["access"], linkedin["requires_login"], linkedin["live_walk"]) == (
         "http", False, False)
-    assert linkedin["dependencies"] == ["curl"]
+    assert linkedin["dependencies"] == []                  # the reader uses Python only
     text = (TEMPLATE.parent / "linkedin.md").read_text(encoding="utf-8")
+    assert "jt providers read linkedin <run_id> --title" in text
+    assert "--readings" in text
     for forbidden in ("Playwright", "the browser extension", "jobs/search"):
         assert forbidden in text.split("## Search recipe")[0]  # named as forbidden
     assert "throttles or blocks requests from the user's IP address" in text

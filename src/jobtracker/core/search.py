@@ -386,6 +386,52 @@ def _seen_reason(conn: sqlite3.Connection, posting_id: int) -> str:
     return "earlier_run"
 
 
+READING_FIELDS = ("work_mode", "work_mode_detail", "language", "flags", "published_salary")
+
+
+def merge_readings(drafts: object, readings: object) -> list[dict]:
+    """Drafts written by a provider's reader, completed with the agent's reading of
+    each one (matched by the site's id). A reading sets only READING_FIELDS, so the
+    captured text of a draft is stored exactly as the reader wrote it."""
+    if not isinstance(drafts, list):
+        _fail("expected the drafts file to hold a list of postings")
+    if not isinstance(readings, list):
+        _fail("expected the readings file to hold a list of readings")
+    by_id: dict[str, dict] = {}
+    for index, reading in enumerate(readings):
+        where = f"reading {index + 1}"
+        if not isinstance(reading, dict):
+            _fail(f"{where}: must be an object")
+        external_id = str(reading.get("external_id") or "").strip()
+        if not external_id:
+            _fail(f"{where}: 'external_id' is required", field="external_id")
+        extra = sorted(set(reading) - {"external_id", *READING_FIELDS})
+        if extra:
+            _fail(f"{where}: a reading cannot set '{extra[0]}'; only "
+                  f"{', '.join(READING_FIELDS)}", field=extra[0])
+        if external_id in by_id:
+            _fail(f"{where}: a second reading for {external_id}", field="external_id")
+        by_id[external_id] = reading
+    merged, missing, ids = [], [], set()
+    for index, draft in enumerate(drafts):
+        if not isinstance(draft, dict):
+            _fail(f"posting {index + 1}: must be an object", index=index)
+        external_id = str(draft.get("external_id") or "")
+        ids.add(external_id)
+        reading = by_id.get(external_id)
+        if reading is None:
+            missing.append(external_id)
+            continue
+        merged.append({**draft, **{key: reading[key] for key in READING_FIELDS if key in reading}})
+    if missing:
+        _fail(f"no reading for {', '.join(missing)}: give one for every draft", missing=missing)
+    unknown = sorted(set(by_id) - ids)
+    if unknown:
+        _fail(f"readings for postings that are not in the drafts: {', '.join(unknown)}",
+              unknown=unknown)
+    return merged
+
+
 def import_postings(conn: sqlite3.Connection, run_id: int, records: object) -> dict:
     """Store what providers returned. Every record is validated before anything is stored."""
     run = _run_row(conn, run_id)

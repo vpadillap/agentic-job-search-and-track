@@ -76,7 +76,11 @@ For each provider id in `to_search`, in order:
    query, named `<provider>-<n>.txt` or `.json`. These are for audit only.
 5. For each posting build a record (fields below) and send them in batches:
    `jt postings import <run_id> -`. The command decides what is new, a
-   duplicate, or already seen. Do not de-duplicate yourself.
+   duplicate, or already seen. Do not de-duplicate yourself. When the
+   provider file uses a reader (`jt providers read <id> …`), the reader
+   writes the records as drafts: read them, write only your reading of each
+   one, and import with `jt postings import <run_id> <drafts> --readings
+   <file>` as the provider file says. Never retype a captured description.
 6. If the site errors, blocks you, or stops matching its recipe, record
    `jt run provider <run_id> <id> --status failed --reason error|blocked
    --detail "<what happened>"` and continue with the next provider. One

@@ -399,8 +399,17 @@ def cmd_run_list(args: argparse.Namespace) -> dict:
 
 def cmd_postings_import(args: argparse.Namespace) -> dict:
     records = _read_json(args.file)
+    if args.readings:
+        records = search.merge_readings(records, _read_json(args.readings))
     with db.session(get_paths()) as conn:
         return search.import_postings(conn, args.run_id, records)
+
+
+def cmd_providers_read(args: argparse.Namespace) -> dict:
+    from jobtracker.core import readers
+
+    return {"read": readers.read(args.provider, get_paths(), args.run_id, args.title,
+                                 args.location)}
 
 
 def cmd_postings_filter(args: argparse.Namespace) -> dict:
@@ -827,6 +836,13 @@ def build_parser() -> argparse.ArgumentParser:
         "validate", help="check provider files against the template")
     providers_validate.add_argument("file", nargs="?", help="one file (default: all)")
     providers_validate.set_defaults(run=cmd_providers_validate)
+    providers_read = providers_sub.add_parser(
+        "read", help="search one title with a provider's reader and write drafts")
+    providers_read.add_argument("provider")
+    providers_read.add_argument("run_id", type=int, metavar="run")
+    providers_read.add_argument("--title", required=True, help="one title of the run")
+    providers_read.add_argument("--location", help="where to search, as the site expects it")
+    providers_read.set_defaults(run=cmd_providers_read)
 
     run_parser = sub.add_parser("run", help="search runs")
     run_sub = run_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)
@@ -854,6 +870,8 @@ def build_parser() -> argparse.ArgumentParser:
     postings_import = postings_sub.add_parser("import", help="store what providers returned")
     postings_import.add_argument("run_id", type=int, metavar="run")
     postings_import.add_argument("file", help="JSON list of postings, or - for stdin")
+    postings_import.add_argument(
+        "--readings", help="the agent's reading of each draft in FILE (drafts from a reader)")
     postings_import.set_defaults(run=cmd_postings_import)
     postings_filter = postings_sub.add_parser("filter", help="record exclusions with reasons")
     postings_filter.add_argument("run_id", type=int, metavar="run")
