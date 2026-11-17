@@ -600,3 +600,58 @@ def test_work_mode_corrected_in_applications_shows_everywhere(seeded, page):
             "SELECT p.id FROM postings p WHERE p.company = 'Huaral Minerals'").fetchone()[0]
         assert search.posting(conn, posting_id, detail=False)["work_mode_detail"] == (
             "Fridays from home")
+
+
+# ── reading the posting ───────────────────────────────────────────────────
+
+LONG_TAIL = "Last line of a long fictional description."
+
+
+def make_long_description(home, company: str) -> None:
+    text = "\n".join(f"• Fictional requirement number {n}." for n in range(1, 61))
+    with db.session(home) as conn:
+        conn.execute("UPDATE postings SET description = ? WHERE company = ?",
+                     (text + "\n" + LONG_TAIL, company))
+
+
+def no_inner_scroll(locator) -> bool:
+    return locator.evaluate(
+        "e => e.scrollHeight <= e.clientHeight + 1"
+        " && !['auto', 'scroll'].includes(getComputedStyle(e).overflowY)")
+
+
+def test_search_description_can_be_read_in_full(seeded, page):
+    make_long_description(seeded, "Mistral Pagos")
+    open_board(page)
+    row(page, "Mistral Pagos").get_by_role("button", name=re.compile("Show details")).click()
+    detail = page.locator(".detail")
+    more = detail.get_by_role("button", name="Read the full description")
+    description = detail.locator(".description")
+    expect(more).to_have_attribute("aria-expanded", "false")
+    assert description.evaluate("e => e.scrollHeight > e.clientHeight + 1")  # rest is hidden
+    more.click()
+    expect(detail.get_by_role("button", name="Show less")).to_have_attribute(
+        "aria-expanded", "true")
+    expect(description).to_contain_text(LONG_TAIL)
+    assert no_inner_scroll(description)  # everything shown, no scroll bar of its own
+    detail.get_by_role("button", name="Show less").click()
+    expect(detail.get_by_role("button", name="Read the full description")).to_be_focused()
+
+
+def test_applications_show_the_description_and_the_posting_link(seeded, page):
+    make_long_description(seeded, "Huaral Minerals")
+    open_board(page, "applications")
+    target = app_row(page, "Huaral Minerals")
+    link = target.get_by_role("link", name=re.compile("^Open posting · Bumeran"))
+    expect(link).to_have_attribute("href", re.compile(r"^https://example\.com/demo/bumeran/"))
+    expect(link).to_have_attribute("target", "_blank")
+    expect(link).to_have_attribute("rel", "noopener noreferrer")
+    target.get_by_role("button", name=re.compile("Show details")).click()
+    detail = page.locator(".detail")
+    expect(detail.locator(".posting-description")).to_contain_text(
+        "Fictional requirement number 1.")
+    detail.get_by_role("button", name="Read the full description").click()
+    expect(detail.locator(".description")).to_contain_text(LONG_TAIL)
+    assert no_inner_scroll(detail.locator(".description"))
+    expect(detail.locator(".posting-description").get_by_role(
+        "link", name=re.compile("^Open posting"))).to_have_attribute("target", "_blank")

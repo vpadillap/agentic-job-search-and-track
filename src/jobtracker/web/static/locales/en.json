@@ -454,5 +454,9 @@
   "workMode.edited": "edited",
   "workMode.editedTitle": "Set by you",
   "workMode.edit": "Edit work mode ({value})",
-  "history.work_mode": "Work mode set by you: {value}"
+  "history.work_mode": "Work mode set by you: {value}",
+  "detail.openOn": "Open posting · {site}",
+  "detail.readMore": "Read the full description",
+  "detail.readLess": "Show less",
+  "detail.noDescription": "Loading the description…"
 }

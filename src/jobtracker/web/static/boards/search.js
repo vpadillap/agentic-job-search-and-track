@@ -5,6 +5,7 @@ import { DataTable } from '../components/data-table.js';
 import * as Icon from '../components/icons.js';
 import { api } from '../api.js';
 import { WorkModeEditor } from '../components/work-mode.js';
+import { PostingDescription } from '../components/posting-description.js';
 
 const MODES = ['remote', 'hybrid', 'onsite'];
 const CONTRACTS = ['full-time', 'part-time', 'contractor'];
@@ -430,18 +431,10 @@ function RowDetail({ row, run, onTrack, onDismiss, onRestore }) {
   return html`
     <div class="detail">
       <div class="detail-grid">
-        <div class="panel">
-          <div class="panel-head">
-            <h2>${t('detail.description')}</h2>
-            <span class="small">${t('detail.captured', { date: fmt.shortDateTime(row.captured_at) })}</span>
-          </div>
-          <div class="description" tabindex="0" role="region" aria-label=${t('detail.description')}>${row.description}</div>
-          <div class="panel-foot">
-            ${safeHref(row.url) && html`<a href=${safeHref(row.url)} target="_blank" rel="noopener noreferrer"
-              style=${{ fontWeight: 500 }}>${t('detail.open')} · ${providerName(row.provider, run)}</a>`}
-            ${row.form_question_count > 0 && html`<span class="muted">${t('detail.questions', { count: row.form_question_count })}</span>`}
-          </div>
-        </div>
+        <${PostingDescription} text=${row.description} url=${row.url} site=${providerName(row.provider, run)}
+          capturedAt=${row.captured_at}>
+          ${row.form_question_count > 0 && html`<span class="muted">${t('detail.questions', { count: row.form_question_count })}</span>`}
+        </${PostingDescription}>
         <${Breakdown} score=${row.score} />
         <${SalaryDetail} salary=${row.salary} />
       </div>

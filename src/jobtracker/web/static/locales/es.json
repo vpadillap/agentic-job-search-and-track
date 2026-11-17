@@ -454,5 +454,9 @@
   "workMode.edited": "editado",
   "workMode.editedTitle": "Indicado por ti",
   "workMode.edit": "Editar modalidad ({value})",
-  "history.work_mode": "Modalidad indicada por ti: {value}"
+  "history.work_mode": "Modalidad indicada por ti: {value}",
+  "detail.openOn": "Abrir aviso · {site}",
+  "detail.readMore": "Leer la descripción completa",
+  "detail.readLess": "Mostrar menos",
+  "detail.noDescription": "Cargando la descripción…"
 }

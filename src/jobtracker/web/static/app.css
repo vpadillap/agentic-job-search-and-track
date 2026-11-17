@@ -150,7 +150,13 @@ a.tracked:hover { color: var(--ok-fg); text-decoration: underline; }
 .panel { display: flex; flex-direction: column; gap: 12px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); min-width: 0; }
 .panel h2 { margin: 0; font-size: 15px; font-weight: 600; }
 .panel-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
-.description { max-height: 250px; overflow-y: auto; font-size: 14px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-2); padding-right: 8px; }
+.description { font-size: 14px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-2); }
+.description.clamped { max-height: 21.7em; overflow: hidden; }
+.description.faded { -webkit-mask-image: linear-gradient(to bottom, #000 75%, transparent); mask-image: linear-gradient(to bottom, #000 75%, transparent); }
+.read-more { align-self: flex-start; font-size: 14px; }
+.app-detail .posting-description { margin-bottom: 16px; }
+.detail-grid { align-items: start; }
+.small-link { font-size: 13px; }
 .panel-foot { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; padding-top: 8px; border-top: 1px solid var(--chip); }
 .component { display: flex; flex-direction: column; gap: 5px; }
 .component-head { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }

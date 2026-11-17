@@ -5,6 +5,7 @@ import { DataTable } from '../components/data-table.js';
 import * as Icon from '../components/icons.js';
 import { api } from '../api.js';
 import { WorkModeEditor, workModeText } from '../components/work-mode.js';
+import { PostingDescription, PostingLink } from '../components/posting-description.js';
 
 const STAGES = ['to_apply', 'applied', 'interview', 'offer', 'closed_positive', 'closed_negative'];
 const DOC_FILTERS = ['missingResume', 'proposedResume', 'sentResume', 'coverLetter', 'formUnanswered'];
@@ -492,6 +493,8 @@ function ApplicationDetail({ app, version, onUpload, onSaved, statusName }) {
   }, [app.job_id, version]);
   return html`
     <div class="detail app-detail">
+      <${PostingDescription} text=${detail ? detail.description : null} url=${app.posting.url}
+        site=${providerName(app.posting.provider)} capturedAt=${app.posting.captured_at} />
       <div class="detail-grid apps">
         <${DocumentsCard} app=${app} onUpload=${onUpload} />
         <${FormCard} app=${app} detail=${detail} onSaved=${onSaved} />
@@ -588,6 +591,7 @@ export function ApplicationsBoard({ data, version, commands, onAction, onReload 
         <span class="job-company">${[a.posting.company,
           a.posting.contract_type && t('contract.' + a.posting.contract_type)].filter(Boolean).join(' · ')}</span>
         <${WorkModeEditor} posting=${a.posting} onAction=${onAction} />
+        <${PostingLink} url=${a.posting.url} site=${providerName(a.posting.provider)} className="source small-link" />
         <span class="small mono">${a.job_id}</span>
       </div>` },
     { key: 'status', label: t('col.statusTags'), sortable: true, render: (a) => html`
