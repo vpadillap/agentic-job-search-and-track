@@ -213,7 +213,7 @@ def test_planned_commands_are_shown_under_the_name_they_will_have(workspace, cli
 
 def test_commands_through_the_api_and_context(workspace, cli):
     cli("config", "set", "language", "es")
-    body = TestClient(create_app()).get("/api/commands").json()
+    body = TestClient(create_app(), base_url="http://127.0.0.1:8000").get("/api/commands").json()
     assert body["language"] == "es"
     assert body["commands"][0]["command"] == "/configurar"
     _, context, _ = cli("context")

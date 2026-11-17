@@ -23,8 +23,8 @@ The project is being built in stages. What works today:
 |---|---|
 | First-run setup (`/setup`): requirements, language, resume, questionnaire, target titles, preferences | Works |
 | Private workspace, database, `jobtracker` command-line interface, privacy guard | Works |
-| Panel: Search tab | Planned |
-| Job search (`/job-search`), scoring, salary evidence, job-site recipes | Planned |
+| Panel: Search tab (results, filters, score and salary detail, track and dismiss) | Works |
+| Job search (`/job-search`), scoring, salary evidence, job-site recipe format | Works, but no job site is added yet: each one arrives with its own update |
 | Applications tab, statuses, uploads | Planned |
 | Tailored resumes, cover letters, form answers (`/prepare-documents`, `/form-answers`) | Planned |
 | Learning: insights, lessons, predictions, recommendations (`/analyze-results`) | Planned |
@@ -81,7 +81,7 @@ Spanish command names as well (see the Spanish section).
 | Command | What it does | State |
 |---|---|---|
 | `/setup` | First run, and later changes to your profile | Works |
-| `/job-search days=7` | Searches the enabled job sites and updates the panel | Planned |
+| `/job-search days=7` | Searches the enabled job sites and updates the panel | Works (no job sites yet) |
 | `/prepare-documents pending` | Tailored resumes, cover letters, and form answers for tracked jobs that lack them (or `ids=J0007,J0012`) | Planned |
 | `/form-answers ids=J0007` | Answers to a posting's application form | Planned |
 | `/analyze-results` | Reviews your results and proposes adjustments | Planned |
@@ -135,6 +135,10 @@ python scripts/jt.py rules list      # the rules the agent follows
 python scripts/jt.py paths           # where everything is stored
 python scripts/jt.py setup status    # which setup steps are done
 ```
+
+To try the panel with invented data, point `JOBTRACKER_HOME` at an empty
+folder, then run `jt.py demo seed` and `jt.py panel` (and `jt.py demo clear`
+to remove it). The demo refuses to mix with real search results.
 
 `python scripts/jt.py --help` lists every command. After setup, `jobtracker`
 (inside the project's virtual environment) is the same tool.
@@ -192,9 +196,11 @@ Todo lo personal se queda en tu computadora, en una sola carpeta que git ignora.
 
 El proyecto se construye por etapas. Hoy funciona la configuración inicial
 (`/configurar`), el espacio de trabajo privado, la interfaz de línea de
-comandos y la protección de privacidad. La búsqueda, el panel, los documentos y
-el aprendizaje están especificados en [`openspec/changes/`](openspec/changes/)
-y en desarrollo.
+comandos, la protección de privacidad, la pestaña Búsqueda del panel y la
+búsqueda (`/buscar-empleos`) con puntaje y evidencia salarial; aún no hay
+portales de empleo: cada uno llega con su propia actualización. Los documentos,
+el seguimiento y el aprendizaje están especificados en
+[`openspec/changes/`](openspec/changes/) y en desarrollo.
 
 ## Requisitos
 
@@ -227,7 +233,7 @@ quedaste.
 | Comando | En inglés | Qué hace | Estado |
 |---|---|---|---|
 | `/configurar` | `/setup` | Primera vez, y cambios posteriores a tu perfil | Funciona |
-| `/buscar-empleos dias=7` | `/job-search days=7` | Busca en los proveedores activos y actualiza el panel | Planificado |
+| `/buscar-empleos dias=7` | `/job-search days=7` | Busca en los proveedores activos y actualiza el panel | Funciona (aún sin portales) |
 | `/preparar-documentos pendientes` | `/prepare-documents pending` | CV, cartas y respuestas de formulario que falten en las vacantes en seguimiento (o `ids=J0007,J0012`) | Planificado |
 | `/formulario ids=J0007` | `/form-answers ids=J0007` | Respuestas del formulario de una vacante | Planificado |
 | `/analizar-resultados` | `/analyze-results` | Revisa tus resultados y propone ajustes | Planificado |

@@ -32,5 +32,8 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: python -m pip install -e ".[dev]"
+      - name: Browser for the panel tests (Linux only; skipped elsewhere)
+        if: runner.os == 'Linux'
+        run: python -m playwright install --with-deps chromium
       - run: ruff check .
       - run: pytest

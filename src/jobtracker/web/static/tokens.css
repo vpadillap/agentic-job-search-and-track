@@ -1,0 +1,75 @@
+/* Design tokens taken from design/panel-ux.html. The only place colors, type,
+   and sizes are defined; components use these variables. */
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("fonts/inter-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 500 700;
+  font-display: swap;
+  src: url("fonts/space-grotesk-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 500 600;
+  font-display: swap;
+  src: url("fonts/jetbrains-mono-latin.woff2") format("woff2");
+}
+
+:root {
+  /* type */
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Space Grotesk", var(--font-body);
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* page */
+  --bg: #F3F4F1;
+  --surface: #FFFFFF;
+  --surface-sunken: #FAFAF8;
+  --surface-open: #F8F9FC;
+  --ink: #15171C;
+  --text-2: #2B2F38;
+  --muted: #575D69;
+  --line: #E1E3DE;
+  --line-strong: #C9CCC5;
+  --line-chip: #D6D9D2;
+  --line-dashed: #B9BDB5;
+  --chip: #EEEFEC;
+  --link: #2A3FAE;
+  --accent: #2F4FD8;
+  --focus: #2F4FD8;
+
+  /* header */
+  --header-bg: #15171C;
+  --header-text: #F3F4F1;
+  --header-soft: #C9CDD4;
+  --header-muted: #A9AEB8;
+  --header-line: #343843;
+  --header-raised: #2A2E38;
+  --header-accent: #8EA2FF;
+  --pending: #F5A524;
+
+  /* tones */
+  --ok-bg: #E3F3E8;
+  --ok-fg: #0F5A2E;
+  --info-bg: #E8ECFC;
+  --info-fg: #2A3FAE;
+  --warn-bg: #FFF1E0;
+  --warn-fg: #8A4105;
+  --neutral-fg: #454B56;
+
+  /* shape and space */
+  --radius-sm: 5px;
+  --radius: 8px;
+  --radius-lg: 10px;
+  --gutter: 32px;
+  --control-h: 40px;
+  --control-h-sm: 36px;
+}

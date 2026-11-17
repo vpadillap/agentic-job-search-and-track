@@ -1,9 +1,10 @@
-## Purpose
+# search-results-board Specification
 
+## Purpose
 Defines how the user reviews the postings found by the latest search, sees why
 each was scored and priced as it was, and decides what to track or dismiss.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Run summary
 The board SHALL summarize the displayed search run: when it ran, the posting
@@ -31,6 +32,19 @@ publication date, and a link to the original posting on its source site.
 #### Scenario: Opening the original posting
 - **WHEN** the user activates the source link
 - **THEN** the original posting opens in a new browser tab
+
+### Requirement: Possible duplicates are visible
+Each posting SHALL remain its own row, and a posting that may be the same job
+as another posting of the displayed run or a tracked posting SHALL show a
+possible-duplicate mark naming the other postings and their sites.
+
+#### Scenario: Same job on two sites
+- **WHEN** the run contains the same company and title from two sites, published within 7 days of each other
+- **THEN** both rows are shown, each with a possible-duplicate mark naming the other site
+
+#### Scenario: Already tracked elsewhere
+- **WHEN** a new posting matches the company and title of a tracked posting from another site
+- **THEN** its row shows a possible-duplicate mark that names the tracked job
 
 ### Requirement: Expandable detail
 Each row SHALL expand to show the job description exactly as captured, the
