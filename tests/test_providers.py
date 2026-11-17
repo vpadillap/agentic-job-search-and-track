@@ -79,6 +79,8 @@ def test_missing_tool_names_provider_tool_and_install(workspace, cli, providers_
     monkeypatch.setattr(doctor, "_tool_available", lambda name: False)
     monkeypatch.setattr(doctor.subprocess, "run",
                         lambda *a, **k: subprocess.CompletedProcess(a, 0, ".githooks\n", ""))
+    cli("providers", "enable", "alpha")
+    cli("providers", "enable", "beta")
     _, out, _ = cli("doctor")
     checks = {c["id"]: c for c in out["checks"]}
     alpha, beta = checks["provider:alpha"], checks["provider:beta"]
@@ -93,6 +95,13 @@ def test_disabled_providers_are_not_checked(workspace, cli, providers_dir, monke
         provider_text("alpha", dependencies="[surely-missing]"), encoding="utf-8")
     cli("providers", "disable", "alpha")
     _, out, _ = cli("doctor")
+    assert "provider:alpha" not in {c["id"] for c in out["checks"]}
+
+
+def test_providers_never_turned_on_are_not_checked(workspace, cli, providers_dir):
+    (providers_dir / "alpha.md").write_text(
+        provider_text("alpha", dependencies="[surely-missing]"), encoding="utf-8")
+    _, out, _ = cli("doctor")                    # alpha was never chosen: it is off
     assert "provider:alpha" not in {c["id"] for c in out["checks"]}
 
 
@@ -164,3 +173,17 @@ def test_linkedin_is_read_logged_out_over_http():
     for forbidden in ("Playwright", "the browser extension", "jobs/search"):
         assert forbidden in text.split("## Search recipe")[0]  # named as forbidden
     assert "throttles or blocks requests from the user's IP address" in text
+
+
+def test_indeed_is_read_logged_out_in_a_visible_browser():
+    from jobtracker.core import providers
+
+    listed = {p["id"]: p for p in providers.list_providers(TEMPLATE.parent)}
+    item = listed["indeed"]
+    assert item["valid"] is True
+    assert (item["access"], item["requires_login"], item["dependencies"]) == (
+        "playwright", False, ["playwright"])
+    text = (TEMPLATE.parent / "indeed.md").read_text(encoding="utf-8")
+    assert "jt providers read indeed <run_id> --title" in text and "--readings" in text
+    assert "a headless browser" in text.split("## Search recipe")[0]   # named as forbidden
+    assert "blocks requests from the user's IP address" in " ".join(text.split())

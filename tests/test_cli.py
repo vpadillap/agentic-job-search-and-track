@@ -84,6 +84,7 @@ def test_doctor_reports_missing_provider_tools(workspace, cli, tmp_path, monkeyp
     (providers_dir / "demo.md").write_text(
         provider_text("demo", dependencies="[surely-not-installed-tool]"), encoding="utf-8")
     monkeypatch.setattr("jobtracker.core.providers.providers_dir", lambda: providers_dir)
+    cli("providers", "enable", "demo")
     _, out, _ = cli("doctor")
     check = next(c for c in out["checks"] if c["id"] == "provider:demo")
     assert check["status"] == "fail"

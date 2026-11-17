@@ -9,7 +9,8 @@ back into future advice.
 > workspace, database, the `jobtracker` CLI, privacy guard, `/setup`, the
 > versioned profile, Spanish command aliases), plus `/job-search` (runs,
 > import, filtering, scoring, salary evidence, provider-file validation; the
-> first provider is `providers/linkedin.md`, and every provider starts switched
+> providers are `providers/linkedin.md` and `providers/indeed.md`, read by
+> `jobtracker providers read …`, and every provider starts switched
 > off until the user enables it) and the panel shell with the Search board
 > (`jobtracker demo seed` loads fictional data), and application tracking
 > (statuses, tags, details, sent-resume upload, history, the Applications

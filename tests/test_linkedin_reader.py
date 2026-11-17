@@ -300,8 +300,8 @@ def test_a_network_error_stops_with_an_error(workspace, run, fake):
     assert summary["stopped"]["reason"] == "error"
 
 
-def test_only_linkedin_has_a_reader(workspace, run, cli):
-    code, out, _ = cli("providers", "read", "indeed", str(run["run_id"]), "--title", TITLE)
+def test_a_site_without_a_reader_is_refused(workspace, run, cli):
+    code, out, _ = cli("providers", "read", "nosuchsite", str(run["run_id"]), "--title", TITLE)
     assert code == 1 and out["error"]["code"] == "no_reader"
 
 
