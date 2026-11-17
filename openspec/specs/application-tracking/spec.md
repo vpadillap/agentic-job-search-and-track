@@ -15,23 +15,15 @@ searches, until the user removes it.
 - **WHEN** a new search is run after a posting was tracked
 - **THEN** the tracked application and its data are unchanged
 
-### Requirement: One status with a stage
-Every application SHALL have exactly one status, and every status SHALL belong
-to one stage among: to apply, applied, interview, offer, closed positive, and
-closed negative.
-
-#### Scenario: Changing status
-- **WHEN** the user changes an application from Applied to Interview
-- **THEN** the application's stage is interview and the change is recorded in its history with the date
-
 ### Requirement: User-defined statuses
-The user SHALL be able to create a new status inline by giving it a name and a
-stage, and SHALL be able to rename or retire custom statuses. Built-in
-statuses SHALL always exist.
+The user SHALL be able to create a new status inline by giving it a name and
+answering whether the application ended with it, and SHALL be able to rename
+or retire custom statuses. Nothing else SHALL be asked. Built-in statuses
+SHALL always exist and SHALL NOT be renamed or retired.
 
 #### Scenario: Creating a status inline
-- **WHEN** the user types a new status name and assigns it to the closed negative stage
-- **THEN** the status is applied to that application and is available for all others
+- **WHEN** the user types the new status name "Position frozen" and says the application ended with it
+- **THEN** the status is applied to that application, the application has ended, and the status is available for all others
 
 #### Scenario: Retiring a status in use
 - **WHEN** the user retires a custom status that some applications have
@@ -72,20 +64,74 @@ queue the application for rescoring against it.
 
 ### Requirement: History
 The system SHALL record every change to an application with its date, and SHALL
-capture the facts known at the moment the user applied.
+capture the facts known at the moment the application first gets an applied
+date.
 
 #### Scenario: Timeline
 - **WHEN** the user opens an application's history
-- **THEN** it lists when it was found, when documents were produced or uploaded, and each status change
+- **THEN** it lists when it was found, when documents were produced or uploaded, and each status change by the full names of the statuses
 
 #### Scenario: Snapshot at application time
-- **WHEN** an application first reaches the applied stage
+- **WHEN** an application first gets an applied date, by a status change or entered by hand
 - **THEN** the score, resume kind, channel, and suggested salary current at that moment are preserved even if they change later
 
 ### Requirement: Ghosting is proposed, not assumed
-The system SHALL flag applications without a response after the configured
-number of days and SHALL change their status only on the user's confirmation.
+The system SHALL flag applications that have an applied date, have not ended,
+and have had no status change for longer than the configured number of days,
+and SHALL change their status only on the user's confirmation.
 
 #### Scenario: No response after the threshold
-- **WHEN** an applied application has had no update for longer than the threshold
+- **WHEN** an applied application that has not ended has had no update for longer than the threshold
 - **THEN** it is flagged with a proposal to mark it as ghosted and its status is unchanged
+
+#### Scenario: Ended application
+- **WHEN** an application with the custom ending status "Position frozen" has had no update for longer than the threshold
+- **THEN** it is not flagged
+
+### Requirement: One status that says whether the application ended
+Every application SHALL have exactly one status. Statuses SHALL form a single
+list with no grouping, and every status SHALL say whether an application with
+that status has ended. The built-in statuses Accepted, Rejected, Ghosted,
+Offer declined, No economic alignment, and Withdrawn SHALL end an application;
+New, Applied, Interview, and Offer SHALL NOT.
+
+#### Scenario: Changing status
+- **WHEN** the user changes an application from Applied to Interview
+- **THEN** the application's status is Interview, it has not ended, and the change is recorded in its history with the date and both status names
+
+#### Scenario: Ending status
+- **WHEN** the user changes an application to Rejected
+- **THEN** the application has ended
+
+#### Scenario: No stage anywhere
+- **WHEN** the agent or the panel reads an application or the list of statuses
+- **THEN** no stage or other grouping of statuses is given
+
+### Requirement: Applied date
+An application SHALL count as applied exactly when it has an applied date. The
+system SHALL fill in today's date when an application without one gets one of
+the built-in statuses Applied, Interview, Offer, Accepted, Rejected, Ghosted,
+Offer declined, or No economic alignment. New, Withdrawn, and custom statuses
+SHALL NOT fill it in. The user SHALL be able to set, change, or clear the
+applied date at any time.
+
+#### Scenario: Marking as applied
+- **WHEN** the user changes a new application to Applied and it has no applied date
+- **THEN** its applied date is today
+
+#### Scenario: Custom status before applying
+- **WHEN** the user gives a new application the custom status "Waiting for a referral"
+- **THEN** it has no applied date and still counts as not applied
+
+#### Scenario: Date entered by hand
+- **WHEN** the user enters an applied date for an application with a custom status
+- **THEN** the application counts as applied from then on
+
+### Requirement: Statuses for the agent
+The agent SHALL receive, for every application, the full name of its status
+(with the stable key of built-in statuses), whether the application ended, and
+every status change with the full names of both statuses and its date.
+
+#### Scenario: Custom status in the agent's data
+- **WHEN** an application went from Applied to the custom status "Technical test sent" and then to Interview
+- **THEN** the agent's data names the current status "Interview", says the application has not ended, and lists both changes with "Applied", "Technical test sent", "Interview", and their dates

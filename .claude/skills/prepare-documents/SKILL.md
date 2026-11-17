@@ -69,9 +69,9 @@ Spanish alias: `pendientes` means `pending`, `todas` means `all`.
 - `pending`: `jt pending` (with `--ids ...` for `ids=`). Items come most
   promising first; keep that order. If `nothing_pending_for` lists ids the
   user gave, tell them those have nothing pending (or are not tracked).
-- `all`: `jt applications list --stage to_apply` and take every application
-  whose `documents.resume_proposed` and `documents.resume_sent` are both
-  empty.
+- `all`: `jt applications list --hide-ended` and take every application
+  without an `applied_on` date (not applied yet) whose
+  `documents.resume_proposed` and `documents.resume_sent` are both empty.
 
 If there is nothing to do, say so and stop.
 

@@ -45,26 +45,43 @@ def terms(text: str | None) -> set[str]:
     return {t.casefold().strip("./-") for t in TERM.findall(text or "")} - STOPWORDS
 
 
-# ── statuses → outcome flags (the one place that reads stages) ────────────
+# ── statuses → outcome flags (the one place that interprets statuses) ─────
 
-INTERVIEW_STAGES = ("interview", "offer", "closed_positive")
-OFFER_STAGES = ("offer", "closed_positive")
+# Built-in statuses keep a fixed meaning through their key. A custom status is
+# only its name and whether it ends an application: ending counts as closed with
+# a response, otherwise it is pending.
+INTERVIEW_KEYS = ("interview", "offer", "accepted")
+OFFER_KEYS = ("offer", "accepted")
 NO_RESPONSE_KEYS = ("ghosted", "withdrawn")
 
 
-def _progress(stage: str | None, status_key: str | None) -> dict:
-    """What reaching a status means for the statistics.
-
-    Statuses are grouped by stage today; when stages are removed, only this
-    function changes.
-    """
+def _progress(status_key: str | None, ends: bool) -> dict:
+    """What reaching a status means for the statistics."""
     return {
-        "interview": stage in INTERVIEW_STAGES,
-        "offer": stage in OFFER_STAGES,
-        "response": stage in INTERVIEW_STAGES
-        or (stage == "closed_negative" and status_key not in NO_RESPONSE_KEYS),
-        "closed": stage in ("closed_positive", "closed_negative"),
+        "interview": status_key in INTERVIEW_KEYS,
+        "offer": status_key in OFFER_KEYS,
+        "response": status_key in INTERVIEW_KEYS
+        or (ends and status_key not in NO_RESPONSE_KEYS),
+        "closed": ends,
     }
+
+
+def _event_status(conn: sqlite3.Connection, data: dict) -> tuple[str | None, bool]:
+    """The key and "ends" of the status a `status_changed` event moved to: by status id
+    in newer events, by key or stored name in older ones."""
+    row = None
+    if data.get("to_id") is not None:
+        row = conn.execute("SELECT key, ends FROM statuses WHERE id = ?",
+                           (data["to_id"],)).fetchone()
+    if row is None and data.get("to") is not None:
+        row = conn.execute(
+            "SELECT key, ends FROM statuses WHERE key = ? OR (key IS NULL AND"
+            " lower(name_en) = lower(?)) ORDER BY is_builtin DESC LIMIT 1",
+            (data["to"], data["to"])).fetchone()
+    if row is None:  # a custom status renamed since: fall back to what the event says
+        return None, bool(data.get("to_ends")) or data.get("to_stage") in (
+            "closed_positive", "closed_negative")
+    return row["key"], bool(row["ends"])
 
 
 # ── outcomes ──────────────────────────────────────────────────────────────
@@ -75,7 +92,7 @@ def outcomes(conn: sqlite3.Connection, today: date | None = None) -> list[dict]:
     ghost_days = applications.thresholds(conn)["ghost_after_days"]
     result = []
     for row in conn.execute(
-        "SELECT a.id, a.job_id, a.applied_on, a.posting_id, s.key AS status_key, s.stage,"
+        "SELECT a.id, a.job_id, a.applied_on, a.posting_id, s.key AS status_key, s.ends,"
         " s.name_en AS status_name, n.data AS snapshot, p.title, p.company, p.language,"
         " p.work_mode, p.work_mode_source, p.provider, p.description"
         " FROM applications a JOIN statuses s ON s.id = a.status_id"
@@ -84,7 +101,7 @@ def outcomes(conn: sqlite3.Connection, today: date | None = None) -> list[dict]:
     ):
         snap = json.loads(row["snapshot"])
         applied_on = _day(row["applied_on"] or snap.get("applied_on"))
-        now = _progress(row["stage"], row["status_key"])
+        now = _progress(row["status_key"], bool(row["ends"]))
         reached = dict(now)
         response_at: date | None = None
         path = []
@@ -94,7 +111,7 @@ def outcomes(conn: sqlite3.Connection, today: date | None = None) -> list[dict]:
             (row["job_id"],),
         ):
             data = json.loads(event["data"])
-            step = _progress(data.get("to_stage"), data.get("to"))
+            step = _progress(*_event_status(conn, data))
             path.append({"status": data.get("to"), "on": event["created_at"][:10]})
             for flag in ("interview", "offer"):
                 reached[flag] = reached[flag] or step[flag]
@@ -107,7 +124,7 @@ def outcomes(conn: sqlite3.Connection, today: date | None = None) -> list[dict]:
             "job_id": row["job_id"], "posting_id": row["posting_id"],
             "applied_on": applied_on.isoformat() if applied_on else None,
             "status": row["status_name"], "status_key": row["status_key"],
-            "status_path": path, "stage": row["stage"],
+            "status_path": path, "ended": bool(row["ends"]),
             "resolved": resolved, "interview": reached["interview"], "offer": reached["offer"],
             "responded": responded,
             "ghosted": resolved and not responded and row["status_key"] != "withdrawn",

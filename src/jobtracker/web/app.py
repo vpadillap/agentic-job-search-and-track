@@ -85,8 +85,7 @@ class ProviderRequest(BaseModel):
 class StatusChange(BaseModel):
     job_ids: list[str] = Field(min_length=1, max_length=500)
     status: str | int
-    stage: Literal["to_apply", "applied", "interview", "offer", "closed_positive",
-                   "closed_negative"] | None = None
+    ends: bool | None = None  # only to create the status: does an application end with it
 
 
 class TagChange(BaseModel):
@@ -96,8 +95,7 @@ class TagChange(BaseModel):
 
 class NewStatus(BaseModel):
     name: str = Field(min_length=1, max_length=40)
-    stage: Literal["to_apply", "applied", "interview", "offer", "closed_positive",
-                   "closed_negative"]
+    ends: bool
 
 
 class AnswerEdit(BaseModel):
@@ -248,7 +246,8 @@ def create_app() -> FastAPI:
             estimates = learning.estimates_for(conn, [i["posting_id"] for i in items])
             for item in items:
                 item["estimate"] = estimates[item["posting_id"]]["interview"]
-            return {"ok": True, "applications": items, "funnel": applications.funnel(items),
+            return {"ok": True, "applications": items,
+                    "funnel": applications.funnel(conn, items, language),
                     "attention": applications.attention(items),
                     "statuses": applications.list_statuses(conn, language),
                     "thresholds": applications.thresholds(conn)}
@@ -284,7 +283,7 @@ def create_app() -> FastAPI:
     def change_status(body: StatusChange) -> dict:
         with db.session(get_paths()) as conn:
             return {"ok": True, "job_ids": applications.set_status(
-                conn, body.job_ids, body.status, stage=body.stage)}
+                conn, body.job_ids, body.status, ends=body.ends)}
 
     @app.post("/api/applications/{job_id}/details")
     def change_details(job_id: str, body: dict) -> dict:
@@ -302,7 +301,7 @@ def create_app() -> FastAPI:
     def new_status(body: NewStatus) -> dict:
         with db.session(get_paths()) as conn:
             return {"ok": True, "status": applications.create_status(conn, body.name,
-                                                                      body.stage)}
+                                                                      body.ends)}
 
     @app.post("/api/statuses/{status_id}")
     def edit_status(status_id: int, body: StatusEdit) -> dict:

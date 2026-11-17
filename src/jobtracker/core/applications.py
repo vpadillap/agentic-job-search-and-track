@@ -1,8 +1,12 @@
-"""Tracked applications: statuses with stages, tags, details, documents, history.
+"""Tracked applications: statuses, tags, details, documents, history.
 
-Every application has exactly one status; every status belongs to one fixed
-stage, so views and analytics stay correct with custom statuses. Every change
-writes an event. The facts known when the user applied are kept in a snapshot.
+Every application has exactly one status. Statuses are a flat list; each one
+says whether an application ended with it. Built-in statuses keep a fixed
+meaning through their key, read only where the system must act on a status
+(the applied date, the next step); a custom status is its name and whether it
+ends an application. An application counts as applied when it has an applied
+date. Every change writes an event. The facts known when the application first
+got an applied date are kept in a snapshot.
 """
 from __future__ import annotations
 
@@ -17,9 +21,11 @@ from .db import bump_changes, now_iso
 from .errors import JobTrackerError
 from .paths import Paths
 
-STAGES = ("to_apply", "applied", "interview", "offer", "closed_positive", "closed_negative")
-APPLIED_STAGES = ("applied", "interview", "offer", "closed_positive")
-OPEN_STAGES = ("to_apply", "applied", "interview", "offer")
+# Built-in statuses that imply the user applied: they fill in an empty applied date.
+APPLIED_KEYS = ("applied", "interview", "offer", "accepted", "rejected", "ghosted",
+                "offer_declined", "no_economic_alignment")
+# Built-in statuses whose next step is a date the user sets (the interview, the answer).
+DATED_KEYS = ("interview", "offer")
 FOLLOW_UP_DAYS = 7
 GHOST_DAYS = 21
 DETAIL_FIELDS = ("applied_on", "asked_salary", "channel", "contact", "notes", "next_step_on",
@@ -47,20 +53,28 @@ def _status_dict(row: sqlite3.Row, language: str = "en") -> dict:
     return {
         "id": row["id"], "key": row["key"],
         "name": row["name_es"] if language == "es" else row["name_en"],
-        "stage": row["stage"], "builtin": bool(row["is_builtin"]),
+        "name_en": row["name_en"], "name_es": row["name_es"],
+        "ends": bool(row["ends"]), "builtin": bool(row["is_builtin"]),
         "retired": bool(row["is_retired"]),
     }
 
 
 def list_statuses(conn: sqlite3.Connection, language: str = "en",
                   include_retired: bool = False) -> list[dict]:
+    """Built-in statuses in their fixed order, then custom ones in creation order."""
     query = "SELECT * FROM statuses"
     if not include_retired:
         query += " WHERE is_retired = 0"
-    query += " ORDER BY CASE stage WHEN 'to_apply' THEN 0 WHEN 'applied' THEN 1"
-    query += " WHEN 'interview' THEN 2 WHEN 'offer' THEN 3 WHEN 'closed_positive' THEN 4"
-    query += " ELSE 5 END, position, id"
+    query += " ORDER BY position, id"
     return [_status_dict(r, language) for r in conn.execute(query)]
+
+
+def _ends(value: object) -> bool:
+    if not isinstance(value, bool):
+        raise JobTrackerError("invalid_status",
+                              "say whether the application ended with this status (ends)",
+                              field="ends")
+    return value
 
 
 def _status_row(conn: sqlite3.Connection, ref: object) -> sqlite3.Row | None:
@@ -76,24 +90,24 @@ def _status_row(conn: sqlite3.Connection, ref: object) -> sqlite3.Row | None:
     return None
 
 
-def create_status(conn: sqlite3.Connection, name: str, stage: str) -> dict:
-    """A custom status, available for every application from now on."""
+def create_status(conn: sqlite3.Connection, name: str, ends: object) -> dict:
+    """A custom status, available for every application from now on. Only its name
+    and whether an application ends with it are asked."""
     clean = " ".join((name or "").split())
     if not clean or len(clean) > 40:
         raise JobTrackerError("invalid_status", "a status needs a name of 1 to 40 characters")
-    if stage not in STAGES:
-        raise JobTrackerError("invalid_status", f"stage must be one of: {', '.join(STAGES)}")
+    ends = _ends(ends)
     if _status_row(conn, clean) is not None:
         raise JobTrackerError("status_exists", f"There is already a status named '{clean}'")
     now = now_iso()
     cursor = conn.execute(
-        "INSERT INTO statuses (name_en, name_es, stage, is_builtin, created_at)"
-        " VALUES (?, ?, ?, 0, ?)", (clean, clean, stage, now),
+        "INSERT INTO statuses (name_en, name_es, ends, is_builtin, created_at)"
+        " VALUES (?, ?, ?, 0, ?)", (clean, clean, int(ends), now),
     )
     conn.execute(
         "INSERT INTO events (entity_type, entity_id, kind, data, created_at)"
         " VALUES ('status', ?, 'created', ?, ?)",
-        (str(cursor.lastrowid), json.dumps({"name": clean, "stage": stage}), now),
+        (str(cursor.lastrowid), json.dumps({"name": clean, "ends": ends}), now),
     )
     bump_changes(conn)
     return _status_dict(conn.execute("SELECT * FROM statuses WHERE id = ?",
@@ -135,7 +149,7 @@ def retire_status(conn: sqlite3.Connection, status_id: int, retired: bool = True
 
 def _row(conn: sqlite3.Connection, job_id: str) -> sqlite3.Row:
     row = conn.execute(
-        "SELECT a.*, s.key AS status_key, s.stage, s.name_en, s.name_es, s.is_builtin,"
+        "SELECT a.*, s.key AS status_key, s.ends, s.name_en, s.name_es, s.is_builtin,"
         " s.is_retired FROM applications a JOIN statuses s ON s.id = a.status_id"
         " WHERE a.job_id = ?", (job_id,),
     ).fetchone()
@@ -160,9 +174,11 @@ def thresholds(conn: sqlite3.Connection) -> dict:
 
 
 def _snapshot(conn: sqlite3.Connection, row: sqlite3.Row, when: str) -> None:
-    """The facts known at the moment of applying (training data for prediction)."""
-    if conn.execute("SELECT 1 FROM application_snapshots WHERE application_id = ?",
-                    (row["job_id"],)).fetchone():
+    """The facts known when the application first got an applied date (training data
+    for prediction). Taken once; later changes do not replace it."""
+    if not row["applied_on"] or conn.execute(
+        "SELECT 1 FROM application_snapshots WHERE application_id = ?", (row["job_id"],)
+    ).fetchone():
         return
     posting = conn.execute("SELECT * FROM postings WHERE id = ?", (row["posting_id"],)
                            ).fetchone()
@@ -220,20 +236,22 @@ def _update_snapshot(conn: sqlite3.Connection, job_id: str, fields: dict) -> Non
 
 
 def set_status(
-    conn: sqlite3.Connection, job_ids: list[str], status: object, *, stage: str | None = None,
+    conn: sqlite3.Connection, job_ids: list[str], status: object, *, ends: bool | None = None,
     today: date | None = None,
 ) -> list[str]:
-    """Give applications a status (by id, key, or name). With `stage`, an unknown name
-    becomes a new custom status in that stage (inline creation)."""
+    """Give applications a status (by id, key, or name). With `ends`, an unknown name
+    becomes a new custom status (inline creation) that ends applications or not."""
     if not job_ids:
         raise JobTrackerError("invalid_action", "no application given")
     target = _status_row(conn, status)
     if target is None:
-        if stage is None or not isinstance(status, str):
+        if ends is None or not isinstance(status, str):
             raise JobTrackerError(
-                "not_found", f"There is no status '{status}'. Give a stage to create it."
+                "not_found",
+                f"There is no status '{status}'. To create it, say whether the application"
+                " ended with it (ends).",
             )
-        target = _status_row(conn, create_status(conn, status, stage)["id"])
+        target = _status_row(conn, create_status(conn, status, ends)["id"])
     if target["is_retired"]:
         raise JobTrackerError("retired_status",
                               f"'{target['name_en']}' is retired; it is no longer offered")
@@ -244,7 +262,7 @@ def set_status(
         if row["status_id"] == target["id"]:
             continue
         applied_on = row["applied_on"]
-        if target["stage"] in APPLIED_STAGES and row["stage"] == "to_apply" and not applied_on:
+        if target["key"] in APPLIED_KEYS and not applied_on:
             applied_on = today.isoformat()
         conn.execute(
             "UPDATE applications SET status_id = ?, applied_on = ?, status_changed_at = ?,"
@@ -253,10 +271,12 @@ def set_status(
         )
         _event(conn, row["job_id"], "status_changed", {
             "from": row["status_key"] or row["name_en"], "to": target["key"] or target["name_en"],
-            "from_stage": row["stage"], "to_stage": target["stage"],
+            "from_id": row["status_id"], "to_id": target["id"],
+            "from_name": {"en": row["name_en"], "es": row["name_es"]},
+            "to_name": {"en": target["name_en"], "es": target["name_es"]},
+            "to_ends": bool(target["ends"]),
         }, now)
-        if target["stage"] in APPLIED_STAGES:
-            _snapshot(conn, _row(conn, row["job_id"]), now)
+        _snapshot(conn, _row(conn, row["job_id"]), now)
     bump_changes(conn)
     return [row["job_id"] for row in rows]
 
@@ -381,6 +401,7 @@ def update_details(conn: sqlite3.Connection, job_id: str, changes: object) -> di
     fresh = _row(conn, job_id)
     _update_snapshot(conn, job_id, {"applied_on": fresh["applied_on"],
                                     "asked_salary": _asked(fresh)})
+    _snapshot(conn, fresh, now)  # a date entered by hand makes the application applied
     bump_changes(conn)
     return application(conn, job_id)
 
@@ -503,26 +524,25 @@ def document_path(conn: sqlite3.Connection, paths: Paths, job_id: str, document_
 
 def _next_step(row: sqlite3.Row, docs: dict, limits: dict, today: date) -> dict:
     """What the user should do next: derived, unless the user set their own."""
-    if row["next_step_note"] or (row["next_step_on"] and row["stage"] in OPEN_STAGES):
+    ended = bool(row["ends"])
+    if row["next_step_note"] or (row["next_step_on"] and not ended):
         return {"kind": "user", "note": row["next_step_note"], "date": row["next_step_on"]}
-    stage = row["stage"]
-    if stage == "to_apply":
+    if ended:
+        return {"kind": "none"}
+    if not row["applied_on"]:
         has_resume = docs.get("resume_proposed") or docs.get("resume_sent")
         return {"kind": "apply" if has_resume else "prepare_documents"}
-    if stage == "applied":
-        since = date.fromisoformat(row["status_changed_at"][:10])
-        if row["applied_on"]:
-            since = max(since, date.fromisoformat(row["applied_on"]))
-        waited = (today - since).days
-        if waited >= limits["ghost_after_days"]:
-            return {"kind": "ghost", "days": waited}
-        follow_up = since + timedelta(days=limits["follow_up_after_days"])
-        if today >= follow_up:
-            return {"kind": "follow_up", "date": follow_up.isoformat(), "due": True}
-        return {"kind": "follow_up", "date": follow_up.isoformat(), "due": False}
-    if stage in ("interview", "offer"):
+    if row["status_key"] in DATED_KEYS:
         return {"kind": "set_date"}
-    return {"kind": "none"}
+    since = max(date.fromisoformat(row["status_changed_at"][:10]),
+                date.fromisoformat(row["applied_on"]))
+    waited = (today - since).days
+    if waited >= limits["ghost_after_days"]:
+        return {"kind": "ghost", "days": waited}
+    follow_up = since + timedelta(days=limits["follow_up_after_days"])
+    if today >= follow_up:
+        return {"kind": "follow_up", "date": follow_up.isoformat(), "due": True}
+    return {"kind": "follow_up", "date": follow_up.isoformat(), "due": False}
 
 
 def application(conn: sqlite3.Connection, job_id: str, language: str = "en",
@@ -544,8 +564,9 @@ def application(conn: sqlite3.Connection, job_id: str, language: str = "en",
         "job_id": row["job_id"], "posting_id": row["posting_id"],
         "status": {"id": row["status_id"], "key": row["status_key"],
                    "name": row["name_es"] if language == "es" else row["name_en"],
-                   "stage": row["stage"], "builtin": bool(row["is_builtin"])},
-        "stage": row["stage"],
+                   "name_en": row["name_en"], "name_es": row["name_es"],
+                   "ends": bool(row["ends"]), "builtin": bool(row["is_builtin"])},
+        "ended": bool(row["ends"]),
         "tags": tags(conn, row["id"]),
         "applied_on": row["applied_on"], "channel": row["channel"], "contact": row["contact"],
         "notes": row["notes"], "next_step_on": row["next_step_on"],
@@ -569,18 +590,21 @@ def application(conn: sqlite3.Connection, job_id: str, language: str = "en",
 
 
 def list_applications(conn: sqlite3.Connection, language: str = "en",
-                      stage: str | None = None, include_closed: bool = True,
+                      status: object = None, include_ended: bool = True,
                       today: date | None = None) -> list[dict]:
     limits = thresholds(conn)
     today = today or _today()
     query = ("SELECT a.job_id FROM applications a JOIN statuses s ON s.id = a.status_id")
     params: list = []
     clauses = []
-    if stage:
-        clauses.append("s.stage = ?")
-        params.append(stage)
-    if not include_closed:
-        clauses.append("s.stage != 'closed_negative'")
+    if status is not None:
+        target = _status_row(conn, status)
+        if target is None:
+            raise JobTrackerError("not_found", f"There is no status '{status}'")
+        clauses.append("s.id = ?")
+        params.append(target["id"])
+    if not include_ended:
+        clauses.append("s.ends = 0")
     if clauses:
         query += " WHERE " + " AND ".join(clauses)
     query += " ORDER BY a.id"
@@ -588,8 +612,28 @@ def list_applications(conn: sqlite3.Connection, language: str = "en",
             for r in conn.execute(query, params)]
 
 
-def history(conn: sqlite3.Connection, job_id: str) -> list[dict]:
-    """Everything that happened: when it was found, scored, documents, status changes."""
+def status_names(conn: sqlite3.Connection, data: dict, language: str = "en") -> tuple:
+    """The full names of the two statuses of a `status_changed` event. Newer events
+    carry both names; older ones are resolved by status key or by the stored name."""
+    def name(side: str) -> str | None:
+        stored = data.get(f"{side}_name")
+        if isinstance(stored, dict):
+            return stored.get(language) or stored.get("en")
+        ref = data.get(side)
+        if ref is None:
+            return None
+        found = conn.execute("SELECT name_en, name_es FROM statuses WHERE key = ?",
+                             (ref,)).fetchone()
+        if found is None:
+            return ref
+        return found["name_es"] if language == "es" else found["name_en"]
+
+    return name("from"), name("to")
+
+
+def history(conn: sqlite3.Connection, job_id: str, language: str = "en") -> list[dict]:
+    """Everything that happened: when it was found, scored, documents, status changes
+    (each with the full names of both statuses)."""
     row = _row(conn, job_id)
     posting = conn.execute("SELECT * FROM postings WHERE id = ?", (row["posting_id"],)
                            ).fetchone()
@@ -600,8 +644,10 @@ def history(conn: sqlite3.Connection, job_id: str) -> list[dict]:
         " OR (entity_type = 'posting' AND entity_id = ? AND kind IN ('scored', 'salary',"
         " 'tracked', 'work_mode')) ORDER BY created_at, id", (job_id, str(row["posting_id"])),
     ):
-        items.append({"at": event["created_at"], "kind": event["kind"],
-                      "data": json.loads(event["data"]) if event["data"] else {}})
+        data = json.loads(event["data"]) if event["data"] else {}
+        if event["kind"] == "status_changed":
+            data["from_name"], data["to_name"] = status_names(conn, data, language)
+        items.append({"at": event["created_at"], "kind": event["kind"], "data": data})
     items.sort(key=lambda item: item["at"])
     return items
 
@@ -614,29 +660,33 @@ def detail(conn: sqlite3.Connection, job_id: str, language: str = "en") -> dict:
     item = application(conn, job_id, language)
     item["all_documents"] = documents_service.list_for(conn, job_id)
     item["form_questions"] = answers_service.list_answers(conn, job_id)
-    item["history"] = history(conn, job_id)
+    item["history"] = history(conn, job_id, language)
     item["description"] = search.posting(conn, item["posting_id"])["description"]
     return item
 
 
-def funnel(items: list[dict]) -> dict:
-    counts = {stage: 0 for stage in STAGES}
+def funnel(conn: sqlite3.Connection, items: list[dict], language: str = "en") -> list[dict]:
+    """One count per status that at least one of the applications has, in the order
+    of the status list."""
+    counts: dict[int, int] = {}
     for item in items:
-        counts[item["stage"]] += 1
-    return counts
+        counts[item["status"]["id"]] = counts.get(item["status"]["id"], 0) + 1
+    return [{"status_id": s["id"], "key": s["key"], "name": s["name"], "ends": s["ends"],
+             "count": counts[s["id"]]}
+            for s in list_statuses(conn, language, include_retired=True) if s["id"] in counts]
 
 
 def attention(items: list[dict]) -> dict:
-    """Open applications that need something, by reason."""
-    open_items = [i for i in items if i["stage"] in OPEN_STAGES]
+    """Applications that have not ended and need something, by reason."""
+    open_items = [i for i in items if not i["ended"]]
     return {
         "missing_resume": [i["job_id"] for i in open_items
                            if not i["documents"]["resume_proposed"]
                            and not i["documents"]["resume_sent"]
-                           and i["stage"] == "to_apply"],
+                           and not i["applied_on"]],
         "unanswered_form": [i["job_id"] for i in open_items
                             if i["form_question_count"] > i["form_answered_count"]
-                            and i["stage"] == "to_apply"],
+                            and not i["applied_on"]],
         "no_response": [i["job_id"] for i in open_items if i["flags"]["ghost"]],
         "follow_up_due": [i["job_id"] for i in open_items if i["flags"]["follow_up_due"]],
     }

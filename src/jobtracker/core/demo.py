@@ -213,8 +213,8 @@ def _run(conn: sqlite3.Connection, paths: Paths, started: datetime, rows: tuple,
     return run_id, ids
 
 
-# An older search whose postings the user has been following for weeks: one per
-# stage, so the Applications board has something to show.
+# An older search whose postings the user has been following for weeks, each with
+# a different status, so the Applications board has something to show.
 OLDER = (
     ("ceibo", "linkedin", "Lead Data Engineer", "Ceibo Pagos", "San Isidro", "hybrid",
      "full-time", "Senior", 2, 0, [], "Kafka", (22, 28, 13, 13)),
@@ -254,9 +254,9 @@ def _older_applications(conn: sqlite3.Connection, paths: Paths, now: datetime, l
     tracked = tracking.track(conn, [posting[key] for key, *_ in OLDER])
     job = {key: item["job_id"] for (key, *_), item in zip(OLDER, tracked, strict=True)}
 
-    def applied(key: str, days_ago: int, status: str, stage: str | None = None,
+    def applied(key: str, days_ago: int, status: str, ends: bool | None = None,
                 **details: object) -> None:
-        applications.set_status(conn, [job[key]], status, stage=stage)
+        applications.set_status(conn, [job[key]], status, ends=ends)
         when = now - timedelta(days=days_ago)
         conn.execute("UPDATE applications SET applied_on = ?, status_changed_at = ?"
                      " WHERE job_id = ?",
@@ -279,7 +279,7 @@ def _older_applications(conn: sqlite3.Connection, paths: Paths, now: datetime, l
             asked_salary={"amount": 13000, "currency": "PEN"},
             next_step_on=in_days(4), next_step_note="Answer the offer")
     applied("altiplano", 30, "rejected", channel="Indeed")
-    applied("tika", 18, "Position frozen", stage="closed_negative", channel="Bumeran")
+    applied("tika", 18, "Position frozen", ends=True, channel="Bumeran")
 
     # Documents for one application: proposed and sent resume, cover letter, rescore.
     folder = applications.folder(conn, paths, job["huaral"])

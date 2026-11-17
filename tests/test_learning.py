@@ -93,7 +93,8 @@ def test_recent_application_is_unresolved(workspace, cli):
     _, before, _ = cli("insights", "summary", "--period", "all")
     with db.session(workspace) as conn:
         job = conn.execute("SELECT job_id FROM applications a JOIN statuses s ON s.id ="
-                           " a.status_id WHERE s.stage = 'to_apply' LIMIT 1").fetchone()[0]
+                           " a.status_id WHERE a.applied_on IS NULL AND s.ends = 0"
+                           " LIMIT 1").fetchone()[0]
         applications.set_status(conn, [job], "applied")
     _, after, _ = cli("insights", "summary", "--period", "all")
     assert after["summary"]["unresolved"] == before["summary"]["unresolved"] + 1
@@ -205,7 +206,8 @@ def test_pending_outcomes_are_listed_but_not_counted(history, cli):
     paths = history("descriptive")
     with db.session(paths) as conn:
         job = conn.execute("SELECT job_id FROM applications a JOIN statuses s ON s.id ="
-                           " a.status_id WHERE s.stage = 'to_apply' LIMIT 1").fetchone()[0]
+                           " a.status_id WHERE a.applied_on IS NULL AND s.ends = 0"
+                           " LIMIT 1").fetchone()[0]
         applications.set_status(conn, [job], "applied")
     _, out, _ = cli("learning", "refresh")
     record = next(r for r in read_history(out["history"]["path"]) if r.get("job_id") == job)
@@ -417,10 +419,10 @@ def test_no_signal_means_no_estimates(workspace):
         demo_learning.add_history(conn, workspace, "descriptive")
         # Replace every outcome with a coin flip: nothing to learn.
         for item in insights.outcomes(conn):
-            conn.execute("UPDATE events SET data = json_set(data, '$.to_stage', ?)"
+            conn.execute("UPDATE events SET data = json_set(data, '$.to', ?, '$.to_id', NULL)"
                          " WHERE entity_type = 'application' AND entity_id = ?"
                          " AND kind = 'status_changed'",
-                         ("interview" if rng.random() < 0.3 else "closed_negative",
+                         ("interview" if rng.random() < 0.3 else "rejected",
                           item["job_id"]))
         result = predict.fit(conn)
     assert result["validation"]["passed"] is False

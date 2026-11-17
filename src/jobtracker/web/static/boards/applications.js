@@ -8,7 +8,6 @@ import { WorkModeEditor, workModeText } from '../components/work-mode.js';
 import { PostingDescription, PostingLink } from '../components/posting-description.js';
 import { ChanceCell, EstimatePanel } from '../components/estimate.js';
 
-const STAGES = ['to_apply', 'applied', 'interview', 'offer', 'closed_positive', 'closed_negative'];
 const DOC_FILTERS = ['missingResume', 'proposedResume', 'sentResume', 'coverLetter', 'formUnanswered'];
 const DATE_FILTERS = ['any', '7', '30', '90', 'none'];
 const SORTS = ['next', 'applied', 'score', 'chance', 'status', 'company'];
@@ -24,10 +23,13 @@ function commandFor(commands, id) {
   return found ? found.example : `/${id}`;
 }
 
+/** Not applied yet (no applied date) and not ended: documents are still to prepare. */
+const preparing = (app) => !app.applied_on && !app.ended;
+
 function docState(app) {
   const docs = app.documents;
   return {
-    missingResume: app.stage === 'to_apply' && !docs.resume_proposed && !docs.resume_sent,
+    missingResume: preparing(app) && !docs.resume_proposed && !docs.resume_sent,
     proposedResume: Boolean(docs.resume_proposed),
     sentResume: Boolean(docs.resume_sent),
     coverLetter: Boolean(docs.cover_letter),
@@ -46,13 +48,13 @@ function nextKey(app) {
   return '9';
 }
 
-function sortValue(app, key) {
+function sortValue(app, key, statusOrder) {
   switch (key) {
     case 'next': return nextKey(app);
     case 'applied': return app.applied_on || '';
     case 'score': return app.score ? app.score.total : -1;
     case 'chance': return app.estimate ? app.estimate.probability : -1;
-    case 'status': return STAGES.indexOf(app.stage);
+    case 'status': return statusOrder.has(app.status.id) ? statusOrder.get(app.status.id) : statusOrder.size;
     case 'company': return fold(app.posting.company);
     default: return 0;
   }
@@ -63,10 +65,10 @@ function sortValue(app, key) {
 function StatusTagMenu({ app, statuses, onStatus, onTags }) {
   const { t } = useUi();
   const [name, setName] = useState('');
-  const [stage, setStage] = useState(app.stage);
+  const [ends, setEnds] = useState(false);
   const [tag, setTag] = useState('');
   const status = app.status;
-  const chipClass = 'status-chip stage-' + status.stage + (status.builtin ? '' : ' custom') + ' status-button';
+  const chipClass = 'status-chip' + (status.builtin ? '' : ' custom') + (status.ends ? ' ended' : '') + ' status-button';
   return html`
     <div class="tags">
       <${Menu} buttonClass=${chipClass} menuLabel=${t('row.changeStatus', { name: status.name })}
@@ -80,24 +82,24 @@ function StatusTagMenu({ app, statuses, onStatus, onTags }) {
               <label>
                 <input type="radio" name=${'status-' + app.job_id} checked=${s.id === status.id}
                   onChange=${() => { onStatus([app.job_id], s.id, null, s.name); close(); }} />
-                <span class=${'stage-dot stage-' + s.stage} aria-hidden="true"></span>${s.name}
+                ${s.name}
               </label>`)}
           </fieldset>
           <form class="menu-form" onSubmit=${(e) => {
             e.preventDefault();
             if (!name.trim()) return;
-            onStatus([app.job_id], name.trim(), stage, name.trim(), true);
+            onStatus([app.job_id], name.trim(), ends, name.trim(), true);
             setName('');
+            setEnds(false);
             close();
           }}>
             <label class="sr-only" for=${'new-status-' + app.job_id}>${t('status.newLabel')}</label>
             <input id=${'new-status-' + app.job_id} type="text" maxlength="40" value=${name}
               placeholder=${t('status.newLabel') + ' · ' + t('status.newPlaceholder')}
               onInput=${(e) => setName(e.currentTarget.value)} />
-            <label class="sr-only" for=${'new-stage-' + app.job_id}>${t('status.stage')}</label>
-            <select id=${'new-stage-' + app.job_id} value=${stage} onChange=${(e) => setStage(e.currentTarget.value)}>
-              ${STAGES.map((s) => html`<option value=${s}>${t('stage.' + s)}</option>`)}
-            </select>
+            <label class="menu-check">
+              <input type="checkbox" checked=${ends} onChange=${(e) => setEnds(e.currentTarget.checked)} />
+              ${t('status.endsLabel')}</label>
             <button type="submit" class="btn btn-sm btn-dark" disabled=${!name.trim()}>${t('status.create')}</button>
           </form>`}
       </${Menu}>
@@ -130,13 +132,13 @@ function DocLines({ app }) {
   const lines = [];
   if (docs.resume_sent) lines.push(['ok', t('doc.resumeSent')]);
   else if (docs.resume_proposed) lines.push(['ok', t('doc.resumeReady')]);
-  else if (app.stage === 'to_apply') lines.push(['missing', t('doc.resumeMissing')]);
+  else if (preparing(app)) lines.push(['missing', t('doc.resumeMissing')]);
   else lines.push(['na', t('doc.resumeBase')]);
   const letter = app.cover_letter || {};
   if (docs.cover_letter) lines.push(['ok', t('doc.letterReady')]);
   else if (letter.need === 'not_required') lines.push(['na', t('doc.letterNotRequired')]);
   else if (letter.need === 'required') lines.push(['missing', t('doc.letterMissing')]);
-  else if (app.stage === 'to_apply') lines.push(['queued', t('doc.letterUndecided')]);
+  else if (preparing(app)) lines.push(['queued', t('doc.letterUndecided')]);
   else lines.push(['na', t('doc.letterNone')]);
   if (app.form_question_count === 0) lines.push(['na', t('doc.noForm')]);
   else {
@@ -189,7 +191,7 @@ function NextStep({ app, onStatus, thresholds }) {
     sub = step.date ? fmt.dayMonth(step.date) : '';
   }
   return html`<div class="stack">
-    <span class=${'next-main ' + tone + ' stage-text-' + app.stage}>${main}</span>
+    <span class=${'next-main ' + tone}>${main}</span>
     ${sub && html`<span class="small">${sub}</span>`}
     ${step.kind === 'ghost' && html`<button type="button" class="link-btn small-btn"
       onClick=${() => onStatus([app.job_id], 'ghosted', null, t('next.ghostConfirm'))}>${t('next.ghostConfirm')}</button>`}
@@ -405,7 +407,7 @@ function historyText(item, t, fmt, statusName) {
     case 'created': return t('history.created');
     case 'scored': return t('history.scored', { total: d.total });
     case 'salary': return t('history.salary', { value: d.status === 'suggested' ? fmt.number(d.amount) : t('history.salaryNone') });
-    case 'status_changed': return t('history.status_changed', { to: statusName(d.to) });
+    case 'status_changed': return t('history.status_changed', { to: d.to_name || statusName(d.to) });
     case 'field_changed': return t('history.field_changed', { field: t('field.' + (d.field === 'asked_salary' ? 'asked' : d.field)) });
     case 'tag_added': return t('history.tag_added', { tag: d.tag });
     case 'tag_removed': return t('history.tag_removed', { tag: d.tag });
@@ -513,13 +515,13 @@ function ApplicationDetail({ app, version, onUpload, onSaved, statusName }) {
 export function ApplicationsBoard({ data, version, commands, onAction, onReload }) {
   const { t, fmt } = useUi();
   const [query, setQuery] = useState('');
-  const [stageFilter, setStageFilter] = useState(null);
+  const [cardFilter, setCardFilter] = useState(null);
   const [statusFilter, setStatusFilter] = useState([]);
   const [docFilter, setDocFilter] = useState([]);
   const [tagFilter, setTagFilter] = useState([]);
   const [dateFilter, setDateFilter] = useState('any');
   const [attention, setAttention] = useState(null);
-  const [showClosed, setShowClosed] = useState(false);
+  const [showEnded, setShowEnded] = useState(false);
   const [sort, setSort] = useState({ key: 'next', dir: 'asc' });
   const [expanded, setExpanded] = useState(new Set());
 
@@ -528,15 +530,19 @@ export function ApplicationsBoard({ data, version, commands, onAction, onReload 
   const allTags = useMemo(() => [...new Set(items.flatMap((a) => a.tags))].sort(), [items]);
 
   const view = useMemo(() => {
-    const closed = items.filter((a) => a.stage === 'closed_negative');
-    const base = showClosed || stageFilter === 'closed_negative' ? items : items.filter((a) => a.stage !== 'closed_negative');
+    const ended = items.filter((a) => a.ended);
+    // An ending status picked on its card or in the status filter lists its applications.
+    const endsOf = new Map([...statuses.map((s) => [s.id, s.ends]), ...items.map((a) => [a.status.id, a.status.ends])]);
+    const endedPicked = [cardFilter, ...statusFilter].some((id) => id !== null && endsOf.get(id));
+    const base = showEnded || endedPicked ? items : items.filter((a) => !a.ended);
+    const statusOrder = new Map(statuses.map((s, index) => [s.id, index]));
     const needle = fold(query.trim());
     const today = new Date();
     const since = (days) => { const d = new Date(today); d.setDate(d.getDate() - Number(days)); return d.toISOString().slice(0, 10); };
     const ids = attention && data ? new Set(data.attention[attention]) : null;
     const shown = base.filter((a) => {
       if (needle && !fold([a.posting.title, a.posting.company, a.notes, ...a.tags].join(' ')).includes(needle)) return false;
-      if (stageFilter && a.stage !== stageFilter) return false;
+      if (cardFilter !== null && a.status.id !== cardFilter) return false;
       if (statusFilter.length && !statusFilter.includes(a.status.id)) return false;
       if (docFilter.length) { const state = docState(a); if (!docFilter.every((f) => state[f])) return false; }
       if (tagFilter.length && !tagFilter.every((tag) => a.tags.includes(tag))) return false;
@@ -547,13 +553,13 @@ export function ApplicationsBoard({ data, version, commands, onAction, onReload 
     });
     const dir = sort.dir === 'asc' ? 1 : -1;
     shown.sort((a, b) => {
-      const x = sortValue(a, sort.key);
-      const y = sortValue(b, sort.key);
+      const x = sortValue(a, sort.key, statusOrder);
+      const y = sortValue(b, sort.key, statusOrder);
       return (x < y ? -1 : x > y ? 1 : 0) * dir || a.job_id.localeCompare(b.job_id);
     });
-    const hiddenClosed = showClosed || stageFilter === 'closed_negative' ? 0 : closed.length;
-    return { shown, total: base.length, hiddenClosed, closed };
-  }, [items, query, stageFilter, statusFilter, docFilter, tagFilter, dateFilter, attention, showClosed, sort, data]);
+    const hiddenEnded = showEnded || endedPicked ? 0 : ended.length;
+    return { shown, total: base.length, hiddenEnded, ended };
+  }, [items, statuses, query, cardFilter, statusFilter, docFilter, tagFilter, dateFilter, attention, showEnded, sort, data]);
 
   if (!data) return html`<section class="card empty" aria-busy="true"></section>`;
   if (items.length === 0) {
@@ -561,8 +567,8 @@ export function ApplicationsBoard({ data, version, commands, onAction, onReload 
   }
 
   const statusName = (ref) => (statuses.find((s) => s.id === ref || s.key === ref) || {}).name || ref;
-  const changeStatus = (jobIds, status, stage, label, created) => onAction(async () => {
-    await api.setStatus(jobIds, status, stage);
+  const changeStatus = (jobIds, status, ends, label, created) => onAction(async () => {
+    await api.setStatus(jobIds, status, ends);
     const name = created ? label : statusName(status);
     return { message: created ? t('toast.statusCreated', { name })
       : t('toast.statusChanged', { count: jobIds.length, job: jobIds[0], status: name }) };
@@ -573,10 +579,8 @@ export function ApplicationsBoard({ data, version, commands, onAction, onReload 
     return { message: t('toast.uploaded') };
   });
 
-  const counts = data.funnel;
-  const stageCards = STAGES.filter((s) => s !== 'closed_positive' || counts[s] > 0);
   const limits = data.thresholds;
-  const closedNames = [...new Set(view.closed.map((a) => a.status.name))].join(', ');
+  const endedNames = [...new Set(view.ended.map((a) => a.status.name))].join(', ');
 
   const columns = [
     { key: 'score', label: t('col.scoreApps'), sortable: true, width: '92px', render: (a) => {
@@ -615,13 +619,14 @@ export function ApplicationsBoard({ data, version, commands, onAction, onReload 
   const attentionCount = (key) => data.attention[key].length;
   return html`
     <section class="funnel" aria-label=${t('funnel.label')}>
-      ${stageCards.map((stage) => {
-        const pressed = stageFilter === stage;
-        const label = stage === 'closed_negative' && !showClosed ? t('stage.closedHidden') : t('stage.' + stage);
-        return html`<button type="button" class=${'funnel-card' + (pressed ? ' on' : '')} aria-pressed=${String(pressed)}
-          onClick=${() => { setAttention(null); setStageFilter(pressed ? null : stage); }}>
-          <span class="funnel-label"><span class=${'stage-dot stage-' + stage} aria-hidden="true"></span>${label}</span>
-          <span class="funnel-count">${counts[stage]}</span>
+      ${data.funnel.map((card) => {
+        const pressed = cardFilter === card.status_id;
+        const label = card.ends && !showEnded && !pressed ? t('funnel.endedHidden', { name: card.name }) : card.name;
+        return html`<button type="button" class=${'funnel-card' + (pressed ? ' on' : '') + (card.ends ? ' ended' : '')}
+          aria-pressed=${String(pressed)}
+          onClick=${() => { setAttention(null); setCardFilter(pressed ? null : card.status_id); }}>
+          <span class="funnel-label">${label}</span>
+          <span class="funnel-count">${card.count}</span>
         </button>`;
       })}
     </section>
@@ -631,7 +636,7 @@ export function ApplicationsBoard({ data, version, commands, onAction, onReload 
         ${ATTENTION.every((key) => attentionCount(key) === 0) ? html`<span class="muted">${t('attention.none')}</span>`
           : ATTENTION.filter((key) => attentionCount(key) > 0).map((key) => html`
             <button type="button" class=${'link-btn' + (attention === key ? ' active-link' : '')} aria-pressed=${String(attention === key)}
-              onClick=${() => { setStageFilter(null); setAttention(attention === key ? null : key); }}>
+              onClick=${() => { setCardFilter(null); setAttention(attention === key ? null : key); }}>
               ${t('attention.' + key, { count: attentionCount(key), days: limits.ghost_after_days })}</button>`)}
         ${attention && html`<button type="button" class="btn btn-sm" onClick=${() => setAttention(null)}>${t('attention.clear')}</button>`}
         ${attention === 'no_response' && attentionCount('no_response') > 0 && html`
@@ -658,7 +663,7 @@ export function ApplicationsBoard({ data, version, commands, onAction, onReload 
             ${statuses.map((s) => html`<label>
               <input type="checkbox" checked=${statusFilter.includes(s.id)}
                 onChange=${(e) => setStatusFilter(e.currentTarget.checked ? [...statusFilter, s.id] : statusFilter.filter((x) => x !== s.id))} />
-              <span class=${'stage-dot stage-' + s.stage} aria-hidden="true"></span>${s.name}</label>`)}
+              ${s.name}</label>`)}
           </fieldset>
         </${Menu}>
         <${Menu} label=${t('apps.docsFilter')} active=${docFilter.length > 0}>
@@ -696,8 +701,8 @@ export function ApplicationsBoard({ data, version, commands, onAction, onReload 
         </${Menu}>
       </div>
       <label class="check-label">
-        <input type="checkbox" checked=${showClosed} onChange=${(e) => setShowClosed(e.currentTarget.checked)} />
-        ${t('apps.showClosed', { count: view.closed.length, statuses: closedNames || '—' })}
+        <input type="checkbox" checked=${showEnded} onChange=${(e) => setShowEnded(e.currentTarget.checked)} />
+        ${t('apps.showEnded', { count: view.ended.length, statuses: endedNames || '—' })}
       </label>
     </section>
     <section class="card results" aria-label=${t('tabs.applications')}>
@@ -713,6 +718,6 @@ export function ApplicationsBoard({ data, version, commands, onAction, onReload 
     <p class="footer" role="status">
       <span>${query.trim() ? t('apps.footerQuery', { shown: view.shown.length, total: view.total, query: query.trim() })
         : t('apps.footerAll', { shown: view.shown.length, total: view.total })}</span>
-      ${view.hiddenClosed > 0 && html`<span>· ${t('apps.closedHidden', { count: view.hiddenClosed })}</span>`}
+      ${view.hiddenEnded > 0 && html`<span>· ${t('apps.endedHidden', { count: view.hiddenEnded })}</span>`}
     </p>`;
 }

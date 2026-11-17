@@ -71,13 +71,7 @@
   --sent-bg: #F3FAF5;
   --sent-line: #A9D9B8;
 
-  /* stages and document states */
-  --stage-to_apply: #8A8F99;
-  --stage-applied: #2F4FD8;
-  --stage-interview: #7C3AED;
-  --stage-offer: #1F8A4C;
-  --stage-closed_positive: #1F8A4C;
-  --stage-closed_negative: #C9CCC5;
+  /* document states */
   --doc-ok: #1F8A4C;
   --doc-missing: #C2410C;
   --doc-missing-fg: #8A3108;

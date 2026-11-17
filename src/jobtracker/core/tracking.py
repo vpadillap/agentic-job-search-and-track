@@ -51,13 +51,13 @@ def _next_job_id(conn: sqlite3.Connection) -> str:
 
 def application(conn: sqlite3.Connection, posting_id: int) -> dict | None:
     row = conn.execute(
-        "SELECT a.*, s.key AS status_key, s.name_en, s.stage FROM applications a"
+        "SELECT a.*, s.key AS status_key, s.name_en, s.ends FROM applications a"
         " JOIN statuses s ON s.id = a.status_id WHERE a.posting_id = ?", (posting_id,),
     ).fetchone()
     if row is None:
         return None
     return {"job_id": row["job_id"], "posting_id": row["posting_id"],
-            "status": row["status_key"] or row["name_en"], "stage": row["stage"],
+            "status": row["status_key"] or row["name_en"], "ended": bool(row["ends"]),
             "applied_on": row["applied_on"], "created_at": row["created_at"]}
 
 
@@ -96,7 +96,7 @@ def track(conn: sqlite3.Connection, posting_ids: object, applied: bool = False,
             _event(conn, "application", job_id, "created", {"status": "new"}, now)
         else:
             job_id = existing["job_id"]
-        if applied and (existing is None or existing["stage"] == "to_apply"):
+        if applied and (existing is None or not existing["applied_on"]):
             applications.set_status(conn, [job_id], "applied", today=today)
     bump_changes(conn)
     return [application(conn, i) for i in ids]  # type: ignore[misc]

@@ -397,13 +397,15 @@ def test_score_changed_by_the_sent_resume(seeded, page):
     expect(row_.locator(".delta")).to_have_text("+9 with your sent resume")
 
 
-def test_closed_applications_are_hidden_by_default(seeded, page):
+def test_ended_applications_are_hidden_by_default(seeded, page):
     open_board(page, "applications")
     expect(page.locator("tbody .job-company")).to_have_count(7)
     expect(app_row(page, "Altiplano Seguros")).to_have_count(0)
-    expect(app_row(page, "Tika Foods")).to_have_count(0)          # custom closed status
-    expect(page.locator(".footer")).to_contain_text("2 closed hidden")
-    page.get_by_role("checkbox", name=re.compile("Show closed")).check()
+    expect(app_row(page, "Tika Foods")).to_have_count(0)          # custom ending status
+    expect(page.locator(".footer")).to_contain_text("2 ended hidden")
+    show = page.get_by_role("checkbox", name=re.compile("Show ended"))
+    expect(show).to_have_accessible_name(re.compile("Rejected, Position frozen"))
+    show.check()
     expect(app_row(page, "Tika Foods").locator(".status-chip")).to_have_text("Position frozen")
     expect(page.locator("tbody .job-company")).to_have_count(9)
 
@@ -419,13 +421,38 @@ def test_applications_type_ahead(seeded, page):
     expect(app_row(page, "Lumen Edu")).to_have_count(1)
 
 
-def test_funnel_card_filters_by_stage(seeded, page):
+def test_one_count_card_per_status_in_use(seeded, page):
+    open_board(page, "applications")
+    cards = page.locator(".funnel-card .funnel-label")
+    expect(cards).to_have_text(["New", "Applied", "Interview", "Offer", "Rejected (hidden)",
+                                "Position frozen (hidden)"])
+    applied = page.locator(".funnel-card", has_text="Applied")
+    expect(applied.locator(".funnel-count")).to_have_text("3")
+
+
+def test_funnel_card_filters_by_status(seeded, page):
     open_board(page, "applications")
     card = page.locator(".funnel-card", has_text="Interview")
     card.click()
     expect(card).to_have_attribute("aria-pressed", "true")
     expect(page.locator("tbody .job-company")).to_have_count(1)
     expect(app_row(page, "Ceibo Pagos")).to_have_count(1)
+
+
+def test_an_ending_status_card_lists_its_hidden_applications(seeded, page):
+    open_board(page, "applications")
+    page.locator(".funnel-card", has_text="Position frozen").click()
+    expect(page.locator("tbody .job-company")).to_have_count(1)
+    expect(app_row(page, "Tika Foods")).to_have_count(1)
+    expect(page.locator(".footer")).not_to_contain_text("hidden")
+
+
+def test_sorting_by_status_follows_the_status_list(seeded, page):
+    open_board(page, "applications")
+    page.get_by_role("button", name="Status and tags").click()
+    order = ["New", "Applied", "Interview", "Offer"]
+    shown = [order.index(text) for text in page.locator("tbody .status-chip").all_inner_texts()]
+    assert shown == sorted(shown) and len(shown) == 7
 
 
 def test_inline_status_change_persists(seeded, page):
@@ -477,7 +504,8 @@ def test_inline_status_creation_and_tags(seeded, page):
     open_board(page, "applications")
     app_row(page, "Finlima S.A.").get_by_role("button", name="Status: New. Change status").click()
     page.get_by_role("textbox", name="New status").fill("On hold")
-    page.get_by_label("Stage").select_option("applied")
+    expect(page.get_by_role("checkbox", name="The application ended with this status")
+           ).not_to_be_checked()
     page.get_by_role("button", name="Create and apply").click()
     expect(app_row(page, "Finlima S.A.").locator(".status-chip")).to_have_text("On hold")
     app_row(page, "Finlima S.A.").get_by_role("button", name="Add a tag").click()
@@ -487,6 +515,17 @@ def test_inline_status_creation_and_tags(seeded, page):
     page.keyboard.press("Escape")
     app_row(page, "Finlima S.A.").get_by_role("button", name="Remove tag Remote friendly").click()
     expect(app_row(page, "Finlima S.A.").locator(".tag-chip")).to_have_count(0)
+
+
+def test_creating_an_ending_status_hides_the_application(seeded, page):
+    open_board(page, "applications")
+    app_row(page, "Finlima S.A.").get_by_role("button", name="Status: New. Change status").click()
+    page.get_by_role("textbox", name="New status").fill("Hiring cancelled")
+    page.get_by_role("checkbox", name="The application ended with this status").check()
+    page.get_by_role("button", name="Create and apply").click()
+    expect(app_row(page, "Finlima S.A.")).to_have_count(0)
+    expect(page.locator(".footer")).to_contain_text("3 ended hidden")
+    expect(page.locator(".funnel-card", has_text="Hiring cancelled")).to_contain_text("(hidden)")
 
 
 def test_application_without_a_form(seeded, page):
@@ -570,14 +609,15 @@ def test_ghost_is_proposed_and_confirmed_by_the_user(seeded, page):
     expect(row_.locator(".status-chip")).to_have_text("Applied")
     expect(row_).to_contain_text("days without a response")
     row_.get_by_role("button", name="Mark as ghosted?").click()
-    expect(app_row(page, "Lumen Edu")).to_have_count(0)          # now closed, hidden
-    expect(page.locator(".footer")).to_contain_text("3 closed hidden")
+    expect(app_row(page, "Lumen Edu")).to_have_count(0)          # now ended, hidden
+    expect(page.locator(".footer")).to_contain_text("3 ended hidden")
 
 
 def test_applications_board_in_spanish(seeded, page):
     open_board(page, "applications")
     page.get_by_role("button", name="ES", exact=True).click()
-    expect(page.locator(".funnel-card", has_text="Por postular")).to_be_visible()
+    expect(page.locator(".funnel-card", has_text="Nuevo")).to_be_visible()
+    expect(page.locator(".funnel-card", has_text="Rechazado")).to_contain_text("(ocultas)")
     expect(app_row(page, "Ceibo Pagos").locator(".status-chip")).to_have_text("Entrevista")
 
 

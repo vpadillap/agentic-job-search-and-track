@@ -78,7 +78,7 @@ def counts(conn: sqlite3.Connection) -> dict:
         ).fetchone()[0]
     active = conn.execute(
         "SELECT COUNT(*) FROM applications a JOIN statuses s ON s.id = a.status_id"
-        " WHERE s.stage IN ('to_apply', 'applied', 'interview', 'offer')").fetchone()[0]
+        " WHERE s.ends = 0").fetchone()[0]
     proposed = conn.execute("SELECT COUNT(*) FROM rules WHERE origin = 'learned'"
                             " AND status = 'proposed'").fetchone()[0]
     return {"search": new, "applications": active, "learning": proposed}
@@ -153,7 +153,7 @@ def pending(conn: sqlite3.Connection) -> list[dict]:
         " LEFT JOIN statuses st ON st.id = a.status_id"
         " WHERE sc.is_current = 1 AND sc.weights_version != ?"
         " AND NOT EXISTS (SELECT 1 FROM dismissals d WHERE d.posting_id = sc.posting_id)"
-        " AND (st.stage IN ('to_apply', 'applied', 'interview', 'offer')"
+        " AND (st.ends = 0"
         "      OR (a.id IS NULL AND EXISTS (SELECT 1 FROM run_results r"
         "          WHERE r.posting_id = sc.posting_id AND r.run_id = ? AND r.outcome = 'new')))"
         " ORDER BY sc.posting_id", (active["version"] if active else 0, run_id),
@@ -191,7 +191,8 @@ def _document_items(conn: sqlite3.Connection) -> list[dict]:
         " FROM applications a JOIN statuses s ON s.id = a.status_id"
         " JOIN postings p ON p.id = a.posting_id"
         " LEFT JOIN scores sc ON sc.posting_id = a.posting_id AND sc.is_current = 1"
-        " WHERE s.stage = 'to_apply' ORDER BY COALESCE(sc.total, -1) DESC, a.id"
+        " WHERE a.applied_on IS NULL AND s.ends = 0"
+        " ORDER BY COALESCE(sc.total, -1) DESC, a.id"
     ):
         base = {"posting_id": row["posting_id"], "job_id": row["job_id"],
                 "title": row["title"], "company": row["company"], "score": row["total"]}

@@ -493,11 +493,23 @@ def cmd_salary_show(args: argparse.Namespace) -> dict:
         return {"salary": salary.current(conn, args.id)}
 
 
+def _status_ref(value: str | None) -> object:
+    """A status given on the command line: its id when it is a number, else key or name."""
+    if value is None:
+        return None
+    return int(value) if value.isdigit() else value
+
+
+def _yes_no(value: str | None) -> bool | None:
+    return None if value is None else value == "yes"
+
+
 def cmd_applications_list(args: argparse.Namespace) -> dict:
     with db.session(get_paths()) as conn:
-        items = applications.list_applications(conn, _language(), args.stage,
-                                               include_closed=not args.hide_closed)
-        return {"applications": items, "funnel": applications.funnel(items),
+        items = applications.list_applications(conn, _language(), _status_ref(args.status),
+                                               include_ended=not args.hide_ended)
+        return {"applications": items,
+                "funnel": applications.funnel(conn, items, _language()),
                 "attention": applications.attention(items)}
 
 
@@ -508,7 +520,8 @@ def cmd_applications_show(args: argparse.Namespace) -> dict:
 
 def cmd_applications_set_status(args: argparse.Namespace) -> dict:
     with db.session(get_paths()) as conn:
-        changed = applications.set_status(conn, args.job_ids, args.to, stage=args.stage)
+        changed = applications.set_status(conn, args.job_ids, _status_ref(args.to),
+                                          ends=_yes_no(args.ends))
         return {"applications": [applications.application(conn, j, _language())
                                  for j in changed]}
 
@@ -541,7 +554,7 @@ def cmd_statuses_list(args: argparse.Namespace) -> dict:
 
 def cmd_statuses_create(args: argparse.Namespace) -> dict:
     with db.session(get_paths()) as conn:
-        return {"status": applications.create_status(conn, args.name, args.stage)}
+        return {"status": applications.create_status(conn, args.name, _yes_no(args.ends))}
 
 
 def cmd_statuses_rename(args: argparse.Namespace) -> dict:
@@ -913,9 +926,9 @@ def build_parser() -> argparse.ArgumentParser:
     apps_parser = sub.add_parser("applications", help="tracked applications")
     apps_sub = apps_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)
     apps_list = apps_sub.add_parser("list")
-    apps_list.add_argument("--stage", choices=applications.STAGES)
-    apps_list.add_argument("--hide-closed", action="store_true",
-                           help="leave out the closed negative stage")
+    apps_list.add_argument("--status", help="only this status (name, key, or id)")
+    apps_list.add_argument("--hide-ended", action="store_true",
+                           help="leave out applications whose status ended them")
     apps_list.set_defaults(run=cmd_applications_list)
     apps_show = apps_sub.add_parser("show", help="details, documents, questions, history")
     apps_show.add_argument("job_id")
@@ -923,8 +936,9 @@ def build_parser() -> argparse.ArgumentParser:
     apps_status = apps_sub.add_parser("set-status", help="change the status of applications")
     apps_status.add_argument("job_ids", nargs="+")
     apps_status.add_argument("--to", required=True, help="status name, key, or id")
-    apps_status.add_argument("--stage", choices=applications.STAGES,
-                             help="create the status in this stage if it does not exist")
+    apps_status.add_argument("--ends", choices=("yes", "no"),
+                             help="create the status if it does not exist: does an"
+                                  " application end with it")
     apps_status.set_defaults(run=cmd_applications_set_status)
     apps_update = apps_sub.add_parser("update", help="change application details")
     apps_update.add_argument("job_id")
@@ -947,7 +961,8 @@ def build_parser() -> argparse.ArgumentParser:
     statuses_list.set_defaults(run=cmd_statuses_list)
     statuses_create = statuses_sub.add_parser("create")
     statuses_create.add_argument("name")
-    statuses_create.add_argument("--stage", required=True, choices=applications.STAGES)
+    statuses_create.add_argument("--ends", required=True, choices=("yes", "no"),
+                                 help="does an application end with this status")
     statuses_create.set_defaults(run=cmd_statuses_create)
     statuses_rename = statuses_sub.add_parser("rename")
     statuses_rename.add_argument("id", type=int)

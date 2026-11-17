@@ -217,14 +217,8 @@
   "toast.undone": "Undone",
   "error.generic": "Something went wrong: {message}",
   "error.offline": "The panel cannot reach its server. Is it still running?",
-  "stage.to_apply": "To apply",
-  "stage.applied": "Applied",
-  "stage.interview": "Interview",
-  "stage.offer": "Offer",
-  "stage.closed_positive": "Accepted",
-  "stage.closed_negative": "Closed",
-  "stage.closedHidden": "Closed (hidden)",
-  "funnel.label": "Funnel",
+  "funnel.label": "Applications by status",
+  "funnel.endedHidden": "{name} (hidden)",
   "attention.title": "Need something",
   "attention.missing_resume": {
     "one": "{count} without a tailored resume",
@@ -267,7 +261,7 @@
   "docs.proposedResume": "Tailored resume ready",
   "docs.coverLetter": "Cover letter ready",
   "docs.formUnanswered": "Form without answers",
-  "apps.showClosed": "Show closed ({count}): {statuses}",
+  "apps.showEnded": "Show ended ({count}): {statuses}",
   "apps.sort": "Sort: {value}",
   "sort.next": "Next step",
   "sort.applied": "Applied",
@@ -310,8 +304,8 @@
   "status.legend": "Status",
   "status.newLabel": "New status",
   "status.newPlaceholder": "Name…",
-  "status.stage": "Stage",
   "status.create": "Create and apply",
+  "status.endsLabel": "The application ended with this status",
   "tags.legend": "Tags",
   "tags.add": "Add tag",
   "tags.placeholder": "e.g. Referral",
@@ -369,9 +363,9 @@
   "origin.agent": "by the agent",
   "apps.footerQuery": "{shown} of {total} active match “{query}”",
   "apps.footerAll": "Showing {shown} of {total}",
-  "apps.closedHidden": {
-    "one": "{count} closed hidden",
-    "other": "{count} closed hidden"
+  "apps.endedHidden": {
+    "one": "{count} ended hidden",
+    "other": "{count} ended hidden"
   },
   "apps.empty": "No tracked applications yet",
   "apps.emptyBody": "Track postings from the Search tab; they appear here with their status and documents.",

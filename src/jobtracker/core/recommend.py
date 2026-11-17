@@ -37,7 +37,7 @@ def apply_next(conn: sqlite3.Connection, today: date | None = None) -> list[dict
     for row in conn.execute(
         "SELECT a.job_id, a.posting_id, p.title, p.company FROM applications a"
         " JOIN statuses s ON s.id = a.status_id JOIN postings p ON p.id = a.posting_id"
-        " WHERE s.stage = 'to_apply'"
+        " WHERE a.applied_on IS NULL AND s.ends = 0"
     ):
         estimate = predict.estimate(conn, row["posting_id"], today, model=model)
         ranked.append({"job_id": row["job_id"], "posting_id": row["posting_id"],

@@ -217,14 +217,8 @@
   "toast.undone": "Deshecho",
   "error.generic": "Algo falló: {message}",
   "error.offline": "El panel no puede conectar con su servidor. ¿Sigue en ejecución?",
-  "stage.to_apply": "Por postular",
-  "stage.applied": "Postulado",
-  "stage.interview": "Entrevista",
-  "stage.offer": "Oferta",
-  "stage.closed_positive": "Aceptadas",
-  "stage.closed_negative": "Cerradas",
-  "stage.closedHidden": "Cerradas (ocultas)",
-  "funnel.label": "Embudo",
+  "funnel.label": "Postulaciones por estado",
+  "funnel.endedHidden": "{name} (ocultas)",
   "attention.title": "Necesitan algo",
   "attention.missing_resume": {
     "one": "{count} sin CV adaptado",
@@ -267,7 +261,7 @@
   "docs.proposedResume": "CV adaptado listo",
   "docs.coverLetter": "Carta lista",
   "docs.formUnanswered": "Formulario sin respuestas",
-  "apps.showClosed": "Mostrar cerradas ({count}): {statuses}",
+  "apps.showEnded": "Mostrar terminadas ({count}): {statuses}",
   "apps.sort": "Ordenar: {value}",
   "sort.next": "Próximo paso",
   "sort.applied": "Postulado",
@@ -310,8 +304,8 @@
   "status.legend": "Estado",
   "status.newLabel": "Nuevo estado",
   "status.newPlaceholder": "Nombre…",
-  "status.stage": "Etapa",
   "status.create": "Crear y aplicar",
+  "status.endsLabel": "La postulación terminó con este estado",
   "tags.legend": "Etiquetas",
   "tags.add": "Añadir etiqueta",
   "tags.placeholder": "p. ej. Referido",
@@ -369,9 +363,9 @@
   "origin.agent": "del agente",
   "apps.footerQuery": "{shown} de {total} activas coinciden con “{query}”",
   "apps.footerAll": "Mostrando {shown} de {total}",
-  "apps.closedHidden": {
-    "one": "{count} cerrada oculta",
-    "other": "{count} cerradas ocultas"
+  "apps.endedHidden": {
+    "one": "{count} terminada oculta",
+    "other": "{count} terminadas ocultas"
   },
   "apps.empty": "Aún no sigues ninguna vacante",
   "apps.emptyBody": "Sigue avisos desde la pestaña Búsqueda; aparecen aquí con su estado y documentos.",

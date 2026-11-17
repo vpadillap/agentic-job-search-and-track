@@ -18,7 +18,7 @@ from .errors import JobTrackerError
 from .paths import Paths
 
 LEVELS = ("collecting", "descriptive", "predictive", "prescriptive")
-SIZE = {"collecting": 10, "descriptive": 26, "predictive": 72, "prescriptive": 72}
+SIZE = {"collecting": 8, "descriptive": 26, "predictive": 72, "prescriptive": 72}
 DISMISSALS = {"collecting": 8, "descriptive": 18, "predictive": 40, "prescriptive": 40}
 TITLES = ("Senior Data Engineer", "Data Platform Engineer", "Analytics Engineer", "BI Engineer")
 COMPANIES = ("Andes Retail", "Pacífico Seguros Demo", "Lúcuma Pagos", "Nazca Logística",
