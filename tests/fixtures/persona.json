@@ -1,0 +1,25 @@
+{
+  "_note": "Entirely fictional persona for tests and examples. Never replace with real data.",
+  "name": "Marisol Quispe Tanaka",
+  "email": "marisol.quispe@example.test",
+  "phone": "+51 900 000 000",
+  "headline": "Senior Data Engineer",
+  "years_experience": 7,
+  "skills": ["Python", "SQL", "Airflow", "dbt", "BigQuery", "GCP"],
+  "languages": [{"language": "es", "level": "native"}, {"language": "en", "level": "B2"}],
+  "job_needs": {
+    "work_modes": ["remote", "hybrid"],
+    "contract_types": ["full-time", "contractor"],
+    "country": "PE",
+    "locations": ["San Isidro", "Miraflores", "Surco"],
+    "minimum_salary": {"amount": 11000, "currency": "PEN", "period": "month", "basis": "gross"},
+    "posting_age_days": 7
+  },
+  "target_titles": [
+    {"title": "Senior Data Engineer", "state": "included"},
+    {"title": "Data Platform Engineer", "state": "included"},
+    {"title": "ETL Developer", "state": "excluded"},
+    {"title": "Data Architect", "state": "suggested"}
+  ],
+  "companies": ["Altamar Retail S.A.", "Finlima S.A.", "Nortia Seguros"]
+}

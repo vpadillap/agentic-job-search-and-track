@@ -5,10 +5,10 @@ agent (primarily Claude Code) searches, scores, and prepares application
 documents; a local web panel shows and edits the results; every outcome feeds
 back into future advice.
 
-> Status: early scaffolding. The architecture is proposed in
-> `openspec/changes/define-foundation-architecture/`. Until that change is
-> applied, the `jobtracker` package, the panel, and the user-facing skills do
-> not exist yet.
+> Status: the foundation is implemented (private workspace, database, the
+> `jobtracker` CLI, privacy guard, a placeholder panel). The user-facing skills
+> (`/setup`, `/job-search`, …) and the panel boards are specified in
+> `openspec/changes/` and not built yet.
 
 ## Which mode are you in?
 
@@ -28,7 +28,8 @@ If it is unclear, ask.
    specs, tests, commit messages, or PRs. Use the fictional persona in
    `tests/fixtures/` for examples. Do not bypass the pre-commit privacy guard.
 2. **One write path.** Structured data changes go through the `jobtracker` CLI
-   (or the panel API). Never hand-edit the database.
+   (or the panel API). Never hand-edit the database. Start every task with
+   `jobtracker context`; get every private path from `jobtracker paths`.
 3. **No invented facts.** Salary suggestions require at least two comparable
    sources with links (same country, level, work mode, and similar
    industry/company size). Otherwise record "no reliable data". The same
@@ -52,7 +53,9 @@ If it is unclear, ask.
 | `providers/` | One file per job site: how the agent must access and read it |
 | `openspec/` | Specs and change proposals (spec-driven development) |
 | `design/` | UX reference for the panel (four boards: Search, Applications, Learning, Profile & agent) |
+| `src/jobtracker/` | `core` (storage, rules), `cli` (agent interface), `web` (panel) |
 | `scripts/check_private.py` | Privacy guard (pre-commit + CI) |
+| `scripts/jt.py` | Runs the CLI from the clone before anything is installed |
 | `user-data/` | Private home, gitignored, created by `/setup` |
 
 ## Contributor workflow
@@ -63,6 +66,10 @@ If it is unclear, ask.
 - OpenSpec's generated skills/commands are gitignored on purpose. Install them
   locally with `openspec init --tools claude` if you want them.
 - After cloning: `git config core.hooksPath .githooks` to enable the privacy
-  guard.
+  guard, then `uv sync --extra dev` (or `pip install -e ".[dev]"` in a venv).
+- Before committing: `uv run ruff check .` and `uv run pytest`. Tests run
+  against a temporary `JOBTRACKER_HOME`; never point them at real data.
+- The CLI prints JSON (`{"ok": true, …}` or `{"ok": false, "error": …}`).
+  `core` must stay standard-library only so `doctor` works on a bare Python.
 - Repo content (code, docs, skills, specs) is written in English. User-facing
   panel text is localized (en/es).

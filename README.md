@@ -14,9 +14,10 @@ A clone-and-run, local-first job search assistant driven by an AI agent
 Your data never leaves your machine's project folder: everything personal is
 stored in a gitignored `user-data/` directory.
 
-> **Status: early scaffolding.** The architecture is under review in
-> [`openspec/changes/define-foundation-architecture/`](openspec/changes/define-foundation-architecture/design.md).
-> Nothing is runnable yet.
+> **Status: foundation only.** The private workspace, database, command-line
+> interface, and privacy guard work. The agent skills and the panel boards are
+> specified in [`openspec/changes/`](openspec/changes/) and are being built in
+> order.
 
 ## Requirements
 
@@ -29,6 +30,14 @@ See [`AGENTS.md`](AGENTS.md). After cloning, enable the privacy guard:
 
 ```
 git config core.hooksPath .githooks
+uv sync --extra dev          # or: pip install -e ".[dev]" inside a virtual environment
+uv run pytest
+```
+
+Check your environment at any time, even before installing anything:
+
+```
+python scripts/jt.py doctor
 ```
 
 ## License
