@@ -444,5 +444,5 @@
   "history.cover_letter_need.required": "Carta: requerida",
   "history.cover_letter_need.not_required": "Carta: no requerida",
   "detail.fromBase": "A partir de tu CV en {language} (v{version})",
-  "detail.fromBaseUnknown": "A partir de tu CV principal (v{version})"
+  "detail.fromBaseUnknown": "A partir de tu CV (v{version})"
 }

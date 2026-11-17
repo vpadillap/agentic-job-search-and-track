@@ -21,7 +21,8 @@ message, fix the cause, retry. Below, `jt` means `python scripts/jt.py`.
 1. `jt context`. If `setup_required` is true, stop and suggest `/setup`.
 2. Follow every rule in `rules`; note the ids of rules with area `form` or
    `salary` that you follow.
-3. Read the base resume text (`base_resume.text_path`) and the profile,
+3. Read the user's resume in the posting's language (`base_resumes` →
+   `text_path`) and the profile,
    including `additional_facts`, `availability`, `work_authorization`,
    `languages`, and `minimum_salary`.
 

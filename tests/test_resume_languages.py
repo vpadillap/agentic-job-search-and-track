@@ -1,4 +1,4 @@
-"""Base resumes per language (profile) and tailoring from the matching one."""
+"""Each base resume is the source for its own language: scoring, tailoring, drafts."""
 from __future__ import annotations
 
 import io
@@ -45,7 +45,7 @@ def send(cli, monkeypatch):
 
 @pytest.fixture
 def two(workspace, cli, tmp_path):
-    """English and Spanish base resumes; English imported first."""
+    """English and Spanish base resumes."""
     en = make_formatted_docx(tmp_path / "cv-en.docx")
     es = make_spanish_docx(tmp_path / "cv-es.docx")
     assert cli("resume", "import", str(en), "--language", "en")[0] == 0
@@ -63,7 +63,6 @@ def current_by_language(cli) -> dict[str, dict]:
 def test_second_language_keeps_the_first(two, cli):
     base = current_by_language(cli)
     assert set(base) == {"en", "es"}
-    assert base["en"]["main"] is True and base["es"]["main"] is False
     assert Path(base["en"]["path"]).read_bytes() == two["en"].read_bytes()
     assert Path(base["es"]["path"]).name == "resume-base-es.docx"
     assert "Ingeniera de datos" in Path(base["es"]["text_path"]).read_text(encoding="utf-8")
@@ -82,26 +81,19 @@ def test_new_version_of_one_language(two, cli, tmp_path):
         ("en", 1, True), ("es", 3, True), ("es", 2, False)]
 
 
-def test_choosing_the_main_resume(two, cli):
+def test_there_is_no_main_resume(two, cli):
     code, out, _ = cli("resume", "main", "es")
-    assert code == 0 and out["resume"]["language"] == "es"
-    base = current_by_language(cli)
-    assert base["es"]["main"] is True and base["en"]["main"] is False
+    assert code == 2 and out["error"]["code"] == "usage"
     _, context, _ = cli("context")
-    assert context["base_resume"]["language"] == "es"
-    code, out, _ = cli("resume", "main", "pt")
-    assert code == 1 and out["error"]["code"] == "not_found"
+    assert "base_resume" not in context
+    assert {r["language"] for r in context["base_resumes"]} == {"en", "es"}
+    assert all("main" not in r for r in context["base_resumes"])
 
 
-def test_rescoring_only_for_the_main_resume(two, cli, tmp_path):
+def test_replacing_a_language_flags_rescoring(two, cli, tmp_path):
     code, out, _ = cli("resume", "import", str(make_spanish_docx(tmp_path / "es2.docx")),
                        "--language", "es")
-    assert out["resume"]["rescore_needed"] is False
-    _, context, _ = cli("context")
-    assert context["rescore_since"] is None
-    _, out, _ = cli("resume", "import", str(make_formatted_docx(tmp_path / "en2.docx")),
-                    "--language", "en")
-    assert out["resume"]["rescore_needed"] is True and out["resume"]["main"] is True
+    assert code == 0 and out["resume"]["rescore_needed"] is True
 
 
 def test_language_codes_are_checked(workspace, cli, tmp_path):
@@ -113,12 +105,14 @@ def test_language_codes_are_checked(workspace, cli, tmp_path):
 
 
 def test_existing_workspace_resume_without_a_language(workspace, cli, tmp_path):
-    with db.session(workspace) as conn:  # how resumes were imported before this change
+    with db.session(workspace) as conn:  # how resumes were imported before languages
         resume.import_resume(conn, workspace, make_formatted_docx(tmp_path / "old.docx"))
     old_file = workspace.profile / "resume-base.docx"
     old_bytes = old_file.read_bytes()
     _, context, _ = cli("context")
-    assert context["base_resume"]["language"] is None and context["base_resume"]["main"]
+    assert [r["language"] for r in context["base_resumes"]] == [None]
+    with db.session(workspace) as conn:  # used for every posting while it is the only one
+        assert resume.choose_row(conn, "pt")["file_name"] == "resume-base.docx"
 
     code, out, _ = cli("resume", "import", str(make_spanish_docx(tmp_path / "es.docx")),
                        "--language", "es")
@@ -126,7 +120,7 @@ def test_existing_workspace_resume_without_a_language(workspace, cli, tmp_path):
     assert not (workspace.profile / "resume-base-es.docx").exists()
 
     code, out, _ = cli("resume", "language", "en")
-    assert code == 0 and out["resume"]["language"] == "en" and out["resume"]["main"]
+    assert code == 0 and out["resume"]["language"] == "en"
     assert old_file.read_bytes() == old_bytes  # files keep their names
     code, _, _ = cli("resume", "import", str(make_spanish_docx(tmp_path / "es.docx")),
                      "--language", "es")
@@ -145,12 +139,11 @@ def test_stating_a_language_that_already_has_a_resume(workspace, cli, tmp_path):
     assert code == 1 and out["error"]["code"] == "language_taken"
 
 
-def test_migration_makes_the_existing_resume_the_main_one(workspace, tmp_path, monkeypatch):
-    with closing(sqlite3.connect(workspace.database)) as conn:
+def test_migrations_keep_an_existing_resume(workspace):
+    with closing(sqlite3.connect(workspace.database)) as conn:  # a database at version 7
         conn.execute("PRAGMA user_version = 7")
         conn.execute("DROP INDEX base_resumes_one_current_per_language")
-        conn.execute("DROP INDEX base_resumes_one_main")
-        for column in ("language", "is_main"):
+        for column in ("language", "translated_from"):
             conn.execute(f"ALTER TABLE base_resumes DROP COLUMN {column}")
         conn.execute("ALTER TABLE documents DROP COLUMN base_resume_id")
         conn.execute("CREATE UNIQUE INDEX base_resumes_one_current ON base_resumes (is_current)"
@@ -162,15 +155,17 @@ def test_migration_makes_the_existing_resume_the_main_one(workspace, tmp_path, m
             " '2026-10-01T00:00:00Z', 1)")
         conn.commit()
     with db.session(workspace) as conn:
-        row = conn.execute("SELECT language, is_main, is_current FROM base_resumes").fetchone()
-    assert (row["language"], row["is_main"], row["is_current"]) == (None, 1, 1)
+        row = conn.execute("SELECT * FROM base_resumes").fetchone()
+        columns = {r[1] for r in conn.execute("PRAGMA table_info(base_resumes)")}
+    assert (row["language"], row["is_current"]) == (None, 1)
+    assert "is_main" not in columns and "translated_from" in columns
 
 
-# ── tailoring from the matching language ──────────────────────────────────
+# ── tailoring from the posting's language ─────────────────────────────────
 
 @pytest.fixture
 def tailorable(jobs, cli, tmp_path):  # noqa: F811
-    """Tracked applications plus English (main) and Spanish base resumes."""
+    """Tracked applications plus English and Spanish base resumes."""
     for maker, code in ((make_formatted_docx, "en"), (make_spanish_docx, "es")):
         assert cli("resume", "import", str(maker(tmp_path / f"cv-{code}.docx")),
                    "--language", code)[0] == 0
@@ -188,7 +183,10 @@ def register(send, job, file_name, **extra):
                 "documents", "register", job, "resume-proposed", file_name, "-")
 
 
-def test_tailoring_starts_from_the_resume_in_the_postings_language(tailorable, send, cli):
+EDIT_EN = {"edits": [{"find": "Mentored two", "replace": "Mentored 2"}]}
+
+
+def test_tailoring_starts_from_the_resume_in_the_postings_language(tailorable, send):
     job = tailorable["altamar"]
     set_posting_language(tailorable["home"], job, "es")
     code, out, _ = send({"edits": [{"find": "Mentoría a dos", "replace": "Mentoría a 2"}]},
@@ -201,34 +199,32 @@ def test_tailoring_starts_from_the_resume_in_the_postings_language(tailorable, s
     assert registered["document"]["base_resume"]["language"] == "es"
 
 
-def test_without_a_matching_resume_the_main_one_is_translated(tailorable, send):
+def test_no_resume_in_the_postings_language(tailorable, send):
     job = tailorable["altamar"]
     set_posting_language(tailorable["home"], job, "pt")
-    _, out, _ = send({"edits": [{"find": "Mentored two", "replace": "Mentored 2"}]},
-                     "documents", "tailor", job, "-")
-    assert out["base"] == {"language": "en", "version": 1, "main": True}
-    assert out["translate"] is True
-    _, registered, _ = register(send, job, out["file_name"])
-    assert registered["document"]["base_resume"]["language"] == "en"
+    code, out, _ = send(EDIT_EN, "documents", "tailor", job, "-")
+    assert code == 1 and out["error"]["code"] == "no_resume_for_language"
+    assert out["error"]["details"]["language"] == "pt"
+    assert not list(tailorable["home"].applications.rglob("resume-proposed-*"))
 
 
-def test_unknown_posting_language_uses_the_main_resume(tailorable, send):
+def test_unknown_posting_language_with_several_resumes(tailorable, send):
     job = tailorable["altamar"]
     set_posting_language(tailorable["home"], job, None)
-    _, out, _ = send({"edits": [{"find": "Mentored two", "replace": "Mentored 2"}]},
-                     "documents", "tailor", job, "-")
-    assert out["base"]["language"] == "en" and out["translate"] is None
+    code, out, _ = send(EDIT_EN, "documents", "tailor", job, "-")
+    assert code == 1 and out["error"]["code"] == "posting_language_unknown"
+    code, out, _ = send(EDIT_EN, "documents", "tailor", job, "-", "--base", "en")
+    assert code == 0 and out["base"] == {"language": "en", "version": 1}
 
 
 def test_choosing_another_base_explicitly(tailorable, send):
     job = tailorable["altamar"]
     set_posting_language(tailorable["home"], job, "es")
-    _, out, _ = send({"edits": [{"find": "Mentored two", "replace": "Mentored 2"}]},
-                     "documents", "tailor", job, "-", "--base", "en")
+    _, out, _ = send(EDIT_EN, "documents", "tailor", job, "-", "--base", "en")
     assert out["base"]["language"] == "en" and out["translate"] is True
     code, out, _ = send({"edits": [{"find": "x", "replace": "y"}]},
                         "documents", "tailor", job, "-", "--base", "fr")
-    assert code == 1 and out["error"]["code"] == "not_found"
+    assert code == 1 and out["error"]["code"] == "no_resume_for_language"
 
 
 def test_comparison_uses_the_base_it_came_from(tailorable, send, cli):
@@ -240,7 +236,7 @@ def test_comparison_uses_the_base_it_came_from(tailorable, send, cli):
     code, diff, _ = cli("documents", "diff", job)
     assert code == 0, diff
     assert diff["base_resume"]["language"] == "es"
-    assert diff["stats"] == {**diff["stats"], "added": 1, "removed": 1}
+    assert (diff["stats"]["added"], diff["stats"]["removed"]) == (1, 1)
     assert diff["hunks"][0]["base"] == ["Mentoría a dos ingenieros junior."]
 
 
@@ -251,3 +247,78 @@ def test_cover_letters_have_no_base(tailorable, send, cli):
     code, out, _ = send({"language": "es", "base": "es"}, "documents", "register", job,
                         "cover-letter", path["file_name"], "-")
     assert code == 1 and out["error"]["details"]["field"] == "base"
+
+
+# ── scoring against the posting's language ────────────────────────────────
+
+def score(cli, tmp_path, posting_id):
+    from tests.test_scoring import submission
+
+    file = tmp_path / f"score-{posting_id}.json"
+    file.write_text(json.dumps(submission()), encoding="utf-8")
+    return cli("score", "set", str(posting_id), str(file))
+
+
+def test_scores_record_the_resume_in_the_postings_language(tailorable, cli, tmp_path):
+    home, postings = tailorable["home"], tailorable["postings"]
+    spanish, english = postings["A-100"], postings["A-101"]
+    with db.session(home) as conn:
+        conn.execute("UPDATE postings SET language = 'es' WHERE id = ?", (spanish,))
+        conn.execute("UPDATE postings SET language = 'en' WHERE id = ?", (english,))
+    _, es_score, _ = score(cli, tmp_path, spanish)
+    _, en_score, _ = score(cli, tmp_path, english)
+    by_lang = current_by_language(cli)
+    assert es_score["score"]["resume_ref"] == str(by_lang["es"]["version"])
+    assert en_score["score"]["resume_ref"] == str(by_lang["en"]["version"])
+
+    cli("resume", "import", str(make_spanish_docx(tmp_path / "es-new.docx")), "--language", "es")
+    _, pending, _ = cli("pending")
+    stale = {i["posting_id"] for i in pending["pending"] if i["kind"] == "rescore"}
+    assert spanish in stale and english not in stale
+
+
+def test_scoring_a_posting_in_a_language_without_resume(tailorable, cli, tmp_path):
+    posting = tailorable["postings"]["A-100"]
+    with db.session(tailorable["home"]) as conn:
+        conn.execute("UPDATE postings SET language = 'pt' WHERE id = ?", (posting,))
+        before = conn.execute("SELECT COUNT(*) FROM scores WHERE posting_id = ?",
+                              (posting,)).fetchone()[0]
+    code, out, _ = score(cli, tmp_path, posting)
+    assert code == 1 and out["error"]["code"] == "no_resume_for_language"
+    with db.session(tailorable["home"]) as conn:
+        after = conn.execute("SELECT COUNT(*) FROM scores WHERE posting_id = ?",
+                             (posting,)).fetchone()[0]
+    assert after == before
+
+
+# ── translated drafts ─────────────────────────────────────────────────────
+
+def test_translated_draft_then_import(two, send, cli):
+    english_before = Path(current_by_language(cli)["en"]["path"]).read_bytes()
+    code, draft, _ = send({"edits": [
+        {"find": "Senior Data Engineer", "replace": "Engenheira de Dados Sênior"},
+        {"find": "Mentored two junior engineers.", "replace": "Mentoria de dois engenheiros."},
+    ]}, "resume", "translate", "--from", "en", "--to", "pt", "-")
+    assert code == 0, draft
+    assert draft["file_name"] == "resume-draft-pt-v1.docx"
+    assert draft["layout"]["same_shape"] is True
+    headline = docx.Document(draft["file"]).paragraphs[0]
+    assert headline.runs[0].bold is True and "Engenheira de Dados" in headline.text
+    assert "pt" not in current_by_language(cli)  # a draft is not a base resume
+
+    code, out, _ = cli("resume", "import", draft["file"], "--language", "pt",
+                       "--translated-from", "en")
+    assert code == 0 and out["resume"]["translated_from"] == "en"
+    assert Path(current_by_language(cli)["en"]["path"]).read_bytes() == english_before
+    _, listed, _ = cli("resume", "list")
+    assert {r["language"]: r["translated_from"] for r in listed["resumes"]} == {
+        "en": None, "es": None, "pt": "en"}
+
+
+def test_translation_needs_a_source_and_a_different_language(two, send):
+    code, out, _ = send({"edits": [{"find": "x", "replace": "y"}]},
+                        "resume", "translate", "--from", "fr", "--to", "pt", "-")
+    assert code == 1 and out["error"]["code"] == "no_resume_for_language"
+    code, out, _ = send({"edits": [{"find": "x", "replace": "y"}]},
+                        "resume", "translate", "--from", "en", "--to", "en", "-")
+    assert code == 1 and out["error"]["code"] == "invalid_language"

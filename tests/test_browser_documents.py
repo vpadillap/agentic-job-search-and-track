@@ -73,7 +73,7 @@ def test_proposed_resume_card_and_comparison(prepared, page):  # noqa: F811
     card = detail.locator(".doc-card").first
     expect(card).to_contain_text("resume-proposed-v1.docx")
     expect(card.locator(".doc-summary")).to_have_text(SUMMARY)
-    expect(card).to_contain_text("From your main resume (v1)")
+    expect(card).to_contain_text("From your resume (v1)")
     expect(card.locator(".doc-gaps")).to_contain_text("Kafka (deseable)")
     card.get_by_text("1 emphasized term and where it comes from").click()
     expect(card.locator(".doc-support")).to_contain_text("BigQuery")

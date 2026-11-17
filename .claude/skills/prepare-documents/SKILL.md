@@ -50,13 +50,11 @@ Spanish alias: `pendientes` means `pending`, `todas` means `all`.
 2. Read every rule in `rules` and follow it. Note the ids of rules with area
    `resume`, `cover_letter`, `form`, or `salary`: you record the ones you
    followed with each document (`applied_rules`).
-3. `base_resumes` lists the user's base resume per language (`base_resume`
-   is the main one). If one has `language: null`, ask the user its language
-   and run `jt resume language <code>` before tailoring. Read the base resume
-   text at `base_resume.text_path` and the profile,
-   including `additional_facts`. Note the base resume's file type
-   (`base_resume.path`): only a DOCX can be tailored without touching its
-   design.
+3. `base_resumes` lists the user's resume per language: each is the source
+   for postings in its language. If one has `language: null`, ask the user its
+   language and run `jt resume language <code>` before tailoring. Read the
+   profile, including `additional_facts`. Only a DOCX resume can be tailored
+   without touching its design.
 
 ## 2. Decide the work
 
@@ -85,14 +83,15 @@ Follow `tailoring-guide.md`. In short:
 
 1. Compare the posting with the base resume. Decide what to emphasize, reorder,
    or reword, staying at the allowed change level.
-2. The CLI picks the base: the user's resume in the posting's language if they
-   have one, otherwise the main one. Before writing edits, read the text of
-   that base (`jt resume show` → `by_language`, its `text_path`): your `find`
-   texts must come from it.
+2. The base is the user's resume in the posting's language. Read its text
+   (`jt resume show` → `by_language`, its `text_path`): your `find` texts must
+   come from it. If the user has no resume in that language, `documents tailor`
+   fails with `no_resume_for_language`: skip this application's resume, and at
+   the end ask the user once per language whether to give you a resume in it or
+   to translate one of theirs (`.claude/skills/setup/resume-translation.md`).
    DOCX base: send the edits with `jt documents tailor <job_id> -` as
-   `{"edits": [...]}`. The result says which `base` was used and whether you
-   must `translate` (true: the base is in another language; see "Language" in
-   the guide). Read `layout` in the result: if `same_shape` is false,
+   `{"edits": [...]}`. The result says which `base` was used. Read `layout`
+   in the result: if `same_shape` is false,
    or `characters.change_pct` is beyond ±10, look at why and correct it before
    registering. The result is a DOCX: the user opens it in Word, adjusts it,
    and saves it as PDF if the application asks for one.

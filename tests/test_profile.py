@@ -165,7 +165,7 @@ def test_unreadable_resume_is_reported_and_nothing_is_stored(workspace, cli, tmp
     assert "--text" in out["error"]["message"]
     assert list(workspace.profile.iterdir()) == []
     _, shown, _ = cli("resume", "show")
-    assert shown["resume"] is None
+    assert shown["by_language"] == []
 
 
 def test_visually_read_text_can_be_confirmed(workspace, cli, tmp_path):
@@ -219,7 +219,7 @@ def test_updated_base_resume_keeps_the_previous_one_and_asks_for_rescoring(
 
     _, context, _ = cli("context")
     assert context["rescore_since"] is not None
-    assert context["base_resume"]["version"] == 2
+    assert [r["version"] for r in context["base_resumes"]] == [2]
 
 
 def test_reimporting_the_current_base_resume_does_not_lose_it(workspace, cli, tmp_path):
@@ -237,7 +237,7 @@ def test_profile_exposes_resume_and_titles(profiled, cli, tmp_path):
     _, out, _ = cli("profile", "show")
     profile = out["profile"]
     assert profile["version"] == 1
-    assert profile["base_resume"]["file_name"] == "resume-base-en.docx"
+    assert [r["file_name"] for r in profile["base_resumes"]] == ["resume-base-en.docx"]
     assert {t["state"] for t in profile["titles"]} == {"included", "excluded", "suggested"}
     _, resume, _ = cli("resume", "show")
-    assert Path(resume["resume"]["path"]).is_file()
+    assert Path(resume["by_language"][0]["path"]).is_file()

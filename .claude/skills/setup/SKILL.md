@@ -100,21 +100,28 @@ More terms can be added at any time with the same command, and
 
 ## 5. Resume (`resume`)
 
-1. Ask for the path to their resume (PDF or DOCX; DOCX is better because later
-   tailoring can keep its exact layout) and which language it is written in.
-   If `jt context` shows a `base_resume` whose `language` is null (imported
-   before languages were recorded), ask which language that one is in first
-   and run `jt resume language <code>`.
-2. `jt resume import "<path>" --language <code>` (2-letter code: en, es, pt…).
-   The first resume imported is the main one: scores are judged against it.
+Each resume is the source for its own language: postings in Spanish are
+scored and tailored against the Spanish resume, postings in English against
+the English one.
+
+1. Ask in which languages they will apply for jobs (for example English and
+   Spanish). If `jt context` → `base_resumes` has one whose `language` is null
+   (imported before languages were recorded), ask which language it is in and
+   run `jt resume language <code>` first.
+   Then, for each of those languages, ask for the path to their resume in that
+   language (PDF or DOCX; DOCX is better because later tailoring can keep its
+   exact layout). For a language they have no resume in, offer to translate one
+   of theirs (step 7).
+2. For each file: `jt resume import "<path>" --language <code>` (2-letter code:
+   en, es, pt…).
    - `no_text_extracted`: the file is probably a scan. Offer two options: a
      text-based file instead, or you read the file visually, show the full text
      to the user for confirmation, save the confirmed text with
      `jt paths` → `profile` folder as `resume-visual-draft.md`, and run
      `jt resume import "<path>" --language <code> --text "<that file>"`.
    - `unsupported_resume` / `unreadable_resume`: ask for another file.
-3. Read the extracted text at the returned `text_path`.
-4. Show the user a short summary so they can confirm it was read correctly:
+3. Read the extracted text at the returned `text_path` of each resume.
+4. Show the user a short summary of each so they can confirm it was read correctly:
    current or latest role, total years of experience, main skills, education,
    languages. Ask them to correct anything wrong or missing. Corrections that
    are facts about them (for example "I also know Kafka, it is just not on the
@@ -124,13 +131,12 @@ More terms can be added at any time with the same command, and
    them now with `jt privacy terms add`.
 6. If the file is a PDF, mention once that providing the DOCX version later
    allows tailoring without touching the layout.
-7. Ask whether they also have their resume in another language that they
-   translated or reviewed themselves. For each one, import it the same way with
-   its own `--language`, and confirm it was read correctly. Tell them: postings
-   in that language will be tailored from that version; postings in a language
-   they have no resume in are translated from the main one. They can add a
-   language, or make another one the main resume (`jt resume main <code>`),
-   at any time by asking.
+7. A language they will apply in but have no resume for: offer to translate
+   one of their resumes into it, following `resume-translation.md` in this
+   folder. The translation is a draft they review in Word; it becomes their
+   resume for that language only when they confirm it.
+8. Tell them they can add a language, or replace the resume of a language, at
+   any time by asking.
 
 ## 6. Questionnaire (`questionnaire`)
 

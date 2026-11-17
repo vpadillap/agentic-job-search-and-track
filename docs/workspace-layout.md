@@ -44,9 +44,11 @@ user-data/                                  private home (gitignored)
 ```
 
 Base resumes: one current file per language the user has a resume in
-(`<lang>` is a 2-letter code such as `en` or `es`). One of them is the main
-resume. A base resume imported before languages were recorded keeps the name
-`resume-base.<ext>` until it is replaced.
+(`<lang>` is a 2-letter code such as `en` or `es`); each is the source for
+postings in its language. A translation the agent drafts is written as
+`resume-draft-<lang>-v<N>.docx` in the same folder and becomes a base resume
+only when the user imports it. A base resume imported before languages were
+recorded keeps the name `resume-base.<ext>` until it is replaced.
 
 ## Naming rules
 

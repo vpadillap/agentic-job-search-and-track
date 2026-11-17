@@ -166,16 +166,15 @@ def validate(data: object) -> dict:
 
 # ── storage ───────────────────────────────────────────────────────────────
 
-def _base_resume(conn: sqlite3.Connection) -> dict | None:
-    row = conn.execute(
-        "SELECT * FROM base_resumes WHERE is_current = 1 AND is_main = 1").fetchone()
-    if row is None:
-        return None
-    return {
-        "version": row["version"], "file_name": row["file_name"], "text_name": row["text_name"],
+def _base_resumes(conn: sqlite3.Connection) -> list[dict]:
+    """The user's current resume in each language."""
+    return [{
+        "language": row["language"], "version": row["version"],
+        "file_name": row["file_name"], "text_name": row["text_name"],
         "original_name": row["original_name"], "imported_at": row["imported_at"],
-        "text_source": row["text_source"], "language": row["language"],
-    }
+        "text_source": row["text_source"], "translated_from": row["translated_from"],
+    } for row in conn.execute("SELECT * FROM base_resumes WHERE is_current = 1"
+                              " ORDER BY COALESCE(language, ''), id")]
 
 
 def _to_dict(conn: sqlite3.Connection, row: sqlite3.Row) -> dict:
@@ -186,7 +185,7 @@ def _to_dict(conn: sqlite3.Connection, row: sqlite3.Row) -> dict:
         "active": bool(row["is_active"]),
         "created_at": row["created_at"],
         **json.loads(row["data"]),
-        "base_resume": _base_resume(conn),
+        "base_resumes": _base_resumes(conn),
     }
 
 

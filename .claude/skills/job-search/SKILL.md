@@ -39,8 +39,9 @@ default).
 2. Read and follow every rule in `rules` (system, user, and active learned
    rules). Rules with area `search`, `score`, or `salary` change how you
    search, filter, score, and research.
-3. Note `profile` (job needs and titles) and `base_resume` (read the file at
-   `base_resume.text_path`: it is what you score against).
+3. Note `profile` (job needs and titles) and `base_resumes`: the user's
+   resume in each language. A posting is scored against the resume in its own
+   language: read each one's `text_path`.
 
 ## 2. Start the run
 
@@ -126,6 +127,13 @@ For each remaining new posting, judge it against the base resume and profile
 with the rubric in `scoring-guide.md` (read it before the first score), then
 `jt score set <posting_id> - --run <run_id>`. The CLI rejects inconsistent
 scores; fix and resubmit. History is added by the system.
+
+`score set` judges a posting against the user's resume in the posting's
+language. If it fails with `no_resume_for_language`, the user has no resume in
+that language: do not score those postings and do not translate on your own.
+Collect them, and after the run ask the user once per language whether to give
+you a resume in it or to translate one of theirs (follow
+`.claude/skills/setup/resume-translation.md`); score them after that.
 
 ## 6. Research salary
 

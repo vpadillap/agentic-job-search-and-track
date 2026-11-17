@@ -297,9 +297,14 @@ def diff(conn: sqlite3.Connection, paths: Paths, job_id: str,
     if doc["base_resume"] is not None:
         base = resume.by_id(conn, paths, doc["base_resume"]["id"])
     else:  # registered before languages were recorded
-        base = resume.current(conn, paths)
-    if base is None:
-        raise JobTrackerError("no_base_resume", "There is no base resume to compare with")
+        posting = applications.application(conn, job_id)["posting"]
+        try:
+            base = resume.choose_base(conn, paths, posting["language"])
+        except JobTrackerError:
+            available = resume.list_current(conn, paths)
+            if not available:
+                raise
+            base = available[0]
     base_text = Path(base["text_path"]).read_text(encoding="utf-8")
     path = applications.document_path(conn, paths, job_id, doc["id"])
     proposed_text = resume.extract_text(path)

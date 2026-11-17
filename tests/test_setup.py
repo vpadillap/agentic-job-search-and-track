@@ -53,7 +53,7 @@ def test_a_completed_step_can_be_revised_without_losing_data(workspace, cli, tmp
     _, out, _ = cli("setup", "redo", "titles")
     assert out["next_step"] == "titles" and out["complete"] is False
     _, resume, _ = cli("resume", "show")
-    assert resume["resume"]["version"] == 1
+    assert resume["by_language"][0]["version"] == 1
 
 
 def test_unknown_step_is_rejected(workspace, cli):

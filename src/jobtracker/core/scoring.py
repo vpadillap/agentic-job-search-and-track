@@ -152,9 +152,14 @@ def set_score(
     weights = active_weights(conn)
     checked = validate(submission, weights["weights"], language)
     if checked["resume_ref"] is None and checked["resume_kind"] == "base":
-        base = conn.execute("SELECT version FROM base_resumes WHERE is_current = 1"
-                            " AND is_main = 1").fetchone()
-        checked["resume_ref"] = str(base["version"]) if base else None
+        from . import resume
+
+        language = conn.execute("SELECT language FROM postings WHERE id = ?",
+                                (posting_id,)).fetchone()["language"]
+        has_resume = conn.execute("SELECT 1 FROM base_resumes WHERE is_current = 1").fetchone()
+        # Judged against the user's resume in the posting's language.
+        checked["resume_ref"] = (str(resume.choose_row(conn, language)["version"])
+                                 if has_resume else None)
     previous = current(conn, posting_id)
     now = now_iso()
     conn.execute("UPDATE scores SET is_current = 0 WHERE posting_id = ? AND is_current = 1",

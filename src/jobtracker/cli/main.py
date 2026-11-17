@@ -149,14 +149,14 @@ def cmd_resume_import(args: argparse.Namespace) -> dict:
     text_file = Path(args.text) if args.text else None
     with db.session(paths) as conn:
         return {"resume": resume.import_resume(conn, paths, Path(args.file), text_file,
-                                               language=args.language)}
+                                               language=args.language,
+                                               translated_from=args.translated_from)}
 
 
 def cmd_resume_show(args: argparse.Namespace) -> dict:
     paths = get_paths()
     with db.session(paths) as conn:
-        return {"resume": resume.current(conn, paths),
-                "by_language": resume.list_current(conn, paths)}
+        return {"by_language": resume.list_current(conn, paths)}
 
 
 def cmd_resume_list(args: argparse.Namespace) -> dict:
@@ -165,10 +165,13 @@ def cmd_resume_list(args: argparse.Namespace) -> dict:
         return {"resumes": resume.list_all(conn, paths)}
 
 
-def cmd_resume_main(args: argparse.Namespace) -> dict:
+def cmd_resume_translate(args: argparse.Namespace) -> dict:
+    request = _read_json(args.file)
+    if not isinstance(request, dict) or "edits" not in request:
+        raise JobTrackerError("invalid_edit", 'expected an object {"edits": [...]}')
     paths = get_paths()
     with db.session(paths) as conn:
-        return {"resume": resume.set_main(conn, paths, args.language)}
+        return resume.translate_draft(conn, paths, args.source, args.target, request["edits"])
 
 
 def cmd_resume_language(args: argparse.Namespace) -> dict:
@@ -505,8 +508,7 @@ def cmd_documents_tailor(args: argparse.Namespace) -> dict:
     base = Path(chosen["path"])
     result = docx_tools.tailor(base, target, request["edits"])
     result["file_name"] = target.name
-    result["base"] = {"language": chosen["language"], "version": chosen["version"],
-                      "main": chosen["main"]}
+    result["base"] = {"language": chosen["language"], "version": chosen["version"]}
     result["translate"] = chosen["translate"]
     result["layout"] = docx_tools.layout_check(base, target)
     return result
@@ -644,15 +646,19 @@ def build_parser() -> argparse.ArgumentParser:
     resume_import.add_argument("--language", required=True,
                                help="2-letter code of the language it is written in (en, es...)")
     resume_import.add_argument("--text", help="text of the resume when it cannot be extracted")
+    resume_import.add_argument("--translated-from", dest="translated_from",
+                               help="language it was translated from (agent drafts)")
     resume_import.set_defaults(run=cmd_resume_import)
-    resume_sub.add_parser("show", help="the main base resume and one per language").set_defaults(
+    resume_sub.add_parser("show", help="the current resume in each language").set_defaults(
         run=cmd_resume_show)
     resume_sub.add_parser("list", help="every base resume, with earlier versions").set_defaults(
         run=cmd_resume_list)
-    resume_main = resume_sub.add_parser(
-        "main", help="make the base resume in a language the main one")
-    resume_main.add_argument("language")
-    resume_main.set_defaults(run=cmd_resume_main)
+    resume_translate = resume_sub.add_parser(
+        "translate", help="draft a translated copy of a resume, same design, for review")
+    resume_translate.add_argument("--from", dest="source", required=True)
+    resume_translate.add_argument("--to", dest="target", required=True)
+    resume_translate.add_argument("file", help='JSON {"edits": [...]}, or -')
+    resume_translate.set_defaults(run=cmd_resume_translate)
     resume_language = resume_sub.add_parser(
         "language", help="state the language of a base resume imported without one")
     resume_language.add_argument("language")
@@ -863,7 +869,7 @@ def build_parser() -> argparse.ArgumentParser:
     docs_tailor.add_argument("job_id")
     docs_tailor.add_argument("file", help='JSON {"edits": [...]}, or -')
     docs_tailor.add_argument("--base", help="language of the base resume to start from "
-                                            "(default: the posting's, else the main one)")
+                                            "(default: the posting's language)")
     docs_tailor.set_defaults(run=cmd_documents_tailor)
     docs_check = docs_sub.add_parser("check", help="compare a DOCX's shape with the base resume")
     docs_check.add_argument("job_id")

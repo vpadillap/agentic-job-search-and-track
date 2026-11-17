@@ -3,7 +3,8 @@
 The score says how well one posting fits the user, from 0 to 100. You judge
 four components; the system adds the fifth (history). The maximums come from
 the active weights version (`score_weights` in `jt context`); the defaults are
-below. Judge only from the posting text, the base resume, and the profile.
+below. Judge only from the posting text, the user's resume in the posting's
+language, and the profile.
 
 | Component | Default max | What it measures |
 |---|---|---|

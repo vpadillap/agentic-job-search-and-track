@@ -94,22 +94,15 @@ def _dict(row: sqlite3.Row, paths: Paths) -> dict:
         "id": row["id"],
         "version": row["version"],
         "language": row["language"],
-        "main": bool(row["is_main"]),
         "current": bool(row["is_current"]),
         "path": str(paths.profile / row["file_name"]),
         "text_path": str(paths.profile / row["text_name"]),
         "original_name": row["original_name"],
         "characters": row["characters"],
         "text_source": row["text_source"],
+        "translated_from": row["translated_from"],
         "imported_at": row["imported_at"],
     }
-
-
-def current(conn: sqlite3.Connection, paths: Paths) -> dict | None:
-    """The main base resume: what scores are judged against."""
-    row = conn.execute(
-        "SELECT * FROM base_resumes WHERE is_current = 1 AND is_main = 1").fetchone()
-    return _dict(row, paths) if row else None
 
 
 def by_id(conn: sqlite3.Connection, paths: Paths, resume_id: int) -> dict:
@@ -120,16 +113,15 @@ def by_id(conn: sqlite3.Connection, paths: Paths, resume_id: int) -> dict:
 
 
 def list_current(conn: sqlite3.Connection, paths: Paths) -> list[dict]:
-    """The current base resume of every language, the main one first."""
+    """The current base resume of every language."""
     return [_dict(r, paths) for r in conn.execute(
-        "SELECT * FROM base_resumes WHERE is_current = 1"
-        " ORDER BY is_main DESC, COALESCE(language, ''), id")]
+        "SELECT * FROM base_resumes WHERE is_current = 1 ORDER BY COALESCE(language, ''), id")]
 
 
 def list_all(conn: sqlite3.Connection, paths: Paths) -> list[dict]:
     return [_dict(r, paths) for r in conn.execute(
-        "SELECT * FROM base_resumes ORDER BY is_current DESC, is_main DESC,"
-        " COALESCE(language, ''), version DESC")]
+        "SELECT * FROM base_resumes ORDER BY is_current DESC, COALESCE(language, ''),"
+        " version DESC")]
 
 
 def _current_in(conn: sqlite3.Connection, language: str | None) -> sqlite3.Row | None:
@@ -138,43 +130,54 @@ def _current_in(conn: sqlite3.Connection, language: str | None) -> sqlite3.Row |
         (language or "",)).fetchone()
 
 
-def choose_base(conn: sqlite3.Connection, paths: Paths, posting_language: str | None,
-                override: str | None = None) -> dict:
-    """The base resume to tailor from: the one in the posting's language when the user
-    has it, otherwise the main one (which then needs translating)."""
+def choose_row(conn: sqlite3.Connection, posting_language: str | None,
+               override: str | None = None) -> sqlite3.Row:
+    """The base resume for a posting: the user's resume in the posting's language.
+
+    Each resume is the source for its own language; there is no fallback to
+    another language. A resume imported before languages were recorded is used
+    while it is the user's only one.
+    """
     if override is not None:
         row = _current_in(conn, _language(override))
         if row is None:
-            raise JobTrackerError("not_found", f"There is no base resume in '{override}'")
-    else:
-        wanted = (posting_language or "").strip().lower() or None
-        row = _current_in(conn, wanted) if wanted else None
-        if row is None:
-            row = conn.execute(
-                "SELECT * FROM base_resumes WHERE is_current = 1 AND is_main = 1").fetchone()
-    if row is None:
+            raise JobTrackerError("no_resume_for_language",
+                                  f"There is no base resume in '{override}'",
+                                  language=override)
+        return row
+    rows = conn.execute("SELECT * FROM base_resumes WHERE is_current = 1").fetchall()
+    if not rows:
         raise JobTrackerError("no_base_resume", "There is no base resume. Run /setup.")
+    wanted = (posting_language or "").strip().lower() or None
+    if wanted is not None:
+        row = _current_in(conn, wanted)
+        if row is not None:
+            return row
+        if len(rows) == 1 and rows[0]["language"] is None:
+            return rows[0]
+        raise JobTrackerError(
+            "no_resume_for_language",
+            f"The user has no resume in '{wanted}'. Ask them for one, or offer to translate "
+            f"one of theirs into '{wanted}' as a draft they review "
+            f"(`resume translate --from <code> --to {wanted}`). Nothing was stored.",
+            language=wanted,
+        )
+    if len(rows) == 1:
+        return rows[0]
+    raise JobTrackerError(
+        "posting_language_unknown",
+        "The posting's language is not recorded and the user has resumes in several "
+        "languages. Read the posting and pass --base <code> for its language.",
+    )
+
+
+def choose_base(conn: sqlite3.Connection, paths: Paths, posting_language: str | None,
+                override: str | None = None) -> dict:
+    row = choose_row(conn, posting_language, override)
     base = _dict(row, paths)
     wanted = (posting_language or "").strip().lower() or None
     translate = None if not wanted or not base["language"] else wanted != base["language"]
     return {**base, "translate": translate}
-
-
-def set_main(conn: sqlite3.Connection, paths: Paths, language: str) -> dict:
-    """Make the current base resume in `language` the main one."""
-    row = _current_in(conn, _language(language))
-    if row is None:
-        raise JobTrackerError("not_found", f"There is no base resume in '{language}'")
-    conn.execute("UPDATE base_resumes SET is_main = 0 WHERE is_main = 1")
-    conn.execute("UPDATE base_resumes SET is_main = 1 WHERE id = ?", (row["id"],))
-    conn.execute(
-        "INSERT INTO events (entity_type, entity_id, kind, data, created_at)"
-        " VALUES ('base_resume', ?, 'made_main', ?, ?)",
-        (str(row["version"]), json.dumps({"language": row["language"]}), now_iso()),
-    )
-    bump_changes(conn)
-    return _dict(conn.execute("SELECT * FROM base_resumes WHERE id = ?",
-                              (row["id"],)).fetchone(), paths)
 
 
 def set_language(conn: sqlite3.Connection, paths: Paths, language: str) -> dict:
@@ -198,7 +201,7 @@ def set_language(conn: sqlite3.Connection, paths: Paths, language: str) -> dict:
 
 def import_resume(
     conn: sqlite3.Connection, paths: Paths, source: Path, text_file: Path | None = None,
-    language: str | None = None,
+    language: str | None = None, translated_from: str | None = None,
 ) -> dict:
     """Store `source` as the base resume in `language`. The previous base resume in
     that language is kept under a versioned name; other languages are untouched.
@@ -207,6 +210,10 @@ def import_resume(
     read visually and confirmed by the user).
     """
     language = _language(language)
+    translated_from = _language(translated_from)
+    if translated_from is not None and translated_from == language:
+        raise JobTrackerError("invalid_language",
+                              "a resume cannot be translated into its own language")
     if not source.is_file():
         raise JobTrackerError("not_found", f"There is no file at '{source}'")
     extension = source.suffix.lower()
@@ -245,8 +252,6 @@ def import_resume(
 
     paths.profile.mkdir(parents=True, exist_ok=True)
     previous = _current_in(conn, language)
-    has_main = conn.execute("SELECT 1 FROM base_resumes WHERE is_main = 1").fetchone()
-    becomes_main = previous["is_main"] if previous is not None else has_main is None
     latest = conn.execute("SELECT COALESCE(MAX(version), 0) FROM base_resumes").fetchone()[0]
     version = latest + 1
 
@@ -268,8 +273,7 @@ def import_resume(
                 shutil.move(str(old_path), str(paths.profile / new_name))
             renamed[name] = new_name
         conn.execute(
-            "UPDATE base_resumes SET is_current = 0, is_main = 0, file_name = ?, text_name = ?"
-            " WHERE id = ?",
+            "UPDATE base_resumes SET is_current = 0, file_name = ?, text_name = ? WHERE id = ?",
             (renamed[previous["file_name"]], renamed[previous["text_name"]], previous["id"]),
         )
 
@@ -283,20 +287,20 @@ def import_resume(
     now = now_iso()
     cursor = conn.execute(
         "INSERT INTO base_resumes (version, file_name, text_name, original_name, characters,"
-        " text_source, imported_at, is_current, language, is_main)"
+        " text_source, imported_at, is_current, language, translated_from)"
         " VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
         (version, file_name, text_name, source.name, characters, text_source, now, language,
-         int(bool(becomes_main))),
+         translated_from),
     )
     conn.execute(
         "INSERT INTO events (entity_type, entity_id, kind, data, created_at)"
         " VALUES ('base_resume', ?, 'imported', ?, ?)",
         (str(version), json.dumps({"replaced": previous["version"] if previous else None,
-                                   "language": language}), now),
+                                   "language": language,
+                                   "translated_from": translated_from}), now),
     )
-    # Scores are judged against the main base resume: only a new version of it
-    # makes them stale. Another language version has the same content.
-    rescore = previous is not None and bool(previous["is_main"])
+    # Postings in this language were judged against the replaced version.
+    rescore = previous is not None
     if rescore:
         conn.execute(
             "INSERT INTO settings (key, value) VALUES (?, ?)"
@@ -317,3 +321,33 @@ def import_resume(
 def rescore_since(conn: sqlite3.Connection) -> str | None:
     row = conn.execute("SELECT value FROM settings WHERE key = ?", (RESCORE_SETTING,)).fetchone()
     return row["value"] if row else None
+
+
+def translate_draft(conn: sqlite3.Connection, paths: Paths, source_language: str,
+                    target_language: str, edits: object) -> dict:
+    """Write a translated copy of the user's resume in `source_language`, same design,
+    for the user to review in Word. It is not a base resume until imported."""
+    from . import docx_tools
+    from .paths import next_version_path
+
+    source_language = _language(source_language)
+    target_language = _language(target_language)
+    if source_language == target_language:
+        raise JobTrackerError("invalid_language", "translate into a different language")
+    row = _current_in(conn, source_language)
+    if row is None:
+        raise JobTrackerError("no_resume_for_language",
+                              f"There is no base resume in '{source_language}'",
+                              language=source_language)
+    source = paths.profile / row["file_name"]
+    target = next_version_path(paths.profile, f"resume-draft-{target_language}", "docx")
+    result = docx_tools.tailor(source, target, edits)
+    return {
+        "file": str(target), "file_name": target.name,
+        "from": {"language": source_language, "version": row["version"]},
+        "to": target_language, "edits": result["edits"],
+        "layout": docx_tools.layout_check(source, target),
+        "next": f"Ask the user to open {target.name} in Word, adjust it, and confirm; then "
+                f"`resume import <file> --language {target_language} "
+                f"--translated-from {source_language}`.",
+    }

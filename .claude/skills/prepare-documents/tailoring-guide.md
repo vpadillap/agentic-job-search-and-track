@@ -102,30 +102,18 @@ A PDF cannot be edited in place without changing its design.
 
 ## 5. Language
 
-Write in the posting's language. The user may have their own resume in
-several languages; `jt documents tailor` starts from the one in the posting's
-language when it exists, and says `translate: false`. Then do not translate:
-tailor the user's own wording.
+Write in the posting's language, starting from the user's own resume in that
+language: tailor their wording, never translate it. Each resume is the source
+for its own language.
 
-Only when `translate` is true (the user has no resume in the posting's
-language, so the main one was used) is the tailored resume a translation plus
-tailoring. Mention in your report that the user can give you a version in that
-language to use next time. When translating:
+If the user has no resume in the posting's language, there is nothing to
+tailor yet: do not translate on your own. Ask the user to give you a resume in
+that language, or offer to translate one of theirs as a draft they review
+(`.claude/skills/setup/resume-translation.md`).
 
-- Translate faithfully, line by line; translate section headings too.
-- Employer names, product names, and certifications stay as they are.
-- Job titles: keep the original title when it is the usual term in the
-  posting's market (many tech titles stay in English); otherwise translate it.
-  Do not infer the user's gender from their name: if the language needs a
-  gendered form, use the one the user already uses (profile, earlier
-  documents) or a neutral wording, and mention it in the summary.
-- Start the `summary` with "Translated from <language>." so the user knows.
-- `characters.change_pct` beyond ±10 is expected when translating; watch
-  `same_shape` instead.
-
-If the base used is older than the main resume (compare `imported_at` in
-`jt resume show`), say so in your report: the user may have updated only one
-language version.
+If the user's resumes in different languages were updated at different times
+(compare `imported_at` in `jt resume show`), mention it when the one you used
+is clearly older: they may have updated only one language version.
 
 ## 6. The summary
 
