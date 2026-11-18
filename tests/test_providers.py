@@ -87,7 +87,7 @@ def test_missing_tool_names_provider_tool_and_install(workspace, cli, providers_
     assert alpha["status"] == "fail" and "Alpha" in alpha["detail"]
     assert "playwright-surely-missing" in alpha["detail"]
     assert "providers/alpha.md" in alpha["fix"]
-    assert 'pip install "scrapling[fetchers]", then: scrapling install' in beta["fix"]
+    assert "jt providers install <provider>" in beta["fix"]
 
 
 def test_disabled_providers_are_not_checked(workspace, cli, providers_dir, monkeypatch):
@@ -231,47 +231,50 @@ def test_linkedin_is_read_logged_out_over_http():
     assert "throttles or blocks requests from the user's IP address" in text
 
 
-def test_bumeran_is_read_in_a_real_browser_without_an_account():
+def test_bumeran_is_read_in_a_headless_scrapling_session_without_an_account():
     from jobtracker.core import providers
 
     listed = {p["id"]: p for p in providers.list_providers(TEMPLATE.parent)}
     bumeran = listed["bumeran"]
     assert bumeran["valid"], bumeran["problems"]
     assert (bumeran["access"], bumeran["requires_login"], bumeran["live_walk"]) == (
-        "playwright", False, False)
-    assert bumeran["dependencies"] == ["playwright"] and bumeran["regions"] == ["PE"]
+        "scrapling", False, False)
+    assert bumeran["dependencies"] == ["scrapling"] and bumeran["regions"] == ["PE"]
     text = (TEMPLATE.parent / "bumeran.md").read_text(encoding="utf-8")
     assert "jt providers read bumeran <run_id> --title" in text
     assert "--readings" in text
     access = text.split("## Search recipe")[0]
-    for forbidden in ("calling Bumeran's API directly", "curl_cffi", "stealth plugins",
-                      "proxies", "the user's Bumeran account", "postularV2"):
+    for forbidden in ("calling Bumeran's API directly", "the user's Bumeran account",
+                      "postularV2"):
         assert forbidden in access                         # named as forbidden
-    assert "A browser window opens" in access
+    assert "No window opens" in access and "jt providers install bumeran" in access
     assert "1.5.1" in text and "blocks the user's IP address" in text
 
 
-def test_doctor_names_playwright_for_an_enabled_bumeran(workspace, cli, monkeypatch):
+def test_doctor_names_the_install_command_for_an_enabled_bumeran(workspace, cli, monkeypatch):
     monkeypatch.setenv("JOBTRACKER_PROVIDERS_DIR", str(TEMPLATE.parent))
     cli("providers", "enable", "bumeran")
-    monkeypatch.setattr(doctor, "_tool_available", lambda name: name != "playwright")
+    monkeypatch.setattr(doctor, "_tool_available", lambda name: name != "scrapling")
     monkeypatch.setattr(doctor.subprocess, "run",
                         lambda *a, **k: subprocess.CompletedProcess(a, 0, ".githooks\n", ""))
     _, out, _ = cli("doctor")
     check = {c["id"]: c for c in out["checks"]}["provider:bumeran"]
-    assert check["status"] == "fail" and "playwright" in check["detail"]
-    assert "python -m playwright install chromium" in check["fix"]
+    assert check["status"] == "fail" and "scrapling" in check["detail"]
+    assert "jt providers install <provider>" in check["fix"]
 
 
-def test_indeed_is_read_logged_out_in_a_visible_browser():
+def test_indeed_is_read_logged_out_in_headless_sessions():
     from jobtracker.core import providers
 
     listed = {p["id"]: p for p in providers.list_providers(TEMPLATE.parent)}
     item = listed["indeed"]
     assert item["valid"] is True
     assert (item["access"], item["requires_login"], item["dependencies"]) == (
-        "playwright", False, ["playwright"])
+        "scrapling", False, ["scrapling"])
+    assert item["max_results_per_query"] == 60
     text = (TEMPLATE.parent / "indeed.md").read_text(encoding="utf-8")
     assert "jt providers read indeed <run_id> --title" in text and "--readings" in text
-    assert "a headless browser" in text.split("## Search recipe")[0]   # named as forbidden
+    access = text.split("## Search recipe")[0]
+    assert "posting pages" in access and "the user's Indeed account" in access  # forbidden
+    assert "One page per search, so several searches per title" in access
     assert "blocks requests from the user's IP address" in " ".join(text.split())

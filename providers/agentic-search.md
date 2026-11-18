@@ -49,6 +49,7 @@ on or off, and never import a posting found only there. Today:
 | bumeran | `bumeran.com.pe` (and other `bumeran.*` sites) |
 | glassdoor | `glassdoor.com` and its country sites |
 | greenhouse | `greenhouse.io` (`job-boards.greenhouse.io`, `boards.greenhouse.io`, `job-boards.eu.greenhouse.io`) |
+| getonbrd | `getonbrd.com` |
 
 `jt providers list` shows every provider file; when a new one appears, treat
 its site the same way (its file names it).

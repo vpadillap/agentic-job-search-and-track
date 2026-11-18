@@ -6,7 +6,7 @@ regions: [global]                # [global], or the uppercase ISO codes of a loc
 access: chrome-extension         # chrome-extension | playwright | scrapling | http | web-search
 requires_login: false            # decided by this provider's own study
 live_walk: false                 # true = the user must be present; skip in unattended runs
-dependencies: []                 # e.g. [playwright], installed by /setup when this provider is enabled
+dependencies: []                 # e.g. [scrapling]; the agent installs it (jt providers install <id>)
 max_results_per_query: 50
 min_seconds_between_requests: 3
 last_verified: 2026-01-01

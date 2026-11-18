@@ -15,7 +15,6 @@ import html
 import json
 import re
 import time
-import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -35,8 +34,6 @@ API = "https://boards-api.greenhouse.io/v1/boards"
 LINK = re.compile(
     r"^https?://(?:job-boards(?:\.eu)?|boards)\.greenhouse\.io/(?:embed/job_board\?for=)?"
     r"(?P<board>[A-Za-z0-9_-]+)(?:/jobs/(?P<job>\d+))?/?(?:[?#].*)?$")
-SENIORITY = {"senior", "sr", "junior", "jr", "semi", "mid", "lead", "principal", "staff",
-             "i", "ii", "iii", "iv", "de", "of", "the", "and", "y", "en", "a"}
 REMOTE = ("remote", "remoto", "anywhere", "worldwide")
 FAILURES_IN_A_ROW = 3
 KINDS = {"input_text": "text", "textarea": "long_text", "input_file": "file",
@@ -77,16 +74,8 @@ def parse_links(links: list[object]) -> tuple[list[tuple[str, str]], list[str], 
     return postings, boards, ignored
 
 
-def _words(text: str) -> list[str]:
-    ascii_text = unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode()
-    return [w for w in re.split(r"[^a-z0-9]+", ascii_text.lower()) if w]
-
-
-def title_matches(searched: str, posting: str) -> bool:
-    """Every word of the searched title, seniority and filler words aside."""
-    wanted = [w for w in _words(searched) if w not in SENIORITY]
-    have = set(_words(posting))
-    return bool(wanted) and all(w in have for w in wanted)
+_words = common.words
+title_matches = common.title_matches
 
 
 def _split(words: str) -> list[str]:

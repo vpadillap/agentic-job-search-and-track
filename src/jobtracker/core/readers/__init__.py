@@ -21,7 +21,8 @@ READERS = {"linkedin": "jobtracker.core.readers.linkedin",
            "bumeran": "jobtracker.core.readers.bumeran",
            "indeed": "jobtracker.core.readers.indeed",
            "glassdoor": "jobtracker.core.readers.glassdoor",
-           "greenhouse": "jobtracker.core.readers.greenhouse"}
+           "greenhouse": "jobtracker.core.readers.greenhouse",
+           "getonbrd": "jobtracker.core.readers.getonbrd"}
 SALARY_READERS = {"glassdoor": "jobtracker.core.readers.glassdoor"}
 # Options a reader takes besides the title and location: CLI flag -> keyword argument.
 OPTIONS = {"glassdoor": {"search_url": "search_url_given"},

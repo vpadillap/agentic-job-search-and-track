@@ -118,7 +118,8 @@ True, solve_cloudflare=True, locale=…)`, one session per call:
   1. relevance, the run's window (`fromage`);
   2. sorted by date (`sort=date`), the run's window;
   3. last day (`fromage=1`);
-  4. the profile's city (`l=<city>`), when the profile has one;
+  4. the other place: the whole country (no `l`) when the agent passed a city
+     with `--location` (variants 1–3 and 6 use that city);
   5. remote (`l=remoto`);
   6. last 3 days (`fromage=3`), when the window is longer than 3 days.
 

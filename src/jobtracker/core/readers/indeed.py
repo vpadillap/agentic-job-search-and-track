@@ -1,10 +1,12 @@
 """Indeed reader: the browsing and extraction part of providers/indeed.md.
 
-One call searches one title on the Indeed site of the profile's country in an
-ordinary visible Chromium with a fresh profile (logged out by construction: no
-cookies, no account). The postings come from the job-card data the search page
-embeds; each new posting is clicked and its description copied from the side
-panel. Posting pages (`/viewjob`) are never opened: they ask to sign in.
+One call searches one title on the Indeed site of the profile's country with
+headless Scrapling stealth sessions (logged out by construction: no cookies, no
+account, no window). Logged out, Indeed serves only the first results page of a
+search, so the reader loads the first page of several variants of the search
+(relevance, date, last day, the other place, remote, last 3 days), each in a
+fresh session, and clicks each new posting to copy its description from the side
+panel. Posting pages (`/viewjob`) are never opened.
 Pacing, the one-call lock, postings already stored, and stops are shared with
 the other readers (`common`). What needs judgment is left to the agent.
 """
@@ -15,6 +17,7 @@ import re
 import time
 import urllib.parse
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Protocol
 
@@ -26,9 +29,11 @@ from . import common
 PROVIDER = "indeed"
 LABEL = "Indeed"
 FROMAGE = (1, 3, 7, 14)          # posting ages (days) Indeed's search offers
-PAGE_STEP = 10                   # Indeed's `start` advances by 10
+EMPTY_VARIANTS_IN_A_ROW = 2      # variants adding nothing new: the title is done
+INSTALL = "jt providers install indeed"
 JOBCARDS = 'window.mosaic.providerData["mosaic-provider-jobcards"]'
-BLOCK_MARKERS = ("Blocked", "Security Check", "Just a moment", "Verificación de seguridad")
+BLOCK_MARKERS = ("Blocked", "Security Check", "Just a moment", "Verificación de seguridad",
+                 "Un momento")
 SIGN_IN_MARKERS = ("Iniciar sesión", "Sign in", "Cuentas Indeed", "Indeed Accounts")
 # Indeed's job types that say the contract type clearly; anything else is left to the agent.
 CONTRACT_TYPES = {"tiempo completo": "full-time", "full-time": "full-time",
@@ -40,13 +45,19 @@ LOCALES = {"PE": "es-PE", "MX": "es-MX", "CO": "es-CO", "CL": "es-CL", "AR": "es
 
 
 class Browser(Protocol):
-    def search(self, url: str) -> tuple[int | None, str, str]:
-        """Open a search page: (HTTP status, page HTML, page title)."""
-
-    def open(self, job_id: str) -> tuple[str | None, str]:
-        """Click a posting on the current search page: (side-panel text, page title)."""
+    def search(self, url: str, select: Callable[[str], list[str]]) -> SearchPage:
+        """Load one first page in a fresh session, ask `select` which postings to open
+        (given the page HTML), and click each one: the page and the panels' texts."""
 
     def close(self) -> None: ...
+
+
+@dataclass
+class SearchPage:
+    status: int | None
+    html: str
+    title: str
+    panels: dict[str, str | None] = field(default_factory=dict)   # job id -> description
 
 
 # ── search parameters and parsing ─────────────────────────────────────────
@@ -61,10 +72,33 @@ def fromage(days: int) -> int:
     return next((value for value in FROMAGE if days <= value), FROMAGE[-1])
 
 
-def search_url(host: str, title: str, location: str | None, days: int, start: int) -> str:
-    query = {"q": title, "l": location, "fromage": fromage(days), "start": start or None}
+def search_url(host: str, title: str, location: str | None, days: int,
+               sort: str | None = None) -> str:
+    query = {"q": title, "l": location, "fromage": fromage(days), "sort": sort}
     return f"https://{host}/jobs?" + urllib.parse.urlencode(
         {k: v for k, v in query.items() if v is not None})
+
+
+def variants(host: str, title: str, location: str | None, days: int) -> list[tuple[str, str]]:
+    """First pages of the same search that Indeed answers logged out, in order: each
+    one adds postings the others do not show (2026-11-18: about three times one page)."""
+    window = fromage(days)
+    found = [("relevance", search_url(host, title, location, days)),
+             ("date", search_url(host, title, location, days, sort="date"))]
+    if window > 1:
+        found.append(("last day", search_url(host, title, location, 1)))
+    if location:
+        found.append(("whole country", search_url(host, title, None, days)))
+    found.append(("remote", search_url(host, title, "remoto", days)))
+    if window > 3:
+        found.append(("last 3 days", search_url(host, title, location, 3)))
+    return found
+
+
+def site_total(html: str) -> int | None:
+    """Indeed's own count of results for the search, from the page data."""
+    match = re.search(r'"(?:totalJobCount|uniqueJobsCount)"\s*:\s*(\d+)', html or "")
+    return int(match.group(1)) if match else None
 
 
 def _salary_text(salary: dict | None) -> str | None:
@@ -135,60 +169,78 @@ def _draft(card: dict, description: str, ctx: common.Context, host: str) -> dict
 
 # ── the real browser ──────────────────────────────────────────────────────
 
-class PlaywrightBrowser:
-    """An ordinary visible Chromium with a fresh profile: no cookies, no account."""
+class ScraplingBrowser:
+    """Headless Scrapling stealth sessions: a fresh one for every first page, no
+    cookies, no account, no window."""
 
     PANEL = ".simple-job-description-html"
 
-    def __init__(self, locale: str) -> None:
+    def __init__(self, locale: str, pause: float = common.MIN_SECONDS) -> None:
         try:
-            from playwright.sync_api import sync_playwright
+            from scrapling.fetchers import StealthySession
         except ImportError as error:
             raise JobTrackerError(
-                "missing_dependency", "Indeed needs Playwright: pip install playwright, then "
-                "python -m playwright install chromium") from error
-        self._playwright = sync_playwright().start()
-        try:
-            self._browser = self._playwright.chromium.launch(headless=False)
-        except Exception as error:  # the browser itself is not installed
-            self._playwright.stop()
-            raise JobTrackerError(
-                "missing_dependency", "Indeed needs Chromium for Playwright: "
-                "python -m playwright install chromium") from error
-        self._context = self._browser.new_context(locale=locale)
-        self._page = self._context.new_page()
-        self._last_panel = ""
+                "missing_dependency", f"Indeed needs Scrapling, which is not installed. Run: "
+                f"{INSTALL}", tool="scrapling") from error
+        import logging
 
-    def search(self, url: str) -> tuple[int | None, str, str]:
-        response = self._page.goto(url, wait_until="domcontentloaded", timeout=45000)
-        self._page.wait_for_timeout(3000)  # a check, if any, completes by itself
-        return (response.status if response else None, self._page.content(),
-                self._page.title())
+        logging.getLogger("scrapling").setLevel(logging.WARNING)  # keep the output clean
+        self._session_class = StealthySession
+        self._locale = locale
+        self._pause = pause
 
-    def open(self, job_id: str) -> tuple[str | None, str]:
-        link = self._page.locator(f'a.jcs-JobTitle[data-jk="{job_id}"]')
-        if link.count() == 0:
-            return None, self._page.title()
-        link.first.click()
-        panel = self._page.locator(self.PANEL)
-        text = None
+    def _panel_text(self, page, job_id: str, last: str) -> str | None:
+        page.locator(f'a.jcs-JobTitle[data-jk="{job_id}"]').first.click()
+        panel = page.locator(self.PANEL)
         for _ in range(20):  # up to 10 s for this posting's description
-            self._page.wait_for_timeout(500)
-            if f"vjk={job_id}" in self._page.url and panel.count():
-                candidate = panel.first.inner_text()
-                if candidate.strip() and candidate != self._last_panel:
-                    text = candidate
-                    break
-        if text is not None:
-            self._last_panel = text
-        return text, self._page.title()
+            page.wait_for_timeout(500)
+            if f"vjk={job_id}" in page.url and panel.count():
+                text = panel.first.inner_text()
+                if text.strip() and text != last:
+                    return text
+        return None
+
+    def search(self, url: str, select: Callable[[str], list[str]]) -> SearchPage:
+        result = SearchPage(None, "", "")
+        documents: list[int] = []
+
+        def setup(page):
+            page.on("response", lambda r: documents.append(r.status)
+                    if r.request.resource_type == "document" and "/jobs" in r.url else None)
+            return page
+
+        def act(page):
+            result.html, result.title = page.content(), page.title()
+            last = ""
+            for job_id in select(result.html):
+                if page.locator(f'a.jcs-JobTitle[data-jk="{job_id}"]').count() == 0:
+                    result.panels[job_id] = None
+                    continue
+                page.wait_for_timeout(int(self._pause * 1000))
+                text = self._panel_text(page, job_id, last)
+                result.panels[job_id] = text
+                last = text or last
+            return page
+
+        try:
+            session = self._session_class(headless=True, solve_cloudflare=True,
+                                          locale=self._locale, timeout=120000, wait=3000)
+            session.__enter__()
+        except Exception as error:  # the browser itself is not installed
+            raise JobTrackerError(
+                "missing_dependency", f"Scrapling's browser could not start ({error}). Run: "
+                f"{INSTALL}", tool="scrapling") from error
+        try:
+            response = session.fetch(url, page_setup=setup, page_action=act)
+            result.status = documents[-1] if documents else response.status
+            if not result.html:
+                result.html = response.html_content
+        finally:
+            session.__exit__(None, None, None)
+        return result
 
     def close(self) -> None:
-        try:
-            self._context.close()
-            self._browser.close()
-        finally:
-            self._playwright.stop()
+        return None
 
 
 # ── the reader ────────────────────────────────────────────────────────────
@@ -197,7 +249,7 @@ BrowserFactory = Callable[[str], Browser]
 
 
 def read(paths: Paths, run_id: int, title: str, location: str | None = None, *,
-         browser: BrowserFactory = PlaywrightBrowser, clock: Callable[[], float] = time.time,
+         browser: BrowserFactory = ScraplingBrowser, clock: Callable[[], float] = time.time,
          sleep: Callable[[float], None] = time.sleep) -> dict:
     """Search one title and write the drafts of its new postings. Returns a summary."""
     title = " ".join((title or "").split())
@@ -214,11 +266,13 @@ def read(paths: Paths, run_id: int, title: str, location: str | None = None, *,
         lock.unlink(missing_ok=True)
 
 
-def _blocked(status: int | None, title: str, url: str) -> None:
+def _blocked(status: int | None, title: str) -> str | None:
+    """Why a page is not results: a block or a sign-in page; None when it is results."""
     if status in (403, 429) or any(marker in title for marker in BLOCK_MARKERS):
-        raise common.Stop("blocked", f"{status} '{title}' on {url}")
+        return f"{status} '{title}'"
     if any(marker in title for marker in SIGN_IN_MARKERS):
-        raise common.Stop("blocked", f"a sign-in page ('{title}') instead of results on {url}")
+        return f"a sign-in page ('{title}') instead of results"
+    return None
 
 
 def _read(paths: Paths, ctx: common.Context, title: str, location: str | None,
@@ -228,10 +282,12 @@ def _read(paths: Paths, ctx: common.Context, title: str, location: str | None,
     handled = set(state["job_ids"])
     host = site(ctx.country)
     summary: dict = {"provider": PROVIDER, "title": title, "requests": 0, "pages": 0,
-                     "cards": 0, "outside_window": 0, "duplicate_in_run": 0, "already_seen": 0,
-                     "new": 0, "unreadable": [], "drafts_path": None, "stopped": None}
+                     "site_total": None, "variants": [], "ended_early": None, "cards": 0,
+                     "outside_window": 0, "duplicate_in_run": 0, "already_seen": 0, "new": 0,
+                     "capped": False, "unreadable": [], "drafts_path": None, "stopped": None}
     drafts: list[dict] = []
     seen: list[dict] = []
+    in_title: set[str] = set()          # every job key met for this title
     browser: Browser | None = None
 
     def pace() -> None:
@@ -241,69 +297,91 @@ def _read(paths: Paths, ctx: common.Context, title: str, location: str | None,
         state["requests"] += 1
         summary["requests"] += 1
 
-    def done(capture: str, suffix: str) -> None:
-        state["last_request_at"] = clock()
-        (ctx.folder / f"{PROVIDER}-{state['requests']}.{suffix}").write_text(
-            capture, encoding="utf-8")
-        common.save_state(ctx, state)
-
     def keep(job_id: str) -> None:
         handled.add(job_id)
         state["job_ids"].append(job_id)
 
     try:
         browser = browser_factory(LOCALES.get((ctx.country or "").upper(), "en-US"))
-        start = 0
-        while summary["cards"] < ctx.max_results:
-            url = search_url(host, title, location, ctx.days, start)
+        empty_in_a_row = 0
+        for number, (name, url) in enumerate(variants(host, title, location, ctx.days)):
+            if summary["capped"]:
+                break
+            chosen: dict[str, dict] = {}
+            fresh: list[str] = []
+
+            def select(html: str, chosen: dict[str, dict] = chosen,
+                       fresh: list[str] = fresh) -> list[str]:
+                cards = parse_cards(html) or []
+                to_open = []
+                for card in cards:
+                    job_id = card["external_id"]
+                    if job_id in in_title:
+                        continue
+                    in_title.add(job_id)
+                    fresh.append(job_id)
+                    summary["cards"] += 1
+                    if len(drafts) + len(seen) + len(to_open) >= ctx.max_results:
+                        summary["capped"] = True
+                        break
+                    if card["posted_at"] and card["posted_at"] < ctx.since:
+                        summary["outside_window"] += 1
+                    elif job_id in handled:
+                        summary["duplicate_in_run"] += 1
+                    elif job_id in ctx.known:
+                        seen.append(card)
+                        keep(job_id)
+                    else:
+                        chosen[job_id] = card
+                        to_open.append(job_id)
+                return to_open
+
             pace()
             try:
-                status, html, page_title = browser.search(url)
+                page = browser.search(url, select)
+            except JobTrackerError:
+                raise
             except Exception as error:  # the browser could not load the page
                 raise common.Stop("error", f"the browser failed on {url}: {error}") from error
             finally:
                 state["last_request_at"] = clock()
-            done(html, "html")
-            _blocked(status, page_title, url)
             summary["pages"] += 1
-            cards = parse_cards(html)
-            if cards is None:
-                raise common.Stop("error", f"no job-card data on {url}: the page changed")
-            if not any(c["external_id"] not in handled for c in cards):
-                break  # no (more) new results for this title
-            for card in cards:
-                if summary["cards"] >= ctx.max_results:
-                    break
-                summary["cards"] += 1
-                job_id = card["external_id"]
-                if card["posted_at"] and card["posted_at"] < ctx.since:
-                    summary["outside_window"] += 1
-                elif job_id in handled:
-                    summary["duplicate_in_run"] += 1
-                elif job_id in ctx.known:
-                    seen.append(card)
-                    keep(job_id)
-                else:
-                    pace()
-                    try:
-                        text, page_title = browser.open(job_id)
-                    except Exception as error:
-                        raise common.Stop("error", f"the browser failed opening {job_id} on "
-                                          f"{url}: {error}") from error
-                    finally:
-                        state["last_request_at"] = clock()
-                    keep(job_id)
-                    _blocked(None, page_title, url)
-                    if not text or not text.strip():
-                        done("", "txt")
-                        raise common.Stop("error", f"no description panel for {job_id} on "
-                                          f"{url}: the page changed")
-                    description = plain_text(text)
-                    done(description, "txt")
-                    drafts.append(_draft(card, description, ctx, host))
-            if len(cards) < PAGE_STEP:
-                break  # a short page is the last one
-            start += PAGE_STEP
+            (ctx.folder / f"{PROVIDER}-{state['requests']}.html").write_text(
+                page.html, encoding="utf-8")
+            common.save_state(ctx, state)
+            why = _blocked(page.status, page.title)
+            if why:
+                if number == 0:
+                    raise common.Stop("blocked", f"{why} on {url}")
+                summary["ended_early"] = f"{name}: {why}"   # later variants only: not a block
+                break
+            if parse_cards(page.html) is None:
+                if number == 0:
+                    raise common.Stop("error", f"no job-card data on {url}: the page changed")
+                summary["ended_early"] = f"{name}: no job-card data"
+                break
+            if summary["site_total"] is None:
+                summary["site_total"] = site_total(page.html)
+            added = 0
+            for job_id, card in chosen.items():
+                keep(job_id)
+                text = page.panels.get(job_id)
+                if not text or not text.strip():
+                    summary["unreadable"].append(job_id)
+                    raise common.Stop("error", f"no description panel for {job_id} on {url}: "
+                                      "the page changed")
+                description = plain_text(text)
+                (ctx.folder / f"{PROVIDER}-{state['requests']}-{job_id}.txt").write_text(
+                    description, encoding="utf-8")
+                drafts.append(_draft(card, description, ctx, host))
+                added += 1
+            summary["variants"].append({"variant": name, "cards": len(fresh), "new": added})
+            empty_in_a_row = 0 if fresh else empty_in_a_row + 1
+            if empty_in_a_row >= EMPTY_VARIANTS_IN_A_ROW:
+                break
+            total = summary["site_total"]
+            if total is not None and len(in_title) >= total:
+                break
     except common.Stop as stop:
         summary["stopped"] = {"reason": stop.reason, "detail": stop.detail}
     finally:

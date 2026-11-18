@@ -47,9 +47,10 @@ REGIONS_MESSAGE = ("field 'regions' must be [global] or a list of two-letter cou
 
 # How to install tools that provider files commonly depend on.
 INSTALL_HINTS = {
-    "playwright": "pip install playwright, then: python -m playwright install chromium",
-    "scrapling": 'pip install "scrapling[fetchers]", then: scrapling install (its browser,'
-                 " about 120 MB)",
+    "scrapling": "jt providers install <provider> (installs scrapling[fetchers] and its"
+                 " browser, about 150 MB, and checks it works)",
+    "playwright": "jt providers install <provider> (installs playwright and Chromium and"
+                  " checks it works)",
     "chrome-extension": "Install Claude in Chrome and connect it to Claude Code",
 }
 

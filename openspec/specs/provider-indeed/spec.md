@@ -7,23 +7,6 @@ conservative pacing, and without ever touching the user's Indeed account.
 
 ## Requirements
 
-### Requirement: Logged-out visible browser only
-The Indeed provider SHALL read Indeed only through the system's Indeed reader,
-which drives an ordinary visible Chromium with a fresh profile: no cookies, no
-account, no sign-in. It SHALL use only Indeed's search page and the posting
-side panel that page shows. It SHALL NOT use plain HTTP, a headless browser,
-the user's browser or session, stealth tools, proxies, or anything meant to
-get around Indeed's checks, and SHALL NOT open posting pages that ask to sign
-in.
-
-#### Scenario: Normal search
-- **WHEN** a search runs with Indeed enabled
-- **THEN** the reader opens a fresh visible browser with no cookies, and every Indeed result comes from the search page and its side panel
-
-#### Scenario: Requests only through the reader
-- **WHEN** the agent searches Indeed
-- **THEN** it runs the reader command and does not open Indeed by any other means
-
 ### Requirement: Pacing and stop conditions
 The reader SHALL wait at least 5 seconds between page loads and clicks, also
 across calls in the same run; SHALL run one call at a time per run; SHALL
@@ -56,10 +39,31 @@ the agent's reading of the title and the complete description.
 
 ### Requirement: Terms-of-use risk is stated
 The provider file SHALL state that Indeed's terms forbid automated access
-without permission, that the reader is still automated access although it
-uses an ordinary browser and no account, and that the realistic consequence
-is that Indeed blocks the user's IP address for a while.
+without permission, that the reader is automated access that gets past
+Indeed's automated checks although it uses no account, and that the realistic
+consequence is that Indeed blocks the user's IP address for a while.
 
 #### Scenario: Reading the provider file
 - **WHEN** the user or the agent reads `providers/indeed.md`
 - **THEN** the terms-of-use risk and its likely consequence are stated in it
+
+### Requirement: Logged-out headless session only
+The Indeed provider SHALL read Indeed only through the system's Indeed reader,
+which drives a headless stealth browser session (Scrapling) with no cookies,
+no account, and no sign-in. It SHALL use only Indeed's search page and the
+posting side panel that page shows. It SHALL NOT use the user's browser,
+session, or Indeed account, and SHALL NOT open posting pages. Because no
+account is involved, the session MAY get past Indeed's automated checks; no
+browser window opens.
+
+#### Scenario: Normal search
+- **WHEN** a search runs with Indeed enabled
+- **THEN** the reader opens a fresh headless session with no cookies, no window opens, and every Indeed result comes from the search page and its side panel
+
+#### Scenario: Requests only through the reader
+- **WHEN** the agent searches Indeed
+- **THEN** it runs the reader command and does not open Indeed by any other means
+
+#### Scenario: A further results page asks to sign in
+- **WHEN** a later results page of a title shows a sign-in or security page instead of results
+- **THEN** the reader ends that title with the postings already read, says so in its summary, does not record Indeed as blocked, and the next titles are still read

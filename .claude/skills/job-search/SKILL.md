@@ -43,6 +43,18 @@ default).
    resume in each language. A posting is scored against the resume in its own
    language: read each one's `text_path`.
 
+## 1b. Make sure every enabled job site can run
+
+The user never installs anything by hand: you do. `jt doctor`. For every
+`provider:<id>` check that fails because a tool is missing (an update can
+change what a site needs), run `jt providers install --enabled`. It installs
+the missing tools into the project's environment and checks they work. Tell
+the user in one line what was installed and why, with its size (for example:
+"Bumeran and Indeed now read without opening a window; I installed Scrapling,
+about 150 MB"). Then search as usual. Only a provider whose install failed is
+skipped later, with `--reason missing_dependency` and the failure in
+`--detail`.
+
 ## 2. Start the run
 
 `jt run start` (add `--days N` when the user gave a window). Keep from the
@@ -73,7 +85,8 @@ For each provider id in `to_search`, in order:
    `jt run provider <run_id> <id> --status skipped --reason live_walk` and
    continue with the next provider. Do the same with `--reason
    login_required` when it needs a login the user did not confirm, and with
-   `--reason missing_dependency` when a tool it needs is not available.
+   `--reason missing_dependency` when a tool it needs could not be installed
+   in step 1b.
 3. Search every title in `titles` with the provider's recipe, applying the
    profile's location, work mode, and posting-age filters when the site
    offers them. Respect `max_results_per_query` and

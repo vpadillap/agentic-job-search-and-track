@@ -408,8 +408,8 @@ class ScraplingFetcher:
             from scrapling.fetchers import StealthySession
         except ImportError as error:
             raise JobTrackerError(
-                "missing_dependency", 'Glassdoor needs Scrapling: pip install '
-                '"scrapling[fetchers]", then: scrapling install') from error
+                "missing_dependency", "Glassdoor needs Scrapling: run jt providers install "
+                "glassdoor") from error
         self._pause = pause
         import logging
 
@@ -421,7 +421,7 @@ class ScraplingFetcher:
         except Exception as error:  # the browser itself is not installed
             raise JobTrackerError(
                 "missing_dependency", f"Scrapling's browser is not ready ({error}); run: "
-                "scrapling install") from error
+                "jt providers install glassdoor") from error
 
     def _dismiss(self, page) -> bool:
         """Close a sign-up prompt without choosing anything; False when it stays open."""

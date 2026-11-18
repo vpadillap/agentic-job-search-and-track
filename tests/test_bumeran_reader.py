@@ -329,15 +329,15 @@ def test_a_second_call_while_one_runs_is_refused(workspace, run, fake):
 def test_a_missing_browser_opens_no_page_and_records_nothing(workspace, run, fake):
     @contextmanager
     def missing():
-        raise JobTrackerError("missing_dependency", "Install it with: "
-                              + bumeran.INSTALL_BROWSER, tool="chromium")
+        raise JobTrackerError("missing_dependency", "Run: " + bumeran.INSTALL,
+                              tool="scrapling")
         yield  # pragma: no cover
 
     with pytest.raises(JobTrackerError) as error:
         bumeran.read(workspace, run["run_id"], TITLE, browser=missing, clock=fake.clock,
                      sleep=fake.sleep)
     assert error.value.code == "missing_dependency"
-    assert "python -m playwright install chromium" in error.value.message
+    assert "jt providers install bumeran" in error.value.message
     assert run_status(workspace, run)["status"] == "pending"
     assert not (Path(run["capture_folder"]) / bumeran.LOCK_FILE).exists()
 
@@ -414,8 +414,8 @@ def test_drafts_import_with_questions_and_without_hints(workspace, run, fake, cl
 @pytest.mark.skipif(not __import__("os").environ.get("JOBTRACKER_LIVE"),
                     reason="contacts the real site; set JOBTRACKER_LIVE=1 to run it")
 def test_live_one_search_page():
-    """The recipe still works: one results page, read in a real browser window."""
-    with bumeran.playwright_browser() as open_page:
+    """The recipe still works: one results page, read in a headless Scrapling session."""
+    with bumeran.scrapling_browser() as open_page:
         page = open_page(bumeran.search_url("Data Engineer", 7), (bumeran.SEARCH_API,))
     bumeran._check(page, page.url)
     data = bumeran._data(page, bumeran.SEARCH_API, page.url)
