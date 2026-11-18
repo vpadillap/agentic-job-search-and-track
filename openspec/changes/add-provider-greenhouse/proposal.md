@@ -33,7 +33,29 @@ Logged out first, with real requests, scratch scripts only:
 
 The results go into this proposal and the design with a table like the one
 in `add-provider-indeed`, and the owner chooses the route before section 2
-starts. Everything below "What Changes" is the expected shape and is revised
+starts.
+
+### Study log (2026-11-18, logged out, real requests)
+
+| Route | Result |
+|---|---|
+| Candidate search `my.greenhouse.io/jobs/search?query=…`, plain HTTP | 302 to `/users/sign_in` |
+| Same, visible Chromium | lands on the MyGreenhouse sign-in page ("Send security code", or continue with a Google/other account): **the candidate search needs a sign-in** |
+| **Job Board API** `GET boards-api.greenhouse.io/v1/boards/<company>/jobs?content=true`, plain HTTP | **200, no sign-in, no challenge**, under 1.2 s: every current posting of the company with `id`, `title`, `location.name`, `offices`, `first_published`, `updated_at`, `language`, `company_name`, `absolute_url`, and the complete description (`content`, HTML, ~5,600–7,000 characters). Greenhouse 26 postings, Stripe 791, Airbnb 202 |
+| `GET …/jobs/<id>?questions=true` | 200: the **application-form questions** (label, required, field types such as `input_text`, `textarea`, `input_file`, `multi_value_single_select`, with options), plus location and demographic questions |
+| A company that has no board | 404 `{"status":404,"error":"Job not found"}` |
+| Boards on the European subdomain (`job-boards.eu.greenhouse.io/<company>`) | the same API host serves them (`saasgroup`: the same 13 postings as its EU page); `boards-api.eu.greenhouse.io` does not exist |
+| **Finding companies**: web search `site:job-boards.greenhouse.io "<title>" <city/country>` | finds boards of companies hiring for the title in the country (for "data engineer" Lima: thoughtworksreferral, launch2, topsort, santex, cookunity, coderoad, neoris); many results are old, but the API shows only current postings (thoughtworksreferral: 8 current postings in Peru/LatAm, e.g. "Lead Data Engineer, Lima"; neoris: board gone, 404) |
+
+**Terms.** Greenhouse's Job Board API documentation (docs.greenhouse.io,
+read 2026-11-18): "Job Board data is publicly available, so authentication is
+not required for any GET endpoints." No rate limits or usage restrictions are
+stated for GET; only submitting applications (POST, never done here) needs a
+key. `my.greenhouse.io/robots.txt` allows everything.
+
+**Not tried yet (1.2):** the candidate search through the user's own Chrome
+(Claude in Chrome) with the user signed in to MyGreenhouse. It needs the
+owner to sign in; whether it is worth it depends on the route chosen. Everything below "What Changes" is the expected shape and is revised
 after the study.
 
 ## What Changes (expected; revised after the study)
