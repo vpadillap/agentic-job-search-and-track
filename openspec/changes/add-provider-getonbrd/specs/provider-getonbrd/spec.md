@@ -27,6 +27,19 @@ states SHALL be kept as a hint for the agent's reading.
 - **WHEN** a posting states a salary range
 - **THEN** its record carries the range as the site states it, for the agent to read as the published salary
 
+### Requirement: Remote postings valid for the user's country
+A Get on Board search for a title SHALL include the postings in the user's
+country, the remote postings open to that country, and the postings remote
+from anywhere, and SHALL leave out remote postings limited to other countries.
+
+#### Scenario: Remote from anywhere
+- **WHEN** a posting is remote with no country limit and the user's country is PE
+- **THEN** it is read for the user, although the site's country filter leaves it out
+
+#### Scenario: Remote limited to another country
+- **WHEN** a posting is remote only for Chile and the user's country is PE
+- **THEN** it is not read
+
 ### Requirement: Not read by the agentic web search
 Once Get on Board has its own provider, the agentic web search SHALL NOT read
 it, whether the Get on Board provider is enabled or not.

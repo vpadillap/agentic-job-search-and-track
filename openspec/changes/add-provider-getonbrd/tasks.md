@@ -6,20 +6,28 @@
 - [x] 1.4 Coverage: countries served, how a posting states its country or remote scope; global or local
 - [x] 1.5 Terms of use and robots.txt
 - [x] 1.7 Scrapling for Get on Board: time and results against the other routes
-- [x] 1.8 Scrapling on Indeed, Bumeran, LinkedIn (study only): time, postings, descriptions, blocks, window; results recorded for the owner (changes to those providers go in their own changes)
-- [ ] 1.6 Write the results table into the proposal and design (D3+); owner chooses the route before section 2
+- [x] 1.8 Scrapling on Indeed, Bumeran, LinkedIn (study only): time, postings, descriptions, blocks, window; results recorded for the owner
+- [x] 1.6 Results in the proposal and design (D3–D7); owner's decisions of 2026-11-18 recorded
+- [ ] 1.9 Owner approves the design before section 2
 
-## 2. Implementation (shape depends on 1.6)
+## 2. Get on Board reader
 
-- [ ] 2.1 Reader `core/readers/getonbrd.py` and registry entry, or a step-by-step recipe
-- [ ] 2.2 Tests with fictional responses or pages: drafts, window, seen, salary hint, blocked, changed page, no results
+- [ ] 2.1 `core/readers/getonbrd.py`: two searches per title (country, `remote=true`), merge, paging, title match shared with Greenhouse, window, cap, drafts with sections as plain text and hints (D3, D4); stop rules (D5); registry entry
+- [ ] 2.2 Tests with a fake getter and fictional API answers: drafts, both searches merged, remote from anywhere kept, other titles dropped, window, seen, duplicate, paging, cap, no country, blocked, bad JSON, no results
+- [ ] 2.3 `providers/getonbrd.md`: `regions: [global]`, `access: http`, recipe, fields, terms (including the 24-hour clause as personal use), stop conditions, pitfalls
 
-## 3. Provider file
+## 3. Bumeran and Indeed on Scrapling
 
-- [ ] 3.1 `providers/getonbrd.md`: coverage, access, recipe, fields, terms, stop conditions, pitfalls
-- [ ] 3.2 `providers/agentic-search.md`: Get on Board in "Sites you never read here"
+- [ ] 3.1 Bumeran adapter: headless `StealthySession`, listener attached before each load, same captures; missing Scrapling reported (D6)
+- [ ] 3.2 Indeed adapter: headless `StealthySession`, side-panel clicks in the page action; a sign-in page on a later results page ends the title without a block (D6)
+- [ ] 3.3 `providers/bumeran.md` and `providers/indeed.md`: `access: scrapling`, `dependencies: [scrapling]`, no window, updated forbidden lists and terms text
+- [ ] 3.4 Tests: existing reader tests pass with their fake browsers; new tests for the Indeed sign-in-on-page-2 rule and the missing-Scrapling message
 
-## 4. Real check and wrap-up
+## 4. Agentic web search
 
-- [ ] 4.1 Real check: one title through the chosen route; import with readings in a temporary home
-- [ ] 4.2 `ruff check .`, full `pytest`, privacy guard, `openspec validate add-provider-getonbrd --strict`
+- [ ] 4.1 `providers/agentic-search.md`: Get on Board in "Sites you never read here"
+
+## 5. Real check and wrap-up
+
+- [ ] 5.1 Real checks in a temporary home with the fictional persona: Get on Board (one title), Bumeran (one title), Indeed (one title), each imported with readings
+- [ ] 5.2 `ruff check .`, full `pytest`, privacy guard, `openspec validate add-provider-getonbrd --strict`

@@ -77,8 +77,25 @@ LinkedIn), 5 s between requests, "data engineer" in Peru, 7 days:
 | Bumeran (visible window; captures `searchV2` and `fichaAvisoNormalizada`) | search page: 200 in 14 s, `searchV2` captured (5 postings); posting page: 200 in 13 s, ficha captured, description 2,627 characters | **Same data with no window**: a good candidate for its own change |
 | LinkedIn (plain HTTP to the public guest endpoint) | Scrapling `Fetcher` (browser impersonation): **429** on the first request; the same request in plain HTTP right after: 200 in 0.7 s | **Worse**: keep the current reader |
 
-Changing Indeed or Bumeran is not part of this change: each goes in its own
-change if the owner decides so.
+Indeed, second try (owner's request): a headless Scrapling session loads the
+search page and the **current side-panel clicks run inside it**: 15 cards, 5
+descriptions in a row complete (1,621–6,059 characters, the same as the
+visible reader), 0.6–1.2 s per posting plus the 5-second pacing, **no
+window**.
+
+**Remote postings on Get on Board** (checked against the Peru search): with
+`country_code=pe` the API includes "remote with local scope" postings open to
+Peru and leaves out those limited to other countries, but it also leaves out
+"remote from anywhere" postings (`fully_remote`), which are valid for a user in
+Peru; `remote=true` returns exactly those (6 for "data engineer"). So a title
+needs two searches: the country, and `remote=true`.
+
+**Owner's decisions (2026-11-18):** Get on Board through the public API,
+global, with remote postings valid for the user's country included; the
+24-hour clause accepted as personal use, with the date each posting was read
+visible in the panel and a link to the posting; and, in this same change,
+Bumeran and Indeed move to the headless Scrapling session (the owner chose to
+include them here instead of separate changes). LinkedIn stays as it is.
 
 Decision for the owner: the "refreshed at least every 24 hours" clause is
 written for sites that republish Get on Board's jobs; in this tool a posting
