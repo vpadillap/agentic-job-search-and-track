@@ -40,6 +40,30 @@ on, as for LinkedIn and Indeed.
 The results are written into this proposal and the design, and the owner
 approves them before the reader is built.
 
+### Study log
+
+**2026-11-18, point 1 (one results page in a row).** Peru, "data engineer",
+7 days: 11 results, 8 cards rendered. Seven postings read in a row with
+complete descriptions (2,241–7,190 characters). The sign-up modal appeared
+once, after the second posting; Escape closed it; it did not return. No
+sign-in wall.
+
+The eighth posting (one employer) never loaded its description: the panel
+showed its header and skeleton lines for more than 40 seconds, also when it
+was the first posting opened in a fresh session. So it is that posting, not
+throttling: the reader must skip such a posting with a note and continue,
+not stop.
+
+**2026-11-18, point 2 (more results), interrupted.** In the same browser
+session, loading a second search URL with `page.goto` got the "Un momento…"
+challenge, which did not clear. The same happened earlier in the day when a
+second page was loaded directly after calls to internal endpoints. Open
+question: is a second direct navigation in one session what triggers it, or
+the number of study sessions from this IP today (about 20)? The study pauses
+to let the IP cool down; the next probe moves to the next page or the next
+title through the page itself (the site's search box and its own
+"more results" control), not a second direct URL load.
+
 ## What Changes
 
 - New reader `jobtracker providers read glassdoor <run_id> --title "<title>"`:

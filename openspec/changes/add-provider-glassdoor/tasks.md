@@ -1,6 +1,6 @@
 ## 1. Finish the study (logged out, visible browser, scratch scripts only)
 
-- [ ] 1.1 Read every posting of one results page in a row with Escape for the modal; record how often it appears and whether a hard wall appears
+- [x] 1.1 Read every posting of one results page in a row with Escape for the modal; record how often it appears and whether a hard wall appears
 - [ ] 1.2 Pagination: how page 2 is reached and whether it stays open logged out
 - [ ] 1.3 `locId` for a country other than Peru through the site's own search box (no internal endpoints)
 - [ ] 1.4 Description completeness and the posting link to store
