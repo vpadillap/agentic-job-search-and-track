@@ -16,10 +16,12 @@ in `AGENTS.md`; this workflow is for cloners.)
   `docs/workspace-layout.md`. It is listed, validated, enabled, and searched
   like a repository provider, and is marked `origin: private`. A private file
   whose id is already used by a repository provider is reported invalid
-  ("id already used by providers/<id>.md"). Private providers never have a
-  reader; they are recipes the agent follows (HTTP pages, web search, or the
-  browser extension). A site that needs a reader is contributed as a request
-  for maintainers (see below).
+  ("id already used by providers/<id>.md"). Private providers have the same
+  power as the repository's: any access method, any dependencies, and their
+  own **reader** (`user-data/providers/<id>.py`, the same interface as the
+  repository readers and free to use `readers/common.py` for pacing, state,
+  seen postings, and stop rules). `jt providers read <id>` runs a private
+  reader exactly like a built-in one.
 - **Rules for adding a provider** (`providers/CONTRIBUTING.md`, linked from
   `providers/README.md` and the root README):
   - Study first, with real requests, logged out: try plain HTTP, headless
@@ -36,13 +38,17 @@ in `AGENTS.md`; this workflow is for cloners.)
   - Terms-of-use risk stated in the file.
 - **New skill `/add-provider`** (Spanish alias `/agregar-proveedor`), user
   mode: asks for the site, runs the study with the user, writes
-  `user-data/providers/<id>.md` from the template, validates it, runs the
-  proving search per country, records the study in
+  `user-data/providers/<id>.md` from the template, writes a reader with tests
+  (fictional pages) when the site needs one, installs any dependency after
+  asking, validates it, runs the proving search per country, records the
+  study in
   `user-data/providers/<id>.study.md` (private: it may contain search
   results), and enables the provider for the user.
 - **Offer a pull request** once the provider is proved: the agent asks the
   user; if they agree, it checks `gh` and the user's fork, creates a branch
-  `add-provider-<id>`, copies the provider file into `providers/`, writes the
+  `add-provider-<id>`, copies the provider file into `providers/` (and its
+  reader into `src/jobtracker/core/readers/<id>.py` with a registry entry and
+  its tests into `tests/`, dependencies into `pyproject.toml` extras), writes the
   OpenSpec change `openspec/changes/add-provider-<id>/` (proposal with the
   study table, spec, tasks marked done) from a template, runs `ruff`,
   `pytest`, and the privacy guard, and opens the pull request with

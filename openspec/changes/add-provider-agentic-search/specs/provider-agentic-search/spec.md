@@ -24,6 +24,25 @@ user's included titles, within the provider's limits.
 - **WHEN** the first results show a company hiring for one title and its careers page lists another opening matching an included title
 - **THEN** that opening is also read and imported
 
+### Requirement: Companies are remembered between runs
+The provider SHALL store every company it finds with its careers page and the
+titles it was found for, SHALL revisit known companies in later runs before
+discovering new ones, SHALL explore only companies it does not know yet when
+the user asks for different companies, and SHALL never explore a company the
+user excluded.
+
+#### Scenario: Second run
+- **WHEN** a run starts and earlier runs found companies hiring for an included title
+- **THEN** the agent checks those companies' careers pages for that title and then looks for new companies
+
+#### Scenario: User asks for other companies
+- **WHEN** the user asks the agent to look for different companies
+- **THEN** the run skips every known company and explores only companies not stored yet
+
+#### Scenario: Excluded company
+- **WHEN** the user excluded a company
+- **THEN** no later run explores it or imports its postings from this provider
+
 ### Requirement: Sites with their own provider are not read
 The provider SHALL NOT read a site that has its own provider file, whether
 that provider is enabled or disabled.

@@ -14,7 +14,7 @@ bounded effort per run.
 
 **Non-Goals:** a crawler; reading sites that already have a provider file
 (they are searched by their own provider, or not at all if the user turned
-them off); signing in anywhere; storing discovered companies.
+them off); signing in anywhere.
 
 ## Decisions
 
@@ -57,6 +57,28 @@ established national or professional job sites. Not used: aggregators that
 republish others' postings (use the original instead), pages without a
 company name, pages that ask for payment or personal data to show the
 posting, postings older than the run's window when the date is shown.
+
+### D6. Remembered companies
+
+Table `companies`: `id`, `season_id`, `name`, `careers_url`, `found_via`
+(the search or page where it appeared), `titles` (JSON list of included
+titles it was found for), `first_seen_at`, `last_checked_at`,
+`last_matches` (matching postings at the last check), `excluded` (0/1),
+`excluded_reason`. One row per careers URL per season (a new season starts
+fresh, like the rest of the search data; earlier seasons keep theirs).
+
+Commands (JSON output like the rest of the CLI):
+- `jt companies list [--excluded]`
+- `jt companies record -` (a batch from the agent: name, careers URL, found
+  via, title, matches); creates or updates
+- `jt companies exclude <id|url> --reason "<text>"` / `include <id|url>`
+
+Run order for each title: (1) revisit known, not excluded companies whose
+`titles` include the title (their careers pages only); (2) discover new
+ones. When the user asks for different companies, step 1 is skipped and
+every known company is left out of discovery. A user rule such as "never
+show me X" is stored as an exclusion as well as a rule. The cap of D4
+counts companies explored in the run (known plus new).
 
 ## Risks / Trade-offs
 

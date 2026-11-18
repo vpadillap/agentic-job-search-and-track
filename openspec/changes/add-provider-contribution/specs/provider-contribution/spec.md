@@ -3,12 +3,17 @@
 ### Requirement: Private providers
 A user SHALL be able to add a provider file in their private home without
 changing the repository. A private provider SHALL be validated, listed,
-enabled, and searched like a repository provider, SHALL be shown as private,
+enabled, and searched like a repository provider, SHALL be able to use any
+access method, dependencies, and its own reader, SHALL be shown as private,
 and SHALL be invalid when its id is already used by a repository provider.
 
 #### Scenario: Adding a private provider
 - **WHEN** a valid provider file is placed in the private providers folder
 - **THEN** it is listed as a private provider, switched off, and can be enabled and searched
+
+#### Scenario: Private provider with its own reader
+- **WHEN** a private provider has a reader file next to it
+- **THEN** `jt providers read` runs that reader with the same rules and outputs as a built-in reader
 
 #### Scenario: Id already used
 - **WHEN** a private provider file has the id of a repository provider

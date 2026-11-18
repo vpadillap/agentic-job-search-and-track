@@ -10,9 +10,8 @@ files, so a cloner cannot add a site today without breaking that rule.
 **Goals:** a cloner can add, prove, and use a site without touching the
 repository, and can contribute it back with one confirmation.
 
-**Non-Goals:** private readers (Python code in the user's home is not
-executed); automatic pull requests without the user's consent; changing how
-maintainers add providers.
+**Non-Goals:** automatic pull requests without the user's consent; changing
+how maintainers add providers; limiting what a private provider may use.
 
 ## Decisions
 
@@ -23,12 +22,19 @@ maintainers add providers.
 id equal to a repo id is invalid with a clear message; the repo file wins.
 `JOBTRACKER_PROVIDERS_DIR` still replaces the repo directory only.
 
-### D2. Private providers have no reader
+### D2. Private providers are as powerful as built-in ones
 
-`jt providers read <id>` refuses a private provider ("private providers are
-followed step by step; they have no reader"). Allowed `access` values are
-unchanged; the file must describe steps the agent can follow with its own
-tools.
+A private provider may have a reader: `<home>/providers/<id>.py`, exposing the
+same `read(paths, run_id, title, location=None)` function as the modules in
+`core/readers/` and free to import `jobtracker.core.readers.common`.
+`jt providers read <id>` resolves built-in readers first (registry), then a
+private reader file with that id, loaded with `importlib` from that path. It
+is the user's own code, run on the user's request, like any script in their
+clone. Private tests may live next to it (`<home>/providers/tests/`) and the
+skill runs them with `pytest`. Dependencies listed in the file are installed
+into the project's `.venv` after the user agrees, and `jt doctor` checks them
+as for any enabled provider. Any `access` value is allowed, including the
+browser extension.
 
 ### D3. Proof is recorded privately
 
@@ -42,6 +48,9 @@ The skill offers the PR only when D3 shows a successful proving run for each
 country claimed and validation passes. Steps: confirm with the user; check
 `gh auth status`; fork if needed (`gh repo fork --remote`); branch
 `add-provider-<id>` from up-to-date `main`; copy the file to `providers/`;
+move a private reader to `core/readers/<id>.py`, add its registry entry,
+move its tests to `tests/test_<id>_reader.py` (fictional pages only), and add
+new dependencies to an optional extra in `pyproject.toml`;
 write `openspec/changes/add-provider-<id>/` from
 `providers/change-template/`; run `ruff check .`, `pytest`, and
 `scripts/check_private.py`; commit; push to the fork; `gh pr create` with the

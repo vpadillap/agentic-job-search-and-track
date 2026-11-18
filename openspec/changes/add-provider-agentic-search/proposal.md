@@ -31,9 +31,15 @@ mostly instructions (prompting), not code.
      title; time between requests) and never sign in, apply, or fill forms.
 - **Run budget.** The file states caps (for example at most 15 companies and
   40 postings per title) so a run stays predictable.
-- **What the agent keeps between runs.** Companies found are not stored by
-  this change (no new table); a later change may add that if it proves
-  useful. Postings already stored are recognised by the existing import
+- **Companies are remembered between runs.** Every company the agent finds
+  is stored (name, careers page, where it was found, titles it was found for,
+  first and last check, and how many matching postings it had), through new
+  `jt companies …` commands. Each run first revisits the known companies'
+  careers pages, then discovers new ones. The user can ask for *different*
+  companies ("look for other companies"): the agent then skips every known
+  company during discovery and only explores new ones. The user can also
+  exclude a company ("never show me X"), which the agent respects in every
+  later run. Postings already stored are recognised by the existing import
   (seen, duplicates).
 - `job-search` skill: one paragraph on providers with `access: web-search`
   (no reader; the agent builds the records itself; the posting's `provider`
@@ -58,8 +64,12 @@ mostly instructions (prompting), not code.
 - `providers/agentic-search.md` (new); `.claude/skills/job-search/SKILL.md`;
   `core/search.py` (optional `source_site`), the Search board shows it next to
   the provider name; locales en/es.
+- New `core/companies.py`, a migration with a `companies` table (season-scoped
+  like the rest of the search data), CLI `jt companies list|record|exclude|
+  include`, documented in `docs/workspace-layout.md` (database section).
 - Tests: the provider file is valid; a posting with `source_site` imports and
   shows it; a posting without a date keeps `posted_at` empty instead of
-  guessing.
+  guessing; companies are recorded, updated on a later run, listed, excluded
+  and included again.
 - A real check with one title, reported to the owner with the sources the
   agent chose and why.
