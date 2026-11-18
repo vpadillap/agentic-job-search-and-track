@@ -17,6 +17,46 @@ Glassdoor's checks.
 - **WHEN** the agent searches Glassdoor
 - **THEN** it runs the reader command and does not open Glassdoor by any other means
 
+### Requirement: One search per fresh browser context
+The reader SHALL make at most one search request (one search or salary page
+load) per browser context and SHALL open a new context with no cookies for
+each further search. It SHALL NOT use page 2 of a search, the site's "show
+more" control, or posting pages, and SHALL read at most 30 postings per title
+per run, reporting when a title has more.
+
+#### Scenario: Two titles
+- **WHEN** a run searches two titles on Glassdoor
+- **THEN** each title is loaded as the first page of its own new context
+
+#### Scenario: More than 30 results
+- **WHEN** a title's search reports more than 30 results
+- **THEN** at most 30 postings are read and the run report says the title was cut off
+
+### Requirement: Country of the search
+The reader SHALL search in the profile's country using a Glassdoor country id
+from the provider file's table or from a Glassdoor search URL the user
+pasted, and SHALL NOT guess an id.
+
+#### Scenario: Country not in the table
+- **WHEN** the profile's country has no Glassdoor id in the provider file
+- **THEN** the agent asks the user for one Glassdoor search URL from their browser and the reader uses the id in it
+
+### Requirement: Salary reports as evidence
+The Glassdoor provider SHALL read the salary page for a title and country
+logged out and SHALL return one salary evidence draft with the source, link,
+the most likely range (25th to 75th percentile), currency, period, sample
+size, and date, taken from the page's structured data. It SHALL NOT store the
+evidence by itself, SHALL NOT take figures from the page's prose, and SHALL
+report no data when the structured data is missing.
+
+#### Scenario: Salary page with data
+- **WHEN** the agent asks for Glassdoor salaries for a title in Peru and the page has its salary distribution
+- **THEN** it receives a draft with the 25th–75th percentile range, currency PEN, period, sample size, link, and date, and stores it only after checking comparability
+
+#### Scenario: Salary page without data
+- **WHEN** the salary page has no salary distribution
+- **THEN** the result says there is no Glassdoor data and no figure is produced
+
 ### Requirement: Sign-up prompts are dismissed, never answered
 When Glassdoor shows a sign-up or sign-in prompt over the page, the reader
 SHALL close it without choosing any sign-in option. If it cannot be closed,

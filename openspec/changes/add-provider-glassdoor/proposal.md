@@ -82,36 +82,70 @@ and opening postings (detail requests) work; any further search request in
 the same context is challenged. Logged out, only the first 30 results of a
 search are reachable (page 2 is page 1), in relevance order.
 
-Decisions for the owner before the reader is designed:
-1. **One fresh browser context per search** (title × country), like Indeed's
-   new context per call. Nothing is changed in the browser's identity; but
-   the reason is that a second search in the same context is challenged.
-2. **At most 30 postings per title per run**, limited by the date window
-   (`fromAge`); with 7 days the Peru examples had 11 ("data engineer").
+**Owner's decisions (2026-11-18):**
+1. **One fresh browser context per search** (one per title), like Indeed's
+   new context per call. Nothing is changed in the browser's identity.
+2. **At most 30 postings per title per run**, narrowed by the date window
+   (`fromAge`); a title with more results is reported as cut off.
 3. **Country ids:** the provider file carries a table of verified Glassdoor
-   country ids (Peru 189; Portugal 195 seen), and a country not in it is
-   skipped with a reason until someone verifies its id (the site's box was
-   not reliable). Alternatively the user pastes one Glassdoor search URL
-   for their country once and the id is read from it.
+   country ids (Peru 189). For a country not in it, the agent asks the user to
+   paste one Glassdoor search URL from their own browser and reads the id
+   from it.
+4. **Salaries too:** Glassdoor is also a salary source (`kind: both`).
+
+**2026-11-18, point 4 (description and link).** The posting page
+(`/job-listing/…?jl=<id>`) gets the challenge (403) even as the first load of
+a fresh context, so it is never opened; it is stored only as the link the user
+opens. The full text is not embedded elsewhere in the search page; the
+side-panel text ends with the posting's own closing lines (pay, work
+location), so it is the complete description.
+
+**2026-11-18, salaries.** The salary page
+`/Salaries/<place>-<title>-salary-SRCH_IL.0,<n>_IN<locId>_KO<a>,<b>.htm`
+loads logged out as the first load of a fresh context (200, no modal):
+
+| Data | Where | Example (Peru, "data engineer") |
+|---|---|---|
+| Percentiles P10/P25/median/P75/P90, currency, period | JSON-LD `Occupation.estimatedSalary` (`MonetaryAmountDistribution`, `duration: P1M`) | PEN 3,091 / 4,283 / 6,167 / 7,575 / 10,393 per month, base pay |
+| Total pay range and median | page text | PEN 4K–8K /mo, median PEN 6K |
+| Sample | page text "Recent salaries shared … N salaries" | 50 salaries |
+| Recency | dates of the visible individual reports | Nov 15–16, 2026 |
+| By company and related titles | page text | e.g. one company PEN 4K–6K /mo; "Senior Data Engineer" PEN 140K–205K /yr |
+
+Cautions: the FAQ text says "PEN 6,167 per year" while the structured data
+says per month; the structured data is used. Some individual salaries need a
+sign-in ("Sign in to unlock all salaries") and are not read.
 
 ## What Changes
 
 - New reader `jobtracker providers read glassdoor <run_id> --title "<title>"`:
-  a visible Chromium with a fresh profile (logged out by construction) opens
-  the search URL for the profile's country and the run's window, takes the
-  postings from the page's embedded data, clicks each new posting, closes the
-  sign-up modal with Escape when it appears, copies the description from the
-  side panel, and writes drafts and raw captures to the run's capture folder.
-  The agent imports them with `--readings`, as for Indeed.
+  a visible Chromium opens a fresh context (logged out by construction) per
+  title, loads the search URL for the profile's country and the run's window
+  once, takes up to 30 postings from the page's embedded data, clicks each new
+  posting, closes the sign-up modal with Escape when it appears, copies the
+  description from the side panel (a posting whose description never loads is
+  skipped with a note), and writes drafts and raw captures to the run's
+  capture folder. The agent imports them with `--readings`, as for Indeed.
+- New salary reader `jobtracker providers salary glassdoor --title "<title>"
+  [--run <run_id>]`: one fresh context loads the salary page for the title and
+  the profile's country and returns the percentiles, currency, period, pay
+  type, sample size, latest report dates, and the URL, for the agent to store
+  with `jt salary evidence add` (one source; the two-source rule still
+  applies).
+- Country ids: a `## Countries` table in the provider file (Peru 189). For
+  another country the agent asks the user for one Glassdoor search URL and
+  passes it with `--search-url`; the reader reads the id from it.
 - Same shared rules as the other readers (`readers/common.py`): at least 5
   seconds between actions, one call at a time per run, a posting stored by an
   earlier run is not opened, stop and record Glassdoor as blocked on a block
   page, a challenge that does not clear, or a sign-in wall that Escape does
   not close; stop with an error when the page no longer matches the reader.
-- `providers/glassdoor.md`: `regions: [global]`, access `playwright`,
-  `dependencies: [playwright]`, no login, the recipe, fields, the terms risk,
-  stop conditions, pitfalls (headless and plain HTTP are blocked; internal
-  endpoints are not called; the modal).
+- `providers/glassdoor.md`: `kind: both`, `regions: [global]`, access
+  `playwright`, `dependencies: [playwright]`, no login, `max_results_per_query:
+  30`, the job and salary recipes, fields, the terms risk, stop conditions,
+  pitfalls (headless and plain HTTP are blocked; internal endpoints, posting
+  pages, page 2, and a second search in a context are never used; the modal;
+  postings whose description never loads; the FAQ's wrong period).
 
 ## Capabilities
 
