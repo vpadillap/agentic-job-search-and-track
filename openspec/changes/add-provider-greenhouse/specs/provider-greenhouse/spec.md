@@ -1,38 +1,69 @@
 ## ADDED Requirements
 
-### Requirement: Route chosen by a study
-The Greenhouse provider SHALL use only the access route the owner chose from
-this change's study, as stated in `providers/greenhouse.md`, and SHALL NOT use
-a route the file marks as not working or forbidden.
+### Requirement: Postings read through the public Job Board API
+The Greenhouse provider SHALL read postings and their application-form
+questions only through Greenhouse's public Job Board API, without signing in,
+and SHALL NOT submit, save, or change anything on Greenhouse.
 
-#### Scenario: Searching Greenhouse
-- **WHEN** a search runs with Greenhouse enabled
-- **THEN** the agent reads Greenhouse only by the route stated in the provider file
+#### Scenario: Reading a company board
+- **WHEN** the reader is given a Greenhouse board for a title
+- **THEN** it reads that board's current postings through the public API and keeps those that match the title, the user's country, and the run's window
 
-### Requirement: No credentials through automation
-The Greenhouse provider SHALL NOT receive, type, or store the user's
-credentials or cookies. If a route needs the user signed in, the user signs
-in themselves in their own browser, the provider is marked as needing a login
-and the user's presence, and a run without the user's confirmation skips it.
+#### Scenario: Posting with form questions
+- **WHEN** a kept posting has application-form questions
+- **THEN** the questions are captured with the posting and nothing is submitted
 
-#### Scenario: Unattended run with a sign-in route
-- **WHEN** the chosen route needs the user signed in and the user has not confirmed they are present
-- **THEN** the run records Greenhouse as skipped with the reason and searches the other providers
+### Requirement: Companies found by the signed-in search or by web search
+The agent SHALL find Greenhouse postings and boards through the MyGreenhouse
+candidate search in the user's own browser only when the user said in the
+conversation that they are present and signed in; otherwise it SHALL find
+boards by web search over Greenhouse's board addresses. The agent SHALL NOT
+type credentials, SHALL NOT read or store the signed-in user's account data,
+and SHALL NOT apply, save jobs, or set alerts in the user's account.
 
-### Requirement: Verbatim postings and form questions
-For each posting the provider SHALL record the posting's own id as the
-external id, a link to the posting, title, company, location, publication or
-update date, the complete description, and the application-form questions
-when they are visible without applying.
+#### Scenario: User present and signed in
+- **WHEN** the user says they are present and signed in to MyGreenhouse in their Chrome
+- **THEN** the agent searches the title in the user's country there, collects the posting links, and the reader reads those postings through the public API
 
-#### Scenario: Posting with visible questions
-- **WHEN** a Greenhouse posting shows its application form questions without submitting anything
-- **THEN** the questions are captured with the posting and nothing is submitted or saved
+#### Scenario: Unattended run
+- **WHEN** the user is not present
+- **THEN** the agent finds boards by web search and the run continues without the user
 
-### Requirement: Read-only
-The provider SHALL NOT apply, save, follow, or change anything on Greenhouse or
-in the user's Greenhouse account.
+#### Scenario: Sign-in page during the signed-in search
+- **WHEN** MyGreenhouse asks to sign in
+- **THEN** the agent does not sign in and uses web search instead
 
-#### Scenario: Reading a posting with an application form
-- **WHEN** the agent reads a posting with an application form
-- **THEN** it leaves the form without filling or submitting it
+### Requirement: Boards are remembered
+The reader SHALL remember, per user, every board it read with postings in the
+user's country, SHALL recheck remembered boards in later runs, and SHALL drop
+a board that no longer exists.
+
+#### Scenario: Later run
+- **WHEN** a run searches a title and earlier runs found boards with postings in the user's country
+- **THEN** those boards are read again through the API even if this run's discovery did not find them
+
+#### Scenario: Board gone
+- **WHEN** a remembered board answers that it does not exist
+- **THEN** it is removed from the remembered boards and the run continues
+
+### Requirement: Country and title of board postings
+The reader SHALL keep a board posting only when its title contains the
+searched title's words (seniority words aside) and its location is in the
+user's country or is remote for the user's region, using place words from the
+provider file or given once by the user; it SHALL NOT guess place words for a
+country it does not know.
+
+#### Scenario: Country not known
+- **WHEN** the profile's country has no place words in the provider file or the user's settings
+- **THEN** the reader asks for them through the agent and saves the words the user gives
+
+### Requirement: Verbatim drafts and pacing
+For each posting the reader SHALL record the posting id, its link, title,
+company, location, publication date, the complete description as plain text,
+and the form questions; SHALL wait at least 5 seconds between requests; SHALL
+read each posting at most once per run and never one stored by an earlier
+run; and SHALL stop Greenhouse for the run when the API refuses requests.
+
+#### Scenario: API refuses requests
+- **WHEN** the API answers 403 or 429
+- **THEN** Greenhouse is recorded as blocked for the run and the postings already read are kept

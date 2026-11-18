@@ -72,16 +72,26 @@ it uses the user's MyGreenhouse account, so an account is involved: pace like
 a person, read-only, never apply or save. Everything below "What Changes" is the expected shape and is revised
 after the study.
 
-## What Changes (expected; revised after the study)
+## What Changes
 
-- `providers/greenhouse.md`: `regions: [global]`, the access method the owner
-  chooses, its recipe, fields, terms risk, stop conditions, pitfalls.
-- A reader (`jt providers read greenhouse …`) if the chosen route is the
-  candidate search or the public board API; no reader if the route is the
-  browser extension (the agent follows the provider file step by step, as a
-  live walk).
-- Application-form questions are captured when the posting shows them without
-  applying (Greenhouse boards usually list them).
+Route chosen by the owner after the study (2026-11-18): postings are read
+through the **public Job Board API**; the boards to read are found by the
+**MyGreenhouse candidate search** in the user's own Chrome when the user is
+present and signed in, and by **web search** over Greenhouse's board
+addresses otherwise.
+
+- New reader `jt providers read greenhouse <run_id> --title "<title>"
+  [--found <file>] [--place-words "<words>"]` (plain HTTP, standard library):
+  reads the postings and boards the agent found plus the boards remembered
+  for this user; keeps postings that match the title, the user's country (or
+  remote for the user's region), and the run's window; writes drafts with the
+  complete description and the application-form questions.
+- Boards are remembered per user (`provider-settings/greenhouse.json`) and
+  rechecked every run; a board that no longer exists is dropped.
+- `providers/greenhouse.md`: `regions: [global]`, `access: http`, no login,
+  no dependencies, the two discovery recipes (signed-in search with Claude in
+  Chrome; web search), the country place words (Peru), fields, form
+  questions, terms, stop conditions, pitfalls.
 
 ## Capabilities
 
@@ -92,11 +102,13 @@ after the study.
 
 ### Modified Capabilities
 
-None expected.
+None.
 
 ## Impact
 
-- `providers/greenhouse.md`; possibly `core/readers/greenhouse.py` and a
-  registry entry; tests with fictional pages.
-- If the extension route is chosen: no new dependency in Python;
-  `dependencies: [chrome-extension]`, checked by `jt doctor`.
+- New `src/jobtracker/core/readers/greenhouse.py` and its registry entry;
+  `--found` and `--place-words` on `jt providers read`.
+- `providers/greenhouse.md` (new); `provider-settings/greenhouse.json` in the
+  private home (already in `docs/workspace-layout.md`).
+- Tests with a fake HTTP getter and fictional boards; a real check.
+- No new dependency.
