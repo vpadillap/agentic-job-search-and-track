@@ -3,11 +3,12 @@
 ### Requirement: Logged-out visible browser only
 The Glassdoor provider SHALL read Glassdoor only through the system's
 Glassdoor reader, which drives an ordinary visible Chromium with a fresh
-profile: no cookies, no account, no sign-in. It SHALL use only Glassdoor's
-search page and the posting side panel that page shows. It SHALL NOT use plain
-HTTP, a headless browser, the user's browser or session, the site's internal
-endpoints, stealth tools, proxies, or anything meant to get around
-Glassdoor's checks.
+profile: no cookies, no account, no sign-in. It SHALL NOT use the user's
+browser, session, or Glassdoor account, so no account of the user is ever at
+risk. Because no account is involved, the reader MAY work around the site's
+automated checks (for example, a new context for each search). The routes the
+study found not to work (plain HTTP, a headless browser, the site's internal
+endpoints, posting pages, page 2) SHALL NOT be used.
 
 #### Scenario: Normal search
 - **WHEN** a search runs with Glassdoor enabled

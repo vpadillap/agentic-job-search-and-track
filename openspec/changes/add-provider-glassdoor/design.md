@@ -27,8 +27,10 @@ See the proposal's table for the first study. Observed details:
 salary reports as evidence, logged out, with the same pacing, stop rules, and
 draft/readings flow as Indeed.
 
-**Non-Goals:** signing in; the user's browser; anything that hides
-automation; internal endpoints; posting pages under `/job-listing/` (403 even
+**Non-Goals:** signing in; the user's browser or account (the project's rule
+against working around site checks protects the user's accounts; reading
+logged out, working around Cloudflare's check with fresh contexts is allowed,
+owner's clarification 2026-11-18); internal endpoints; posting pages under `/job-listing/` (403 even
 on a first load; links in the drafts only); page 2 of a search (it repeats
 page 1 logged out); a second search in a context; individual salaries that
 need a sign-in; company reviews; applying.
