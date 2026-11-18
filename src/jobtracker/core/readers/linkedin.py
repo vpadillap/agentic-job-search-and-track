@@ -9,8 +9,6 @@ language, flags, a salary in the text) is left to the agent's reading.
 """
 from __future__ import annotations
 
-import json
-import os
 import re
 import time
 import urllib.error
@@ -18,31 +16,28 @@ import urllib.parse
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
 from html.parser import HTMLParser
-from pathlib import Path
 
-from .. import db, providers, search
-from .. import profile as profile_service
+from .. import db
 from ..errors import JobTrackerError
 from ..paths import Paths
+from . import common
 
 PROVIDER = "linkedin"
+LABEL = "LinkedIn"
 SEARCH_URL = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
 POSTING_URL = "https://www.linkedin.com/jobs/view/{id}/"
 USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
               "Chrome/131.0 Safari/537.36")
 HEADERS = {"User-Agent": USER_AGENT, "Accept-Language": "en-US,en;q=0.9"}
 TIMEOUT_SECONDS = 30
-MIN_SECONDS = 5          # the provider file may ask for more, never for less
 PAGE_SIZE = 10           # cards per guest search page
 WINDOWS = ((1, "r86400"), (7, "r604800"), (30, "r2592000"))   # posting age LinkedIn offers
 CONTRACT_TYPES = {"Full-time": "full-time", "Part-time": "part-time", "Contract": "contractor"}
 SIGN_IN_MARKERS = ("session_key", "sign-in-form", "authwall")
 UNREADABLE = (404, 410)  # the posting was removed: listed, not a reason to stop
-STATE_FILE = "linkedin-state.json"
 LOCK_FILE = "linkedin.lock"
-STALE_LOCK_SECONDS = 30 * 60   # longer than any call: 33 requests with pacing and timeouts
+STALE_LOCK_SECONDS = common.STALE_LOCK_SECONDS
 
 Fetch = Callable[[str], tuple[int, bytes, "str | None"]]
 
@@ -227,71 +222,9 @@ def parse_posting(page: str) -> dict:
     return {"description": description, "criteria": parser.criteria}
 
 
-# ── run context and state ─────────────────────────────────────────────────
+# ── the reader ────────────────────────────────────────────────────────────
 
-@dataclass
-class _Context:
-    run_id: int
-    folder: Path
-    since: str
-    window: str
-    max_pages: int
-    min_seconds: int
-    country: str | None
-    known: set[str]
-
-
-def _context(conn, paths: Paths, run_id: int) -> _Context:
-    run = conn.execute("SELECT * FROM search_runs WHERE id = ?", (run_id,)).fetchone()
-    if run is None:
-        raise JobTrackerError("not_found", f"There is no search run {run_id}")
-    if run["status"] != "running":
-        raise JobTrackerError("run_finished", f"Run {run_id} is already finished")
-    if run["is_demo"] or not run["capture_folder"]:
-        raise JobTrackerError("invalid_run", f"Run {run_id} has no capture folder")
-    item = next((p for p in json.loads(run["providers"]) if p["id"] == PROVIDER), None)
-    if item is None:
-        raise JobTrackerError("not_found", f"'{PROVIDER}' is not a job provider of run {run_id}")
-    if item["status"] == "failed":
-        raise JobTrackerError(
-            "provider_stopped", f"LinkedIn is stopped for run {run_id}: "
-            f"{item.get('detail') or item.get('reason')}. Do not try it again in this run.")
-    if item["status"] not in ("pending", "ok"):
-        raise JobTrackerError(
-            "provider_not_searched", f"LinkedIn is {item['status']} in run {run_id}")
-    meta = next((p for p in providers.list_providers() if p["id"] == PROVIDER), None)
-    if meta is None or not meta.get("valid"):
-        raise JobTrackerError("invalid_file", f"providers/{PROVIDER}.md is missing or invalid")
-    started = datetime.fromisoformat(run["started_at"].replace("Z", "+00:00")).astimezone().date()
-    days = int(run["posting_age_days"])
-    active = profile_service.get_active(conn) or {}
-    known = {row["external_id"] for row in conn.execute(
-        "SELECT external_id FROM postings WHERE provider = ?", (PROVIDER,))}
-    return _Context(
-        run_id=run_id, folder=paths.home / run["capture_folder"],
-        since=(started - timedelta(days=days)).isoformat(), window=window(days),
-        max_pages=max(1, int(meta["max_results_per_query"]) // PAGE_SIZE),
-        min_seconds=max(MIN_SECONDS, int(meta["min_seconds_between_requests"])),
-        country=active.get("country"), known=known,
-    )
-
-
-def _load_state(folder: Path) -> dict:
-    path = folder / STATE_FILE
-    state = {"last_request_at": 0.0, "requests": 0, "job_ids": [], "drafts": []}
-    if path.is_file():
-        state.update(json.loads(path.read_text(encoding="utf-8")))
-    return state
-
-
-def _save_state(folder: Path, state: dict) -> None:
-    (folder / STATE_FILE).write_text(json.dumps(state, indent=1), encoding="utf-8")
-
-
-class _Stop(Exception):
-    def __init__(self, reason: str, detail: str) -> None:
-        super().__init__(detail)
-        self.reason, self.detail = reason, detail
+_Stop = common.Stop
 
 
 def _check(status: int, where: str | None, url: str) -> None:
@@ -304,7 +237,7 @@ def _check(status: int, where: str | None, url: str) -> None:
         raise _Stop("error", f"{status} {url}")
 
 
-def _draft(card: dict, posting: dict, ctx: _Context) -> dict:
+def _draft(card: dict, posting: dict, ctx: common.Context) -> dict:
     criteria = posting["criteria"]
     seniority = criteria.get("Seniority level")
     employment = criteria.get("Employment type")
@@ -323,28 +256,6 @@ def _draft(card: dict, posting: dict, ctx: _Context) -> dict:
     }
 
 
-def _seen_records(conn, cards: list[dict]) -> list[dict]:
-    """Postings stored by an earlier run, as import records, with this run's date."""
-    records = []
-    for card in cards:
-        row = conn.execute("SELECT * FROM postings WHERE provider = ? AND external_id = ?",
-                           (PROVIDER, card["external_id"])).fetchone()
-        records.append({
-            "provider": PROVIDER, "external_id": row["external_id"], "url": row["url"],
-            "title": row["title"], "company": row["company"], "location": row["location"],
-            "country": row["country"], "posted_at": card.get("posted_at") or row["posted_at"],
-            "description": row["description"], "seniority": row["seniority"],
-            "contract_type": row["contract_type"], "work_mode": row["work_mode"],
-            "work_mode_detail": row["work_mode_detail"], "language": row["language"],
-            "flags": json.loads(row["flags"]) if row["flags"] else [],
-            "published_salary": json.loads(row["published_salary"])
-            if row["published_salary"] else None,
-        })
-    return records
-
-
-# ── the reader ────────────────────────────────────────────────────────────
-
 def read(paths: Paths, run_id: int, title: str, location: str | None = None, *,
          fetch: Fetch = fetch, clock: Callable[[], float] = time.time,
          sleep: Callable[[float], None] = time.sleep) -> dict:
@@ -354,50 +265,25 @@ def read(paths: Paths, run_id: int, title: str, location: str | None = None, *,
         raise JobTrackerError("invalid_title", "give the title to search with --title")
     location = _line_text(location or "") or None
     with db.session(paths) as conn:
-        ctx = _context(conn, paths, run_id)
+        ctx = common.context(conn, paths, run_id, PROVIDER, LABEL)
     ctx.folder.mkdir(parents=True, exist_ok=True)
-    lock = _lock(ctx.folder, clock())
+    lock = common.lock(ctx, LABEL, clock())
     try:
         return _read(paths, ctx, title, location, fetch, clock, sleep)
     finally:
         lock.unlink(missing_ok=True)
 
 
-def _lock(folder: Path, now: float) -> Path:
-    """One reader call at a time per run: parallel calls would share the pacing state
-    and request LinkedIn together. A lock older than any call can last is stale."""
-    path = folder / LOCK_FILE
-    for _ in range(2):
-        try:
-            handle = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError:
-            try:
-                started = float(path.read_text(encoding="utf-8") or 0)
-            except (OSError, ValueError):
-                started = 0.0
-            if now - started < STALE_LOCK_SECONDS:
-                raise JobTrackerError(
-                    "reader_busy", "Another LinkedIn read is running for this run. Read the "
-                    "titles one at a time, never in parallel; wait for it to finish.",
-                    lock=str(path)) from None
-            path.unlink(missing_ok=True)
-            continue
-        with os.fdopen(handle, "w", encoding="utf-8") as file:
-            file.write(str(now))
-        return path
-    raise JobTrackerError("reader_busy", "Another LinkedIn read is running for this run.")
-
-
-def _read(paths: Paths, ctx: _Context, title: str, location: str | None, fetch: Fetch,
+def _read(paths: Paths, ctx: common.Context, title: str, location: str | None, fetch: Fetch,
           clock: Callable[[], float], sleep: Callable[[float], None]) -> dict:
-    run_id = ctx.run_id
-    state = _load_state(ctx.folder)
+    state = common.load_state(ctx)
     handled = set(state["job_ids"])
     summary: dict = {"provider": PROVIDER, "title": title, "requests": 0, "pages": 0,
                      "cards": 0, "outside_window": 0, "duplicate_in_run": 0, "already_seen": 0,
                      "new": 0, "unreadable": [], "drafts_path": None, "stopped": None}
     drafts: list[dict] = []
     seen: list[dict] = []
+    max_pages = max(1, ctx.max_results // PAGE_SIZE)
 
     def get(url: str) -> tuple[int, str, str | None]:
         wait = state["last_request_at"] + ctx.min_seconds - clock()
@@ -411,7 +297,7 @@ def _read(paths: Paths, ctx: _Context, title: str, location: str | None, fetch: 
             raise _Stop("error", f"network error ({error}) on {url}") from error
         finally:
             state["last_request_at"] = clock()
-            _save_state(ctx.folder, state)
+            common.save_state(ctx, state)
         (ctx.folder / f"{PROVIDER}-{state['requests']}.html").write_bytes(body)
         return status, body.decode("utf-8", "replace"), where
 
@@ -420,8 +306,8 @@ def _read(paths: Paths, ctx: _Context, title: str, location: str | None, fetch: 
         state["job_ids"].append(job_id)
 
     try:
-        for page in range(ctx.max_pages):
-            query = {"keywords": title, "location": location, "f_TPR": ctx.window,
+        for page in range(max_pages):
+            query = {"keywords": title, "location": location, "f_TPR": window(ctx.days),
                      "start": page * PAGE_SIZE}
             url = SEARCH_URL + "?" + urllib.parse.urlencode(
                 {k: v for k, v in query.items() if v is not None}, quote_via=urllib.parse.quote)
@@ -465,21 +351,4 @@ def _read(paths: Paths, ctx: _Context, title: str, location: str | None, fetch: 
                 break
     except _Stop as stop:
         summary["stopped"] = {"reason": stop.reason, "detail": stop.detail}
-
-    if drafts:
-        name = f"{PROVIDER}-drafts-{len(state['drafts']) + 1}.json"
-        (ctx.folder / name).write_text(json.dumps(drafts, ensure_ascii=False, indent=1),
-                                       encoding="utf-8")
-        state["drafts"].append(name)
-        summary["drafts_path"] = str(ctx.folder / name)
-    _save_state(ctx.folder, state)
-    summary["new"] = len(drafts)
-    summary["already_seen"] = len(seen)
-    with db.session(paths) as conn:
-        if seen:
-            search.import_postings(conn, run_id, _seen_records(conn, seen))
-        if summary["stopped"]:
-            search.record_provider(conn, run_id, PROVIDER, "failed",
-                                   reason=summary["stopped"]["reason"],
-                                   detail=summary["stopped"]["detail"])
-    return summary
+    return common.finish(paths, ctx, state, summary, drafts, seen)

@@ -41,17 +41,17 @@ def _tool_available(name: str) -> bool:
     return shutil.which(name) is not None
 
 
-def _enabled_provider_ids(paths: Paths) -> set[str] | None:
-    """Providers the user disabled are excluded; None when there is no database."""
+def _enabled_provider_ids(paths: Paths) -> set[str]:
+    """Providers the user turned on. A provider never chosen is off, so it is not
+    checked; without a database nothing is on yet."""
     if not paths.database.is_file():
-        return None
+        return set()
     try:
         with closing(sqlite3.connect(paths.database)) as conn:
-            rows = conn.execute("SELECT provider_id FROM providers_state WHERE enabled = 0")
-            disabled = {row[0] for row in rows}
+            rows = conn.execute("SELECT provider_id FROM providers_state WHERE enabled = 1")
+            return {row[0] for row in rows}
     except sqlite3.Error:
-        return None
-    return {str(p["id"]) for p in providers.list_providers()} - disabled
+        return set()
 
 
 def run(paths: Paths) -> dict:
@@ -116,7 +116,7 @@ def run(paths: Paths) -> dict:
     enabled = _enabled_provider_ids(paths)
     for provider in providers.list_providers():
         provider_id = str(provider["id"])
-        if enabled is not None and provider_id not in enabled:
+        if provider_id not in enabled:
             continue
         if not provider.get("valid", True):
             checks.append(_check(

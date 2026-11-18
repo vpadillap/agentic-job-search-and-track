@@ -13,7 +13,8 @@ from ..errors import JobTrackerError
 from ..paths import Paths
 
 READERS = {"linkedin": "jobtracker.core.readers.linkedin",
-           "bumeran": "jobtracker.core.readers.bumeran"}
+           "bumeran": "jobtracker.core.readers.bumeran",
+           "indeed": "jobtracker.core.readers.indeed"}
 
 
 def read(provider_id: str, paths: Paths, run_id: int, title: str,

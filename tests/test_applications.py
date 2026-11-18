@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -179,7 +179,7 @@ def test_the_agent_gets_full_status_names_and_their_history(jobs, cli):
     assert [(c["data"]["from_name"], c["data"]["to_name"]) for c in changes] == [
         ("New", "Applied"), ("Applied", "Technical test sent"),
         ("Technical test sent", "Interview")]
-    assert all(c["at"][:10] == datetime.now().strftime("%Y-%m-%d") for c in changes)
+    assert all(c["at"][:10] == datetime.now(UTC).strftime("%Y-%m-%d") for c in changes)
     cli("config", "set", "language", "es")
     _, out, _ = cli("applications", "show", job)
     changes = [h for h in out["application"]["history"] if h["kind"] == "status_changed"]
