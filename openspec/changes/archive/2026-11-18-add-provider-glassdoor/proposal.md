@@ -1,0 +1,191 @@
+## Why
+
+Glassdoor is the next job site the owner wants, a global site (`regions:
+[global]`) next to LinkedIn and Indeed. A first study on 2026-11-18, logged
+out, searching "data engineer" in Peru with a 7-day window:
+
+| Route | Result |
+|---|---|
+| Plain HTTP (curl) to `/Job/jobs.htm?…` and the SEO search URL | 403, "Security \| Glassdoor" page |
+| Headless Chromium | 403, "Un momento…" challenge |
+| Calling the site's internal endpoints from the page (location lookup) | 404 / 403, and the next page load was challenged; **not used** |
+| **Visible Chromium, fresh profile: search URL** | **200**, 30 postings per page in the page's embedded data (`jobListings[].jobview.header`: id, title, company, location, age in days, salary, extracted attributes such as full-time and hybrid) |
+| **Same page, clicking a card** | **complete description in the side panel** (3,983, 2,970, and 5,375 characters in three tries); it loads a moment after the click |
+| After one or two clicks | a "Never Miss an Opportunity" sign-up modal; **Escape closes it** and it did not return in that run |
+
+Search URL: `https://www.glassdoor.com/Job/<place>-<title>-jobs-SRCH_IL.0,<n>_IN<locId>_KO<a>,<b>.htm?fromAge=<days>`,
+where `locId` is Glassdoor's country id (Peru = 189, Portugal = 195); the
+plain form `/Job/jobs.htm?sc.keyword=<title>&locT=N&locId=<id>` redirects to
+it. `fromAge=7` cut the Peru results from 143 to 11.
+
+Glassdoor's `robots.txt` excludes AI crawlers (ClaudeBot, anthropic-ai, …).
+The owner decided it does not apply: this tool is not a crawler; it reads
+pages for one user, as Indeed's reader does. Glassdoor's terms of use still
+forbid automated access; the provider file says so before the user turns it
+on, as for LinkedIn and Indeed.
+
+## Still to confirm in this change (before implementing the reader)
+
+1. Reading every posting of a page in a row (at least 10) with the modal
+   closed by Escape: does the modal come back, does a hard sign-in wall
+   appear, after how many postings?
+2. Pagination: how the second page is reached and whether it stays logged out
+   without a wall.
+3. How the reader finds `locId` for a country other than Peru without calling
+   internal endpoints (the site's own search box set `locId=189` for "Peru").
+4. Whether the side-panel description is the complete text (compare with the
+   card's snippet and the posting's length) and what the posting link should
+   be.
+
+The results are written into this proposal and the design, and the owner
+approves them before the reader is built.
+
+### Study log
+
+**2026-11-18, point 1 (one results page in a row).** Peru, "data engineer",
+7 days: 11 results, 8 cards rendered. Seven postings read in a row with
+complete descriptions (2,241–7,190 characters). The sign-up modal appeared
+once, after the second posting; Escape closed it; it did not return. No
+sign-in wall.
+
+The eighth posting (one employer) never loaded its description: the panel
+showed its header and skeleton lines for more than 40 seconds, also when it
+was the first posting opened in a fresh session. So it is that posting, not
+throttling: the reader must skip such a posting with a note and continue,
+not stop.
+
+**2026-11-18, point 2 (more results), interrupted.** In the same browser
+session, loading a second search URL with `page.goto` got the "Un momento…"
+challenge, which did not clear. The same happened earlier in the day when a
+second page was loaded directly after calls to internal endpoints. Open
+question: is a second direct navigation in one session what triggers it, or
+the number of study sessions from this IP today (about 20)? The study pauses
+to let the IP cool down; the next probe moves to the next page or the next
+title through the page itself (the site's search box and its own
+"more results" control), not a second direct URL load.
+
+**2026-11-18, what triggers the challenge (owner: the site opens normally in
+their own browser, so not an IP block).** One variable per probe:
+
+| Probe | Result |
+|---|---|
+| A. Fresh browser, one direct load of a search | 200, 30 cards; Cloudflare (`server: cloudflare`) sets `cf_clearance` |
+| B. Same session, second direct load (another title) 10 s later | 307 then **403**, `cf-mitigated: challenge` (Turnstile); does not clear |
+| C. Same session, the site's own "Show more jobs" button | its call `POST /job-search-next/bff/jobSearchResultsQuery` gets **403**; the list empties |
+| D1. Page 2 (`…_IP2.htm`) as the first load of a fresh context | 200, but the **same 30 postings as page 1** (30 of 30 ids equal) |
+| D2. Second title as the first load of a new context in the same browser | 200, 30 cards |
+| E. `sortBy=date_desc` | ignored (ages unordered); `fromAge` does filter |
+| F. Typing a country in the site's location box (Chile) | no suggestions this time; not reliable for finding a country id |
+
+So in an automated, logged-out browser: the first search load of a context
+and opening postings (detail requests) work; any further search request in
+the same context is challenged. Logged out, only the first 30 results of a
+search are reachable (page 2 is page 1), in relevance order.
+
+**Owner's decisions (2026-11-18):**
+1. **One fresh browser context per search** (one per title), like Indeed's
+   new context per call. Nothing is changed in the browser's identity.
+2. **At most 30 postings per title per run**, narrowed by the date window
+   (`fromAge`); a title with more results is reported as cut off.
+3. **Country ids:** the provider file carries a table of verified Glassdoor
+   country ids (Peru 189). For a country not in it, the agent asks the user to
+   paste one Glassdoor search URL from their own browser and reads the id
+   from it.
+4. **Salaries too:** Glassdoor is also a salary source (`kind: both`).
+
+**2026-11-18, point 4 (description and link).** The posting page
+(`/job-listing/…?jl=<id>`) gets the challenge (403) even as the first load of
+a fresh context, so it is never opened; it is stored only as the link the user
+opens. The full text is not embedded elsewhere in the search page; the
+side-panel text ends with the posting's own closing lines (pay, work
+location), so it is the complete description.
+
+**2026-11-18, salaries.** The salary page
+`/Salaries/<place>-<title>-salary-SRCH_IL.0,<n>_IN<locId>_KO<a>,<b>.htm`
+loads logged out as the first load of a fresh context (200, no modal):
+
+| Data | Where | Example (Peru, "data engineer") |
+|---|---|---|
+| Percentiles P10/P25/median/P75/P90, currency, period | JSON-LD `Occupation.estimatedSalary` (`MonetaryAmountDistribution`, `duration: P1M`) | PEN 3,091 / 4,283 / 6,167 / 7,575 / 10,393 per month, base pay |
+| Total pay range and median | page text | PEN 4K–8K /mo, median PEN 6K |
+| Sample | page text "Recent salaries shared … N salaries" | 50 salaries |
+| Recency | dates of the visible individual reports | Nov 15–16, 2026 |
+| By company and related titles | page text | e.g. one company PEN 4K–6K /mo; "Senior Data Engineer" PEN 140K–205K /yr |
+
+Cautions: the FAQ text says "PEN 6,167 per year" while the structured data
+says per month; the structured data is used.
+
+**2026-11-18, point 1.7: Scrapling** (owner's addition; Scrapling 0.5.1,
+`StealthySession(headless=True, solve_cloudflare=True)`, in a throwaway
+environment outside the project). One headless session, no window:
+
+| Test | Playwright, visible | Scrapling, headless |
+|---|---|---|
+| Search page | 200 (headless: 403) | 200, 30 postings |
+| Second search in the same session | 403, challenge | 200, 30 postings |
+| "Show more jobs" | its request 403; list emptied | 200 each round: 30 → 60 → 90 → 120 → 127, then no button; **126 unique postings of 152** |
+| Posting page `/job-listing/…?jl=<id>` | 403 even on a first load | 200, 6 of 6 in a row; full descriptions (1,683–5,372 characters; the same posting gave 5,375 in Playwright's side panel, so the panel is complete too); one posting gave only 14 characters |
+| Salary page | 200 | 200, same figures |
+
+So with Scrapling: no visible window, one session per run, up to the site's
+own end of the list instead of 30 per title, and descriptions fetched by URL
+instead of clicking cards. Costs: a new dependency (`scrapling[fetchers]`,
+which brings patchright and its own Chromium, about 120 MB), maintained by a
+third party; a stealth tool can stop working when Cloudflare changes its
+check, in which case the stop rules apply. Some individual salaries need a
+sign-in ("Sign in to unlock all salaries") and are not read.
+
+## What Changes
+
+Route chosen by the owner after the study: **Scrapling** (point 1.7).
+
+- New reader `jobtracker providers read glassdoor <run_id> --title "<title>"
+  [--search-url <url>]`: a headless Scrapling stealth session (no cookies, no
+  account, discarded after the call) loads the search for the profile's
+  country and the run's window, presses the page's own "Show more jobs" until
+  the site shows no more or the provider's cap (150) is reached, closes the
+  sign-up modal with Escape when it appears, then loads each new posting's
+  page and takes its complete description and fields from the page's
+  structured data (`JobPosting`). Drafts and raw captures go to the run's
+  capture folder; the agent imports them with `--readings`, as for Indeed.
+  No browser window opens.
+- New salary reader `jobtracker providers salary glassdoor --title "<title>"`:
+  one session loads the salary page for the title and the profile's country
+  and returns one evidence draft (25th–75th percentile range, currency,
+  period, sample size, newest report date, link) for the agent to check and
+  store with `jt salary evidence add` (one source; the two-source rule still
+  applies).
+- Country ids: a `## Countries` table in the provider file (Peru 189). For
+  another country the agent asks the user once for one Glassdoor search URL;
+  the reader reads the id from it and saves it in the user's private settings.
+- `providers/glassdoor.md`: `kind: both`, `regions: [global]`, `access:
+  scrapling`, `dependencies: [scrapling]`, no login, `max_results_per_query:
+  150`, the job and salary recipes, fields, the terms risk, stop conditions,
+  pitfalls (plain HTTP and plain headless Chromium are blocked; page 2 URLs
+  repeat page 1; internal endpoints are never called directly; the modal;
+  postings without a readable description; the FAQ's wrong period).
+- `jt doctor`'s install hint for `scrapling` names the browser download
+  (`scrapling install`).
+- `docs/backlog.md`: try Scrapling on the other providers (owner's note).
+
+## Capabilities
+
+### New Capabilities
+
+- `provider-glassdoor`: how Glassdoor is searched and read, logged out,
+  through a visible browser, and what is never done there.
+
+### Modified Capabilities
+
+None.
+
+## Impact
+
+- New `src/jobtracker/core/readers/glassdoor.py` (Scrapling imported only
+  when it runs); registry entry `glassdoor`; a `providers salary` command.
+- `providers/glassdoor.md` (new).
+- Tests with a fake browser and fictional pages; a real check with one title.
+- Scrapling and its browser are installed by `/setup` only when the user
+  turns Glassdoor on, as Playwright is for Indeed and Bumeran.
+- `docs/workspace-layout.md`: `provider-settings/<id>.json` in the private
+  home (the saved Glassdoor country ids).

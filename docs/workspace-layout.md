@@ -25,6 +25,8 @@ user-data/                                  private home (gitignored)
 ├── config.toml                             panel language (en|es), host, port
 ├── jobtracker.db                           SQLite: the source of truth for all structured data
 ├── .private-terms                          one term per line (name, email, phone…) for the privacy guard
+├── provider-settings/
+│   └── <provider-id>.json                  what a reader keeps for this user (e.g. Glassdoor country ids from a pasted search URL)
 ├── profile/
 │   ├── resume-base-<lang>.<ext>            the user's resume in one language, exactly as provided (pdf/docx)
 │   ├── resume-base-<lang>.md               extracted text of that base resume

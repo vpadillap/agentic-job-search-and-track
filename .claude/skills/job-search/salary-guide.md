@@ -16,6 +16,15 @@ estimate from your own knowledge.
 Use only the salary sources the enabled provider files describe (`kind:
 salary` or `both`), following their instructions.
 
+Some providers have a **salary reader** (their file says so, for example
+`jt providers salary glassdoor --title "<title>"`). It returns an `evidence`
+draft taken from the site's own data: source, URL, range, currency, period,
+sample size, date, country. It is **one** source. Add only what you decide
+(`basis`, `level`, `posting_id` or `research`, and the context fields below),
+check that it is comparable, and store it with `jt salary evidence add -`.
+Never change its figures. When it answers `"data": false`, list that site in
+`--checked` if you end with `jt salary none`.
+
 ## What makes a source comparable
 
 The CLI counts a source only when all of these hold, and tells you which ones
