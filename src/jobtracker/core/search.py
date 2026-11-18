@@ -22,7 +22,7 @@ FILTER_REASONS = (
 PROVIDER_STATUSES = ("pending", "ok", "skipped", "failed", "disabled")
 SKIP_REASONS = (
     "live_walk", "login_required", "missing_dependency", "invalid_file", "disabled", "error",
-    "blocked", "not_searched",
+    "blocked", "not_searched", "other_country",
 )
 QUESTION_KINDS = ("text", "long_text", "choice", "multi_choice", "number", "yes_no", "file")
 DUPLICATE_DAYS = 7   # publication dates this close make a same company+title a possible duplicate
@@ -80,6 +80,7 @@ def start_run(
         raise JobTrackerError(
             "invalid_run", f"days must be a whole number from 1 to {MAX_AGE_DAYS}")
 
+    country = active.get("country") if active else None
     run_providers = []
     for provider in providers.with_state(conn):
         if provider.get("valid", True) and provider.get("kind") not in ("jobs", "both"):
@@ -94,6 +95,11 @@ def start_run(
         elif not provider.get("valid", True):
             item.update(status="skipped", reason="invalid_file",
                         detail="; ".join(map(str, provider["problems"])))  # type: ignore[call-overload]
+        elif (country and provider.get("coverage") == "local"
+              and country not in (provider.get("countries") or [])):
+            item.update(status="skipped", reason="other_country", detail=(
+                f"works only in {', '.join(provider['countries'])}; "  # type: ignore[arg-type]
+                f"the profile's country is {country}"))
         run_providers.append(item)
     if demo and demo_providers is not None:
         run_providers = [

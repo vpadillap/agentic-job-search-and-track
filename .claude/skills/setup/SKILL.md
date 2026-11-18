@@ -164,9 +164,13 @@ the user says so.
 1. `jt providers list`.
 2. If the list is empty, say that job-site recipes are not included in this
    version yet and that searching will become available with them; continue.
-3. Otherwise show the providers whose `regions` cover the user's country (or
-   `global`), with a one-line note on how each is accessed (`access`,
-   `requires_login`, `live_walk`). Read each one's file
+3. Otherwise offer, using the profile's `country`, the providers with
+   `coverage: global` first, then those with `coverage: local` whose
+   `countries` include the user's country; label each "global" or "local
+   (<countries>)". Do not offer local sites of other countries (if the profile
+   has no country, offer every site and say which are local). Give a one-line
+   note on how each is accessed (`access`, `requires_login`, `live_walk`).
+   Read each one's file
    (`providers/<id>.md`, section `## Limits and etiquette`) and tell the user
    any terms-of-use risk it states, in a sentence. Ask which to use.
 4. Every job site starts switched off. `jt providers enable <id>` for each one

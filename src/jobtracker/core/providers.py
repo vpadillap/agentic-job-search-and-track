@@ -40,6 +40,10 @@ REQUIRED_SECTIONS = (
     "Known pitfalls",
 )
 SALARY_SECTION = "Salary data"
+COUNTRIES_SECTION = "Countries"
+COUNTRY_CODE = re.compile(r"[A-Z]{2}")
+REGIONS_MESSAGE = ("field 'regions' must be [global] or a list of two-letter country codes"
+                   " such as [PE]")
 
 # How to install tools that provider files commonly depend on.
 INSTALL_HINTS = {
@@ -85,6 +89,54 @@ def _sections(text: str) -> set[str]:
             for match in re.finditer(r"^##\s+(.+?)\s*(?:\(.*\))?\s*$", text, re.M)}
 
 
+def _coverage(regions: object) -> tuple[str, list[str]] | None:
+    """('global', []) or ('local', codes) from `regions`; None when the value is not valid."""
+    if not isinstance(regions, list) or not regions:
+        return None
+    if regions == ["global"]:
+        return "global", []
+    if all(isinstance(code, str) and COUNTRY_CODE.fullmatch(code) for code in regions):
+        return "local", [str(code) for code in regions]
+    return None
+
+
+def _countries_table(text: str) -> dict[str, list[str]] | None:
+    """Rows of the '## Countries' section keyed by country code (None without the section)."""
+    match = re.search(r"^##\s+Countries\s*$(.*?)(?=^##\s|\Z)", text, re.M | re.S)
+    if not match:
+        return None
+    rows: dict[str, list[str]] = {}
+    for line in match.group(1).splitlines():
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if line.strip().startswith("|") and cells and COUNTRY_CODE.fullmatch(cells[0]):
+            rows[cells[0]] = cells
+    return rows
+
+
+def _country_problems(text: str, countries: list[str]) -> list[str]:
+    """Each country of a local provider needs a verified row in '## Countries'."""
+    table = _countries_table(text)
+    if table is None:
+        return [f"missing section '## {COUNTRIES_SECTION}' (one row per country in"
+                " 'regions')"] if len(countries) > 1 else []
+    problems = []
+    for code in countries:
+        row = table.get(code)
+        if row is None:
+            problems.append(f"country '{code}' has no row in '## {COUNTRIES_SECTION}'")
+            continue
+        try:
+            date.fromisoformat(row[-1])
+        except ValueError:
+            problems.append(
+                f"country '{code}' needs a 'Last verified' date like 2026-11-15")
+    for code in table:
+        if code not in countries:
+            problems.append(f"country '{code}' is in '## {COUNTRIES_SECTION}' but not in"
+                            " 'regions'")
+    return problems
+
+
 def validate_text(text: str, file_name: str) -> list[str]:
     """Every problem in one provider file, as readable messages (empty when valid)."""
     problems: list[str] = []
@@ -114,6 +166,11 @@ def validate_text(text: str, file_name: str) -> list[str]:
         value = meta.get(field)
         if isinstance(value, int) and not isinstance(value, bool) and value < 0:
             problems.append(f"field '{field}' must not be negative")
+    coverage = _coverage(meta.get("regions"))
+    if "regions" in meta and isinstance(meta["regions"], list) and coverage is None:
+        problems.append(REGIONS_MESSAGE)
+    if coverage and coverage[0] == "local":
+        problems.extend(_country_problems(text, coverage[1]))
     found = _sections(text)
     required = list(REQUIRED_SECTIONS)
     if meta.get("kind") in ("salary", "both"):
@@ -138,6 +195,9 @@ def list_providers(directory: Path | None = None) -> list[dict[str, object]]:
         meta.setdefault("id", path.stem)
         meta.setdefault("name", path.stem)
         meta["file"] = path.name
+        coverage = _coverage(meta.get("regions"))
+        meta["coverage"] = coverage[0] if coverage else None
+        meta["countries"] = coverage[1] if coverage else None
         problems = validate_text(text, path.name)
         meta["valid"] = not problems
         meta["problems"] = problems

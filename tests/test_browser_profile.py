@@ -143,6 +143,50 @@ def test_provider_needing_presence_says_so(searchable, page):
     expect(gamma).to_contain_text("gamma.md")
 
 
+def test_job_sites_show_coverage_and_filter_by_country(searchable, providers_dir, page):
+    from tests.helpers import provider_text
+
+    (providers_dir / "world.md").write_text(provider_text("world", regions="[global]"),
+                                            encoding="utf-8")
+    (providers_dir / "santiago.md").write_text(provider_text("santiago", regions="[CL]"),
+                                               encoding="utf-8")
+    open_board(page, "profile")
+    sites = card(page, "^Job sites")
+    rows = sites.locator(".pa-provider")
+    country = sites.get_by_label("Show sites for")
+    expect(country).to_have_value("PE")                       # the persona's country
+    expect(rows.filter(has_text="World").locator(".tag.coverage")).to_have_text("Global")
+    expect(rows.filter(has_text="Alpha").locator(".tag.coverage")).to_have_text("Local · PE")
+    expect(rows.filter(has_text="Santiago")).to_have_count(0)
+    country.select_option("CL")
+    expect(rows.filter(has_text="Santiago").locator(".tag.coverage")).to_have_text("Local · CL")
+    expect(rows.filter(has_text="Alpha")).to_have_count(0)
+    expect(rows.filter(has_text="World")).to_have_count(1)
+    country.select_option("all")
+    expect(rows).to_have_count(5)
+    # Filtering never switches a site.
+    expect(rows.filter(has_text="Alpha").get_by_role("switch")).to_have_attribute(
+        "aria-checked", "true")
+
+
+def test_search_tab_job_site_dialog_filters_by_country(searchable, providers_dir, page):
+    from tests.helpers import provider_text
+
+    (providers_dir / "santiago.md").write_text(provider_text("santiago", regions="[CL]"),
+                                               encoding="utf-8")
+    with db.session(searchable) as conn:
+        search.finish_run(conn, search.start_run(conn, searchable)["run_id"])
+    open_board(page)
+    page.get_by_role("button", name="Turn job sites on or off").click()
+    dialog = page.locator("dialog[open]")
+    expect(dialog.get_by_label("Show sites for")).to_have_value("PE")
+    expect(dialog.locator(".provider-row")).to_have_count(3)
+    expect(dialog.locator(".provider-row").filter(has_text="Santiago")).to_have_count(0)
+    dialog.get_by_label("Show sites for").select_option("all")
+    expect(dialog.locator(".provider-row").filter(has_text="Santiago")).to_contain_text(
+        "Local · CL")
+
+
 def test_disabling_a_provider(searchable, page):
     open_board(page, "profile")
     alpha = card(page, "^Job sites").locator(".pa-provider").filter(has_text="Alpha")
