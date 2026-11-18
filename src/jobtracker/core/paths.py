@@ -83,6 +83,14 @@ class Paths:
     def archive(self) -> Path:
         return self.home / "archive"
 
+    @property
+    def private_providers(self) -> Path:
+        return self.home / "providers"
+
+    @property
+    def provider_settings(self) -> Path:
+        return self.home / "provider-settings"
+
     def job_folder(self, job_id: str, company: str) -> Path:
         if not JOB_ID_PATTERN.match(job_id):
             raise JobTrackerError("invalid_job_id", f"'{job_id}' is not a job id like J0007")
@@ -105,6 +113,8 @@ class Paths:
             "exports": str(self.exports),
             "backups": str(self.backups),
             "archive": str(self.archive),
+            "private_providers": str(self.private_providers),
+            "provider_settings": str(self.provider_settings),
         }
 
 

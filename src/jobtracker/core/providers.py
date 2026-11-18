@@ -12,10 +12,10 @@ from pathlib import Path
 
 from .db import bump_changes, now_iso
 from .errors import JobTrackerError
-from .paths import repo_root
+from .paths import home_dir, repo_root
 
 PROVIDERS_DIR_ENV = "JOBTRACKER_PROVIDERS_DIR"
-SKIPPED_FILES = {"readme.md", "_template.md"}
+SKIPPED_FILES = {"readme.md", "_template.md", "contributing.md"}
 KINDS = ("jobs", "salary", "both")
 ACCESS_METHODS = ("chrome-extension", "playwright", "scrapling", "http", "web-search")
 REQUIRED_FIELDS: dict[str, type | tuple[type, ...]] = {
@@ -57,6 +57,17 @@ INSTALL_HINTS = {
 def providers_dir() -> Path:
     override = os.environ.get(PROVIDERS_DIR_ENV)
     return Path(override) if override else repo_root() / "providers"
+
+
+def private_dir() -> Path:
+    """The user's own provider files (and readers), in the private home."""
+    return home_dir() / "providers"
+
+
+def provider_path(provider_id: str) -> Path | None:
+    """The file of a listed provider, repository or private."""
+    item = next((p for p in list_providers() if p["id"] == provider_id), None)
+    return Path(str(item["path"])) if item else None
 
 
 def _parse_value(raw: str) -> object:
@@ -182,20 +193,21 @@ def validate_text(text: str, file_name: str) -> list[str]:
     return problems
 
 
-def list_providers(directory: Path | None = None) -> list[dict[str, object]]:
-    """Every provider file with its front matter and whether it is valid."""
-    directory = directory or providers_dir()
+def _read_folder(directory: Path, origin: str) -> list[dict[str, object]]:
     found: list[dict[str, object]] = []
     if not directory.is_dir():
         return found
     for path in sorted(directory.glob("*.md")):
-        if path.name.lower() in SKIPPED_FILES:
+        name = path.name.lower()
+        if name in SKIPPED_FILES or name.endswith(".study.md"):
             continue
         text = path.read_text(encoding="utf-8")
         meta = parse_front_matter(text)
         meta.setdefault("id", path.stem)
         meta.setdefault("name", path.stem)
         meta["file"] = path.name
+        meta["path"] = str(path)
+        meta["origin"] = origin
         coverage = _coverage(meta.get("regions"))
         meta["coverage"] = coverage[0] if coverage else None
         meta["countries"] = coverage[1] if coverage else None
@@ -203,6 +215,25 @@ def list_providers(directory: Path | None = None) -> list[dict[str, object]]:
         meta["valid"] = not problems
         meta["problems"] = problems
         found.append(meta)
+    return found
+
+
+def list_providers(directory: Path | None = None) -> list[dict[str, object]]:
+    """Every provider file with its front matter and whether it is valid: the
+    repository's (`origin: repo`), then the user's own (`origin: private`). A private
+    file whose id a repository file already uses is listed as invalid. With
+    `directory`, only that folder is read."""
+    if directory is not None:
+        return _read_folder(directory, "repo")
+    found = _read_folder(providers_dir(), "repo")
+    taken = {str(p["id"]) for p in found}
+    for item in _read_folder(private_dir(), "private"):
+        if str(item["id"]) in taken:
+            item["valid"] = False
+            item["problems"] = [*item["problems"],  # type: ignore[misc]
+                                f"id already used by providers/{item['id']}.md; rename the "
+                                "private file and its id"]
+        found.append(item)
     return found
 
 

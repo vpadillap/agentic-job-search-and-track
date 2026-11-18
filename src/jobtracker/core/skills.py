@@ -67,6 +67,14 @@ COMMANDS: tuple[dict, ...] = (
         },
     },
     {
+        "id": "add-provider", "example": "",
+        "aliases": {"es": "agregar-proveedor"}, "alias_examples": {"es": ""},
+        "description": {
+            "en": "Adds a job site for you; once proved, offers it to the project",
+            "es": "Agrega un portal para ti; ya probado, ofrece aportarlo al proyecto",
+        },
+    },
+    {
         "id": "panel", "example": "",
         "aliases": {}, "alias_examples": {},
         "description": {

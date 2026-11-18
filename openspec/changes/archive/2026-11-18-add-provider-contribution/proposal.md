@@ -27,8 +27,11 @@ in `AGENTS.md`; this workflow is for cloners.)
   - Study first, with real requests, logged out: try plain HTTP, headless
     browser, visible browser, and (only if needed) the user's own browser
     through the extension; record each route and its result in a table.
-  - Never pass credentials to automation; never use stealth tools or proxies;
-    read-only always.
+  - Never pass credentials to automation, and never automate a signed-in
+    account in a way that could get it banned (the user signs in themselves,
+    in their own browser, and is present). Reading logged out, where no
+    account is at risk, getting past a site's automated checks is allowed
+    (as the Glassdoor reader does with Scrapling). Read-only always.
   - Global or local: `regions` as defined in `add-provider-coverage`; a local
     site with several countries is verified in each country (dated row in
     `## Countries`).

@@ -56,6 +56,13 @@ def test_staged_file_inside_the_private_home_is_rejected(repo):
     assert "user-data/profile/notes.txt" in result.stderr
 
 
+def test_a_private_provider_is_never_committed(repo):
+    _stage(repo, "user-data/providers/acme-jobs.study.md", force=True)
+    result = _guard(repo)
+    assert result.returncode == 1
+    assert "user-data/providers/acme-jobs.study.md" in result.stderr
+
+
 @pytest.mark.parametrize("name", ["resume.pdf", "docs/My CV.docx", "data/jobs.db"])
 def test_resume_and_database_files_are_rejected(repo, name):
     _stage(repo, name, force=True)

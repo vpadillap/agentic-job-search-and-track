@@ -23,6 +23,7 @@
 .claude/skills/formulario/
 .claude/skills/analizar-resultados/
 .claude/skills/nueva-temporada/
+.claude/skills/agregar-proveedor/
 
 # ── Python ────────────────────────────────────────────────────────────────
 __pycache__/

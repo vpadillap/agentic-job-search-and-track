@@ -7,11 +7,13 @@ export const ALL = 'all';
 
 export function CoverageTag({ provider }) {
   const { t } = useUi();
-  if (!provider.coverage) return null;
+  const privateTag = provider.origin === 'private'
+    && html`<span class="tag coverage private" title=${t('coverage.privateHint')}>${t('coverage.private')}</span>`;
+  if (!provider.coverage) return privateTag || null;
   const text = provider.coverage === 'global'
     ? t('coverage.global')
     : t('coverage.local', { countries: provider.countries.join(', ') });
-  return html`<span class="tag coverage" data-coverage=${provider.coverage}>${text}</span>`;
+  return html`<span class="tag coverage" data-coverage=${provider.coverage}>${text}</span>${privateTag}`;
 }
 
 // Every country named by a local site, sorted.

@@ -25,6 +25,11 @@ user-data/                                  private home (gitignored)
 ├── config.toml                             panel language (en|es), host, port
 ├── jobtracker.db                           SQLite: the source of truth for all structured data
 ├── .private-terms                          one term per line (name, email, phone…) for the privacy guard
+├── providers/                              job sites the user added (see providers/CONTRIBUTING.md)
+│   ├── <provider-id>.md                    a private provider file, same format as providers/_template.md
+│   ├── <provider-id>.py                    its reader, when it has one (same interface as core/readers/)
+│   ├── <provider-id>.study.md              the study and the proving runs (never copied into a pull request)
+│   └── tests/                              tests of private readers (fictional pages only)
 ├── provider-settings/
 │   └── <provider-id>.json                  what a reader keeps for this user (e.g. Glassdoor country ids from a pasted search URL)
 ├── profile/

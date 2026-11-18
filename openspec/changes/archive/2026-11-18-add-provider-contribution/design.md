@@ -70,4 +70,6 @@ the privacy guard.
 - [Personal data leaking into a PR] → D3 rewrite plus the privacy guard on
   commit.
 - [Contributors without OpenSpec installed] → The change folder is written
-  from plain Markdown templates; `openspec validate` runs in CI.
+  from plain Markdown templates; the skill runs `openspec validate --strict`
+  when OpenSpec is installed and says in the PR when it could not; CI does
+  not run it, so maintainers validate on review.
