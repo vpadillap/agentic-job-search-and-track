@@ -411,7 +411,13 @@ def cmd_providers_read(args: argparse.Namespace) -> dict:
     from jobtracker.core import readers
 
     return {"read": readers.read(args.provider, get_paths(), args.run_id, args.title,
-                                 args.location)}
+                                 args.location, args.search_url)}
+
+
+def cmd_providers_salary(args: argparse.Namespace) -> dict:
+    from jobtracker.core import readers
+
+    return {"salary": readers.salary(args.provider, get_paths(), args.title, args.search_url)}
 
 
 def cmd_postings_filter(args: argparse.Namespace) -> dict:
@@ -873,7 +879,16 @@ def build_parser() -> argparse.ArgumentParser:
     providers_read.add_argument("run_id", type=int, metavar="run")
     providers_read.add_argument("--title", required=True, help="one title of the run")
     providers_read.add_argument("--location", help="where to search, as the site expects it")
+    providers_read.add_argument(
+        "--search-url", help="a search address the user pasted, when the provider file says so")
     providers_read.set_defaults(run=cmd_providers_read)
+    providers_salary = providers_sub.add_parser(
+        "salary", help="read a provider's salary page for one title: an evidence draft")
+    providers_salary.add_argument("provider")
+    providers_salary.add_argument("--title", required=True, help="the job title")
+    providers_salary.add_argument(
+        "--search-url", help="a search address the user pasted, when the provider file says so")
+    providers_salary.set_defaults(run=cmd_providers_salary)
 
     run_parser = sub.add_parser("run", help="search runs")
     run_sub = run_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)

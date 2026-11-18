@@ -87,7 +87,7 @@ def test_missing_tool_names_provider_tool_and_install(workspace, cli, providers_
     assert alpha["status"] == "fail" and "Alpha" in alpha["detail"]
     assert "playwright-surely-missing" in alpha["detail"]
     assert "providers/alpha.md" in alpha["fix"]
-    assert "pip install scrapling" in beta["fix"]
+    assert 'pip install "scrapling[fetchers]", then: scrapling install' in beta["fix"]
 
 
 def test_disabled_providers_are_not_checked(workspace, cli, providers_dir, monkeypatch):
