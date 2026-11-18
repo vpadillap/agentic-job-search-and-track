@@ -53,9 +53,23 @@ not required for any GET endpoints." No rate limits or usage restrictions are
 stated for GET; only submitting applications (POST, never done here) needs a
 key. `my.greenhouse.io/robots.txt` allows everything.
 
-**Not tried yet (1.2):** the candidate search through the user's own Chrome
-(Claude in Chrome) with the user signed in to MyGreenhouse. It needs the
-owner to sign in; whether it is worth it depends on the route chosen. Everything below "What Changes" is the expected shape and is revised
+**1.2, the candidate search signed in (2026-11-18)**, through Claude in Chrome
+in the owner's own Chrome, where the owner was already signed in to
+MyGreenhouse; read-only, no account data recorded:
+
+| Observation | Detail |
+|---|---|
+| Search address | `my.greenhouse.io/jobs/search?query=<title>&location=<country>&location_type=country&country_short_name=<CC>` (plus coordinates the location box adds); filters for date posted, salary, work type, employment type |
+| Results | cards across **all companies on Greenhouse**: title, company, work mode, locations, "Posted · <relative age>"; infinite scroll; "data engineer" in Peru: **48 postings** (Encora, Sezzle, Nortal, N-iX, Aspenview…), against about 7 boards found by web search |
+| A card | opens a modal with the full description; the title links to the company's board posting, e.g. `job-boards.greenhouse.io/encora10/jobs/5283692007`; the card itself carries no link, so the board name is read from the modal |
+| Through the public API | `encora10` / `5283692007`: the same posting ("Senior Data Engineer AWS", Peru, 2,974-character description, 9 form questions) |
+| Delivery | the page is an Inertia app; the search is a page visit, no separate data request seen. The page data also holds the signed-in user's name and email (never read or stored) |
+
+So the signed-in search is a far better **discovery** source (every company,
+filtered by country), and the public API stays the source of each posting.
+It needs the user signed in in their own Chrome and present (live walk), and
+it uses the user's MyGreenhouse account, so an account is involved: pace like
+a person, read-only, never apply or save. Everything below "What Changes" is the expected shape and is revised
 after the study.
 
 ## What Changes (expected; revised after the study)

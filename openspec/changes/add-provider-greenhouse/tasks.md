@@ -1,7 +1,7 @@
 ## 1. Study (scratch scripts only; nothing in the repo but this change's text)
 
 - [x] 1.1 Candidate job search logged out: plain HTTP, headless, visible Chromium; URL, filters, result data, posting text
-- [ ] 1.2 If it needs a sign-in: the same search through Claude in Chrome in the user's own Chrome (user signs in themselves); what can be read and what the user must do
+- [x] 1.2 If it needs a sign-in: the same search through Claude in Chrome in the user's own Chrome (user signs in themselves); what can be read and what the user must do
 - [x] 1.3 Company boards and the public Job Board API: real requests; fields, form questions, limits; how companies would be found
 - [x] 1.4 Terms of use of each route
 - [ ] 1.5 Write the results table into the proposal and design (D2+); owner chooses the route before section 2
