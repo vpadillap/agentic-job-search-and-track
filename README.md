@@ -1,4 +1,4 @@
-# Claude Job Tracker
+# Agentic Job Search and Track
 
 A clone-and-run, local-first job search assistant driven by an AI agent, built
 for [Claude Code](https://claude.com/claude-code).
