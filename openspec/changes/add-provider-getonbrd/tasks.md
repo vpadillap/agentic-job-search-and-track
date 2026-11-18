@@ -6,7 +6,7 @@
 - [x] 1.4 Coverage: countries served, how a posting states its country or remote scope; global or local
 - [x] 1.5 Terms of use and robots.txt
 - [x] 1.7 Scrapling for Get on Board: time and results against the other routes
-- [ ] 1.8 Scrapling on Indeed, Bumeran, LinkedIn (study only): time, postings, descriptions, blocks, window; results recorded for the owner (changes to those providers go in their own changes)
+- [x] 1.8 Scrapling on Indeed, Bumeran, LinkedIn (study only): time, postings, descriptions, blocks, window; results recorded for the owner (changes to those providers go in their own changes)
 - [ ] 1.6 Write the results table into the proposal and design (D3+); owner chooses the route before section 2
 
 ## 2. Implementation (shape depends on 1.6)

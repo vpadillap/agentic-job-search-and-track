@@ -67,6 +67,19 @@ the data or train models with it. `robots.txt`: `Allow: /` for every agent,
 signal), and training crawlers (ClaudeBot, GPTBot, CCBot…) disallowed; as
 decided for Glassdoor, this tool is not a crawler.
 
+**Point 1.8, Scrapling on the existing providers (study only).** Scrapling
+0.5.1 `StealthySession(headless=True, solve_cloudflare=True)` (Fetcher for
+LinkedIn), 5 s between requests, "data engineer" in Peru, 7 days:
+
+| Provider (current reader) | With Scrapling, headless | Reading |
+|---|---|---|
+| Indeed (visible window, 30 per title, side-panel clicks; posting pages ask to sign in) | search page 1: 200, 13 cards, **no window** (plain headless got 403); page 2 (`start=10`): **sign-in page**; posting page `/viewjob`: 200 with the complete description (3,400 characters) but **115–337 s** per posting | Not better as it stands: no more postings than today and posting pages are far slower. Untested: a headless search plus the current side-panel clicks inside the same Scrapling session (no window, same speed) |
+| Bumeran (visible window; captures `searchV2` and `fichaAvisoNormalizada`) | search page: 200 in 14 s, `searchV2` captured (5 postings); posting page: 200 in 13 s, ficha captured, description 2,627 characters | **Same data with no window**: a good candidate for its own change |
+| LinkedIn (plain HTTP to the public guest endpoint) | Scrapling `Fetcher` (browser impersonation): **429** on the first request; the same request in plain HTTP right after: 200 in 0.7 s | **Worse**: keep the current reader |
+
+Changing Indeed or Bumeran is not part of this change: each goes in its own
+change if the owner decides so.
+
 Decision for the owner: the "refreshed at least every 24 hours" clause is
 written for sites that republish Get on Board's jobs; in this tool a posting
 stays as it was on the day of the search. Options: accept it as personal use,
