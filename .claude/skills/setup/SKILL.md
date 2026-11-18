@@ -177,9 +177,10 @@ the user says so.
    the user picks; leave the others off. A site added later by an update also
    arrives off, so nothing is searched without the user's choice.
 5. For each enabled provider with `dependencies`, tell the user what will be
-   installed, ask, install, and confirm with `jt doctor` that its
-   `provider:<id>` check passes. If the user declines or installation fails,
-   run `jt providers disable <id>` and say so.
+   installed and its size, then `jt providers install <id>`: it installs the
+   missing tools into the project's environment and checks they work. Confirm
+   with `jt doctor` that its `provider:<id>` check passes. If installation
+   fails, run `jt providers disable <id>` and say why.
 
 ## 9. Preferences (`preferences`)
 

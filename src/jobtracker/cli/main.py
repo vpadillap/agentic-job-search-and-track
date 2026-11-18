@@ -416,6 +416,12 @@ def cmd_providers_read(args: argparse.Namespace) -> dict:
                                  place_words=args.place_words)}
 
 
+def cmd_providers_install(args: argparse.Namespace) -> dict:
+    from jobtracker.core import installer
+
+    return {"install": installer.install(get_paths(), args.provider, enabled=args.enabled)}
+
+
 def cmd_providers_salary(args: argparse.Namespace) -> dict:
     from jobtracker.core import readers
 
@@ -911,6 +917,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--place-words", help="words that place a job in the user's country, when the "
         "provider file says so")
     providers_read.set_defaults(run=cmd_providers_read)
+    providers_install = providers_sub.add_parser(
+        "install", help="install what a provider (or every enabled one) needs, and check it")
+    providers_install.add_argument("provider", nargs="?", help="a provider id")
+    providers_install.add_argument("--enabled", action="store_true",
+                                   help="every provider the user turned on")
+    providers_install.set_defaults(run=cmd_providers_install)
     providers_salary = providers_sub.add_parser(
         "salary", help="read a provider's salary page for one title: an evidence draft")
     providers_salary.add_argument("provider")

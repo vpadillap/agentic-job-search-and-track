@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -151,3 +153,23 @@ def finish(paths: Paths, ctx: Context, state: dict, summary: dict, drafts: list[
                                    reason=summary["stopped"]["reason"],
                                    detail=summary["stopped"]["detail"])
     return summary
+
+
+# ── title matching (readers whose site matches words anywhere in a posting) ──
+
+FILLER_WORDS = {"senior", "sr", "junior", "jr", "semi", "mid", "lead", "principal", "staff",
+                "i", "ii", "iii", "iv", "de", "of", "the", "and", "y", "en", "a"}
+
+
+def words(text: str) -> list[str]:
+    """Lowercase ASCII words: accents removed, split on anything else."""
+    ascii_text = unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode()
+    return [w for w in re.split(r"[^a-z0-9]+", ascii_text.lower()) if w]
+
+
+def title_matches(searched: str, posting: str) -> bool:
+    """Every word of the searched title is in the posting's title, seniority and filler
+    words aside: "Senior Data Engineer" matches "Data Engineer II", not "Data Analyst"."""
+    wanted = [w for w in words(searched) if w not in FILLER_WORDS]
+    have = set(words(posting))
+    return bool(wanted) and all(w in have for w in wanted)

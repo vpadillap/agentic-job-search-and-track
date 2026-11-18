@@ -81,9 +81,11 @@ enough.
 - Tests in `<private_providers>/tests/test_<id>_reader.py` with a fake
   browser or getter and **fictional** pages only; run them with
   `python -m pytest <private_providers>/tests`.
-- A dependency the reader needs (for example `scrapling`, `playwright`): tell
-  the user what will be installed and its size, ask, install it into the
-  project's `.venv`, and list it in `dependencies`.
+- A dependency the reader needs (for example `scrapling`): list it in
+  `dependencies`, tell the user what will be installed and its size, and run
+  `jt providers install <id>` (it installs the tools it knows, `scrapling` and
+  `playwright`, into the project's environment and checks they work). For any
+  other tool, install it into the project's `.venv` and say how in the file.
 - `jt providers read <id> <run_id> --title "<title>"` runs it like a built-in
   reader.
 

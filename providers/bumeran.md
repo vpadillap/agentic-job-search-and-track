@@ -3,21 +3,22 @@ id: bumeran
 name: Bumeran Perú
 kind: jobs
 regions: [PE]
-access: playwright
+access: scrapling
 requires_login: false
 live_walk: false
-dependencies: [playwright]
+dependencies: [scrapling]
 max_results_per_query: 40
 min_seconds_between_requests: 5
-last_verified: 2026-11-17
+last_verified: 2026-11-18
 ---
 
 # Bumeran Perú
 
 ## Access method
 
-A real Chromium browser, driven by the reader command, logged out: no
-account, no saved cookies, not the user's own Chrome. Every Bumeran page is
+A headless Scrapling stealth session (a real Chromium with no window), driven
+by the reader command, logged out: no account, no saved cookies, not the
+user's own Chrome. Every Bumeran page is
 opened by the reader, never by you:
 
 ```
@@ -37,20 +38,19 @@ keeps the data the site sends to them:
    `api/candidates/fichaAvisoNormalizada/<id>`: the complete description and
    the application-form questions).
 
-**A browser window opens** during a Bumeran search and closes when the call
-ends. Cloudflare blocks the invisible (headless) browser, so the reader uses
-a normal window. Tell the user before the first Bumeran search, and that they
-should not click or type in that window.
+**No window opens.** A plain headless browser is blocked by Cloudflare;
+Scrapling's stealth session gets the same pages a normal window gets (studied
+2026-11-18: the search data and each posting's data, with complete
+descriptions). No account is involved, so getting past the automated check
+puts no account at risk. If Scrapling is missing, run
+`jt providers install bumeran` (`/job-search` does it for the user).
 
 Forbidden, without exception and without fallback:
 
 - requesting Bumeran yourself (curl, a script, a fetch tool, a browser):
   only the reader opens Bumeran pages;
-- calling Bumeran's API directly, from anything (plain HTTP to `api/` answers
-  403 from Cloudflare, and getting around that is evasion);
-- making a non-browser look like a browser (TLS fingerprint impersonation
-  such as `curl_cffi`, Scrapling's stealth mode), stealth plugins, an edited
-  user agent, copied Cloudflare cookies, proxies, or rotating identities;
+- calling Bumeran's API directly, from anything: the reader only keeps what
+  the pages it opens receive;
 - the user's Chrome, the browser extension, or the user's Bumeran account;
 - clicking anything on Bumeran, and any application request (`postularV2`
   and similar): the reader cancels them even if a page tries.
@@ -68,8 +68,8 @@ call to finish; never remove its lock file.
 
 1. Run the reader: `jt providers read bumeran <run_id> --title "<title>"`.
    Bumeran searches all of Peru; no location is sent (the first-pass filter
-   applies the profile's places). A call takes a few minutes (a browser
-   start, then at least 5 seconds per page).
+   applies the profile's places). A call takes a few minutes (a session
+   start, then at least 5 seconds and about 14 seconds per page).
 2. Read the summary it prints (`read`): `new`, `already_seen` (stored by an
    earlier run, recorded as seen without opening them again),
    `outside_window`, `duplicate_in_run`, `unreadable` (closed or empty
@@ -187,7 +187,7 @@ expected salary; `/form-answers` handles it like any salary question.
   por BUMERAN", and the terms apply to everyone who visits, with or without
   an account (clause 1.5.2 allows suspending users). This provider never
   involves the user's account, but it is still automated browsing that the
-  terms forbid. The realistic consequence is that Bumeran (through
+  terms forbid, and it gets past Cloudflare's automated check on purpose. The realistic consequence is that Bumeran (through
   Cloudflare) blocks the user's IP address for a while. Tell the user this
   before they turn Bumeran on.
 - At least 5 seconds between page loads; at most 2 result pages per title
@@ -213,10 +213,9 @@ A search with no results simply has no postings for that title.
 
 ## Known pitfalls
 
-- **Headless is blocked.** Cloudflare answered 403 to the invisible browser
-  on every page (2026-11-17) and served the same pages to a normal window.
-  Never switch to headless or add stealth tricks; if the window is blocked
-  too, the provider stops.
+- **Plain headless is blocked.** Cloudflare answered 403 to a plain headless
+  browser on every page (2026-11-17). Scrapling's stealth session passes
+  (2026-11-18); if it is blocked too, the provider stops.
 - **Plain HTTP is blocked.** curl and Python requests to `api/` get
   Cloudflare's "Sorry, you have been blocked" page, even with the same
   headers the site sends; the IP is not blocked by that (other pages still

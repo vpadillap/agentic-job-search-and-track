@@ -3,40 +3,50 @@ id: indeed
 name: Indeed
 kind: jobs
 regions: [global]
-access: playwright
+access: scrapling
 requires_login: false
 live_walk: false
-dependencies: [playwright]
-max_results_per_query: 30
+dependencies: [scrapling]
+max_results_per_query: 60
 min_seconds_between_requests: 5
-last_verified: 2026-11-17
+last_verified: 2026-11-18
 ---
 
 # Indeed
 
 ## Access method
 
-An ordinary **visible** Chromium with a fresh profile, logged out: no cookies,
-no account, no sign-in. Every Indeed page is opened by the reader command,
+**Headless Scrapling stealth sessions**, logged out: no cookies, no account,
+no sign-in, no window. Every Indeed page is opened by the reader command,
 never by you:
 
 ```
 jt providers read indeed <run_id> --title "<title>" --location "<place>"
 ```
 
-The reader uses Indeed's search page and nothing else. It takes the postings
-from the job-card data the page embeds, clicks each new posting, and copies
-its description from the side panel that opens next to the list, as a person
-reading the results would.
+The reader uses Indeed's search pages and nothing else. It takes the
+postings from the job-card data each page embeds, clicks each new posting,
+and copies its description from the side panel that opens next to the list.
+
+**One page per search, so several searches per title.** Logged out, Indeed
+serves only the first results page of a search: the second answers "Security
+Check" (403) to a normal browser and a sign-in page to Scrapling (studied
+2026-11-18). So the reader loads the first page of several variants of the
+same search (relevance, sorted by date, last day, the other place, remote,
+last 3 days), each in a fresh session; together they give about three times
+what one page gives (44 against 15 for a broad title in Peru).
+
+No account is involved, so getting past Indeed's automated check puts no
+account at risk. If Scrapling is missing, run `jt providers install indeed`
+(`/job-search` does it for the user).
 
 Forbidden, without exception and without fallback:
 
 - opening Indeed yourself (curl, a script, a fetch tool, a browser, the
   browser extension): only the reader opens Indeed;
 - the user's Indeed account, session, or browser, and signing in;
-- a headless browser, stealth plugins, proxies, rotating user agents, or
-  anything meant to get around Indeed's checks;
-- posting pages (`/viewjob?jk=…`): logged out they ask to sign in;
+- posting pages (`/viewjob?jk=…`): logged out they ask to sign in or take
+  minutes under Scrapling;
 - Indeed's MCP connector: it refuses sessions from Claude Code (tried
   2026-11-17), so it is not an option here.
 
@@ -54,9 +64,9 @@ second call while one is running: `reader_busy`).
    `<place>` is where the profile's user wants to work, written as Indeed
    expects it (a city: `Lima`, `Arequipa`); leave `--location` out to search
    the whole country. The Indeed site is chosen from the profile's
-   `country` (`PE` → `pe.indeed.com`, `US` → `www.indeed.com`). A Chromium
-   window opens on the user's screen for one to three minutes: that is
-   expected, Indeed blocks browsers without a window.
+   `country` (`PE` → `pe.indeed.com`, `US` → `www.indeed.com`). No window
+   opens. A title takes from one minute (few results) to about ten (many
+   results: several first pages and a click per new posting).
 2. Read the summary (`read`): `new`, `already_seen` (stored by an earlier
    run, recorded as seen without clicking them), `outside_window`,
    `duplicate_in_run`, and `stopped`.
@@ -74,9 +84,18 @@ When every title is done and Indeed did not stop, record
 
 ### What the reader does
 
-- Search page: `https://<cc>.indeed.com/jobs?q=<title>&l=<place>&fromage=<days>`,
-  then the same with `start=10`, `start=20`… while new postings appear, up to
-  30 postings per title.
+- First pages, each in a fresh session, in this order:
+  1. relevance: `https://<cc>.indeed.com/jobs?q=<title>&l=<place>&fromage=<days>`;
+  2. sorted by date (`&sort=date`);
+  3. last day (`fromage=1`);
+  4. the whole country (no `l`), when a place was given;
+  5. remote (`l=remoto`);
+  6. last 3 days (`fromage=3`), when the window is longer.
+- It stops when 60 postings are reached, when it has met as many postings as
+  Indeed's own total for the search, or when two variants in a row show
+  nothing new. A sign-in or security page on a variant after the first ends
+  the title (`ended_early` in the summary), not Indeed: the next titles are
+  still read.
 - `fromage`, the posting age: the smallest of 1, 3, 7, or 14 days that covers
   the run's window (more than 14 days uses 14; the import drops older
   postings).
@@ -85,8 +104,9 @@ When every title is done and Indeed did not stop, record
 - Each posting is clicked once per run; postings stored by an earlier run
   and postings outside the window are never clicked.
 - Search pages are saved as `indeed-<n>.html` and descriptions as
-  `indeed-<n>.txt` in the capture folder (audit); drafts as
-  `indeed-drafts-<n>.json`.
+  `indeed-<n>-<job>.txt` in the capture folder (audit); drafts as
+  `indeed-drafts-<n>.json`. The summary lists each variant with the postings
+  it added (`variants`) and Indeed's total (`site_total`).
 
 ## Fields to extract
 
@@ -141,12 +161,12 @@ apply link.
   forbid using "any automated system (bots, scrapers, spiders, AI or Agentic
   AI)" to access the site without written permission, except crawling as its
   robots.txt allows; robots.txt allows the search pages (`/jobs?…`) and
-  disallows posting pages for generic bots. The reader uses an ordinary
-  browser, no account, and no tricks, but it is still automated access that
-  Indeed does not permit. The realistic consequence is that Indeed blocks
+  disallows posting pages for generic bots. The reader uses no account, but it
+  is automated access that Indeed does not permit, and it gets past Indeed's
+  automated check on purpose. The realistic consequence is that Indeed blocks
   requests from the user's IP address for a while. Tell the user this before
   they turn Indeed on.
-- At least 5 seconds between actions; at most 30 postings per title; each
+- At least 5 seconds between actions; at most 60 postings per title; each
   posting clicked once per run.
 - Read-only: never apply, save, follow, message, or sign in.
 
@@ -156,9 +176,10 @@ The reader stops **all** Indeed work for the rest of the run, keeps what was
 already read, records Indeed as failed for the run, and refuses later calls
 in that run when:
 
-- a page answers 403 or 429, or its title is a block or security check
-  ("Blocked - Indeed.com", "Security Check"), or a sign-in page appears
-  instead of results: reason `blocked`;
+- the **first** page of a title answers 403 or 429, or its title is a block
+  or security check ("Blocked - Indeed.com", "Security Check", "Un
+  momento…"), or a sign-in page appears instead of results: reason `blocked`
+  (on a later variant the same page only ends that title);
 - a search page has no job-card data, or a clicked posting shows no
   description: reason `error`, with what is missing;
 - the browser itself fails: reason `error`.
@@ -168,9 +189,12 @@ that title.
 
 ## Known pitfalls
 
-- **Headless is blocked.** A browser without a window gets "Blocked -
-  Indeed.com" (403); plain HTTP gets a Cloudflare challenge. Only the visible
-  browser works.
+- **Plain headless is blocked.** A plain browser without a window gets
+  "Blocked - Indeed.com" (403); plain HTTP gets a Cloudflare challenge.
+  Scrapling's stealth session passes (2026-11-18).
+- **No second page logged out.** `start=10` answers "Security Check" (403) to
+  a normal browser and a sign-in page to Scrapling; the reader uses other
+  first pages instead.
 - **Posting pages ask to sign in.** `/viewjob?jk=…` answers 401 with
   "Iniciar sesión | Cuentas Indeed" when logged out; the description is read
   from the search page's side panel instead.
@@ -179,4 +203,4 @@ that title.
   posting and for the text to change.
 - **Job types are local words** ("Indefinido", "Medio tiempo"): read them, do
   not map them blindly.
-- **Relevance order** by default: the age window keeps results recent.
+- **Relevance order** by default; the date-sorted variant adds the newest.

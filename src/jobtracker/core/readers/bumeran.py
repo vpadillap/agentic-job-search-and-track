@@ -2,7 +2,8 @@
 
 Bumeran's pages are a JavaScript application whose data comes from the site's
 own API, which Cloudflare refuses to anything but a real browser. One call
-opens, in a real Chromium window without an account or saved cookies, the
+opens, in a headless Scrapling stealth session without an account or saved
+cookies (no window), the
 public search page for one title and posting age, then the public page of each
 new posting, and keeps the JSON those pages receive from the site. The reader
 never calls the API itself, never clicks, and cancels any application request.
@@ -54,8 +55,7 @@ SKIPPED_RESOURCES = ("image", "font", "media")
 STATE_FILE = "bumeran-state.json"
 LOCK_FILE = "bumeran.lock"
 STALE_LOCK_SECONDS = 30 * 60
-INSTALL_PACKAGE = "pip install playwright (or: uv sync --extra browser)"
-INSTALL_BROWSER = "python -m playwright install chromium"
+INSTALL = "jt providers install bumeran"
 
 
 # ── the browser ───────────────────────────────────────────────────────────
@@ -81,62 +81,67 @@ def _route(route) -> None:
 
 
 @contextmanager
-def playwright_browser() -> Iterator[Open]:
-    """A visible Chromium window with a fresh context: no account, no saved cookies,
-    nothing edited about the browser. Yields `open(url, watch)`."""
+def scrapling_browser() -> Iterator[Open]:
+    """A headless Scrapling stealth session: no account, no saved cookies, no window.
+    Yields `open(url, watch)`: load one public page and keep the site data it receives."""
     try:
-        from playwright.sync_api import Error as PlaywrightError
-        from playwright.sync_api import sync_playwright
+        from scrapling.fetchers import StealthySession
     except ImportError as error:
         raise JobTrackerError(
-            "missing_dependency",
-            f"Bumeran needs the Playwright package, which is not installed. {INSTALL_PACKAGE}, "
-            f"then: {INSTALL_BROWSER}", tool="playwright") from error
-    with sync_playwright() as playwright:
-        try:
-            browser = playwright.chromium.launch(headless=False)
-        except PlaywrightError as error:
-            raise JobTrackerError(
-                "missing_dependency",
-                f"Bumeran needs Playwright's Chromium, which could not start ({error}). "
-                f"Install it with: {INSTALL_BROWSER}", tool="chromium") from error
-        try:
-            context = browser.new_context(locale=LOCALE, viewport=VIEWPORT)
-            context.route("**/*", _route)
-            tab = context.new_page()
+            "missing_dependency", f"Bumeran needs Scrapling, which is not installed. Run: "
+            f"{INSTALL}", tool="scrapling") from error
+    import logging
 
-            def open_page(url: str, watch: tuple[str, ...]) -> Page:
-                captured: list[dict] = []
+    logging.getLogger("scrapling").setLevel(logging.WARNING)  # keep the CLI output clean
+    try:
+        session = StealthySession(headless=True, solve_cloudflare=True, locale=LOCALE,
+                                  timeout=int(RESPONSE_TIMEOUT * 3000), wait=0)
+        session.__enter__()
+    except Exception as error:  # the browser itself is not installed
+        raise JobTrackerError(
+            "missing_dependency", f"Scrapling's browser could not start ({error}). Run: "
+            f"{INSTALL}", tool="scrapling") from error
 
-                def on_response(response) -> None:
-                    if any(part in response.url for part in watch):
-                        try:
-                            body = response.json()
-                        except Exception:  # not JSON: kept as missing
-                            body = None
-                        captured.append({"url": response.url, "status": response.status,
-                                         "body": body})
+    def open_page(url: str, watch: tuple[str, ...]) -> Page:
+        captured: list[dict] = []
+        seen_title = {"value": ""}
 
-                tab.on("response", on_response)
+        def on_response(response) -> None:
+            if any(part in response.url for part in watch):
                 try:
-                    answer = tab.goto(url, wait_until="domcontentloaded",
-                                      timeout=RESPONSE_TIMEOUT * 1000)
-                    deadline = time.monotonic() + RESPONSE_TIMEOUT
-                    while not captured and time.monotonic() < deadline:
-                        if any(t in tab.title().lower() for t in BLOCK_TITLES):
-                            break
-                        tab.wait_for_timeout(500)
-                    tab.wait_for_timeout(1000)
-                    return Page(status=answer.status if answer else None, title=tab.title(),
-                                url=tab.url, responses=captured)
-                except PlaywrightError as error:
-                    raise _Stop("error", f"the browser could not load {url}: {error}") from error
-                finally:
-                    tab.remove_listener("response", on_response)
+                    body = response.json()
+                except Exception:  # not JSON: kept as missing
+                    body = None
+                captured.append({"url": response.url, "status": response.status,
+                                 "body": body})
 
-            yield open_page
-        finally:
-            browser.close()
+        def setup(page):
+            page.set_viewport_size(VIEWPORT)
+            page.route("**/*", _route)
+            page.on("response", on_response)
+            return page
+
+        def settle(page):
+            deadline = time.monotonic() + RESPONSE_TIMEOUT
+            while not captured and time.monotonic() < deadline:
+                if any(t in page.title().lower() for t in BLOCK_TITLES):
+                    break
+                page.wait_for_timeout(500)
+            page.wait_for_timeout(1000)
+            seen_title["value"] = page.title()
+            return page
+
+        try:
+            answer = session.fetch(url, page_setup=setup, page_action=settle)
+        except Exception as error:
+            raise _Stop("error", f"the browser could not load {url}: {error}") from error
+        return Page(status=answer.status, title=seen_title["value"],
+                    url=str(getattr(answer, "url", url) or url), responses=captured)
+
+    try:
+        yield open_page
+    finally:
+        session.__exit__(None, None, None)
 
 
 # ── URLs and values ───────────────────────────────────────────────────────
@@ -412,7 +417,7 @@ def _seen_records(conn, entries: list[dict]) -> list[dict]:
 # ── the reader ────────────────────────────────────────────────────────────
 
 def read(paths: Paths, run_id: int, title: str, location: str | None = None, *,
-         browser: Callable = playwright_browser, clock: Callable[[], float] = time.time,
+         browser: Callable = scrapling_browser, clock: Callable[[], float] = time.time,
          sleep: Callable[[float], None] = time.sleep) -> dict:
     """Search one title and write the drafts of its new postings. Returns a summary.
     `location` is accepted for the common reader interface and not used."""

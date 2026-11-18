@@ -26,24 +26,39 @@ def card(job_id: str, days_ago: int = 1, **extra) -> dict:
             "remoteLocation": False, "extractedSalary": None, **extra}
 
 
-def page(*cards: dict, title: str = "Empleos de Data Engineer en Lima | Indeed") -> tuple:
+def page(*cards: dict, title: str = "Empleos de Data Engineer en Lima | Indeed",
+         total: int | None = None, status: int = 200) -> tuple:
     data = {"metaData": {"mosaicProviderJobCardsModel": {"results": list(cards)}}}
+    count = f'<script>window.x={{"totalJobCount": {total}}};</script>' if total else ""
     html = (f"<html><head><title>{title}</title></head><body><script>"
             f'window.mosaic.providerData["mosaic-provider-jobcards"]={json.dumps(data)};'
-            "</script></body></html>")
-    return 200, html, title
+            f"</script>{count}</body></html>")
+    return status, html, title
 
 
 DESCRIPTION = ("Somos una empresa ficticia.\n\n\n  Requisitos:   Python y SQL\n"
                "Modalidad híbrida: 2 días en oficina")
 
 
+def variant_of(url: str) -> str:
+    query = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+    if query.get("sort") == ["date"]:
+        return "date"
+    if query.get("l") == ["remoto"]:
+        return "remote"
+    if query.get("fromage") == ["1"]:
+        return "last day"
+    if query.get("fromage") == ["3"]:
+        return "last 3 days"
+    return "relevance" if "l" in query else "whole country"
+
+
 class FakeBrowser:
-    """Search pages by `start`, panels by job id; records actions and the clock."""
+    """First pages by variant, panels by job id; records actions and the clock."""
 
     def __init__(self) -> None:
-        self.pages: dict[int, tuple] = {}
-        self.panels: dict[str, tuple] = {}
+        self.pages: dict[str, tuple] = {}
+        self.panels: dict[str, str | None] = {}
         self.actions: list[str] = []
         self.times: list[float] = []
         self.now = 1_000.0
@@ -54,16 +69,15 @@ class FakeBrowser:
         self.locales.append(locale)
         return self
 
-    def search(self, url: str):
+    def search(self, url: str, select):
         self.actions.append(url)
         self.times.append(self.now)
-        start = int(urllib.parse.parse_qs(urllib.parse.urlparse(url).query).get("start", [0])[0])
-        return self.pages.get(start, page())
-
-    def open(self, job_id: str):
-        self.actions.append(f"open {job_id}")
-        self.times.append(self.now)
-        return self.panels.get(job_id, (DESCRIPTION, "Empleos | Indeed"))
+        status, html, title = self.pages.get(variant_of(url), page())
+        result = indeed.SearchPage(status, html, title)
+        for job_id in select(html):
+            self.actions.append(f"open {job_id}")
+            result.panels[job_id] = self.panels.get(job_id, DESCRIPTION)
+        return result
 
     def close(self) -> None:
         self.closed += 1
@@ -76,6 +90,9 @@ class FakeBrowser:
 
     def opened(self) -> list[str]:
         return [a.split(" ", 1)[1] for a in self.actions if a.startswith("open ")]
+
+    def searched(self) -> list[str]:
+        return [variant_of(a) for a in self.actions if not a.startswith("open ")]
 
 
 @pytest.fixture
@@ -122,6 +139,17 @@ def test_site_of_the_country():
         "pe.indeed.com", "www.indeed.com", "www.indeed.com")
 
 
+def test_the_variants_of_one_search():
+    names = [n for n, _ in indeed.variants("pe.indeed.com", TITLE, "Lima", 7)]
+    assert names == ["relevance", "date", "last day", "whole country", "remote", "last 3 days"]
+    urls = dict(indeed.variants("pe.indeed.com", TITLE, "Lima", 7))
+    query = urllib.parse.parse_qs(urllib.parse.urlparse(urls["date"]).query)
+    assert query == {"q": [TITLE], "l": ["Lima"], "fromage": ["7"], "sort": ["date"]}
+    assert "l=" not in urls["whole country"] and "l=remoto" in urls["remote"]
+    no_place = [n for n, _ in indeed.variants("pe.indeed.com", TITLE, None, 3)]
+    assert no_place == ["relevance", "date", "last day", "remote"]      # no 3-day repeat
+
+
 def test_search_url(workspace, run, fake):
     read(workspace, run, fake)
     query = urllib.parse.parse_qs(urllib.parse.urlparse(fake.actions[0]).query)
@@ -133,13 +161,13 @@ def test_search_url(workspace, run, fake):
 # ── drafts ────────────────────────────────────────────────────────────────
 
 def test_one_title_read_into_drafts(workspace, run, fake):
-    fake.pages[0] = page(card("a1"), card("a2", jobTypes=["Tiempo completo"],
-                                          extractedSalary={"min": 3100, "max": 5500,
-                                                           "type": "MONTHLY"}),
-                         card("a3", days_ago=10))
+    fake.pages["relevance"] = page(card("a1"), card("a2", jobTypes=["Tiempo completo"],
+                                                    extractedSalary={"min": 3100, "max": 5500,
+                                                                     "type": "MONTHLY"}),
+                                   card("a3", days_ago=10))
     summary = read(workspace, run, fake)
-    assert {k: summary[k] for k in ("pages", "cards", "outside_window", "new", "stopped")} == {
-        "pages": 1, "cards": 3, "outside_window": 1, "new": 2, "stopped": None}
+    assert {k: summary[k] for k in ("cards", "outside_window", "new", "stopped")} == {
+        "cards": 3, "outside_window": 1, "new": 2, "stopped": None}
     first, second = drafts_of(summary)
     assert first["url"] == "https://pe.indeed.com/viewjob?jk=a1"
     assert (first["title"], first["company"], first["location"], first["country"]) == (
@@ -151,13 +179,10 @@ def test_one_title_read_into_drafts(workspace, run, fake):
     assert (second["contract_type"], second["salary_shown"]) == ("full-time",
                                                                  "3100-5500 (monthly)")
     assert fake.opened() == ["a1", "a2"]                  # never the posting outside the window
-    folder = Path(run["capture_folder"])
-    assert len(list(folder.glob("indeed-*.html"))) == 1
-    assert len(list(folder.glob("indeed-*.txt"))) == 2
 
 
 def test_readings_import_the_drafts(workspace, run, fake, cli, tmp_path):
-    fake.pages[0] = page(card("b1"))
+    fake.pages["relevance"] = page(card("b1"))
     summary = read(workspace, run, fake)
     readings = tmp_path / "r.json"
     readings.write_text(json.dumps([{"external_id": "b1", "work_mode": "hybrid",
@@ -168,33 +193,82 @@ def test_readings_import_the_drafts(workspace, run, fake, cli, tmp_path):
     assert code == 0 and report["new"] == 1, report
 
 
-def test_paging_until_no_new_postings_or_the_limit(workspace, run, fake):
-    fake.pages[0] = page(*(card(f"p{i}") for i in range(15)))
-    fake.pages[10] = page(*(card(f"p{i}") for i in range(10, 25)))
-    fake.pages[20] = page(*(card(f"p{i}") for i in range(20, 35)))
+# ── several first pages ───────────────────────────────────────────────────
+
+def test_variants_add_postings_one_page_does_not_show(workspace, run, fake):
+    fake.pages["relevance"] = page(card("v1"), card("v2"), total=40)
+    fake.pages["date"] = page(card("v2"), card("v3"), total=40)
+    fake.pages["last day"] = page(card("v4"), total=40)
     summary = read(workspace, run, fake)
-    assert summary["cards"] == 30 and summary["pages"] == 2    # the limit: 30 postings
-    assert summary["duplicate_in_run"] == 5 and len(fake.opened()) == 25
-    assert all("start=20" not in a for a in fake.actions)
+    assert fake.opened() == ["v1", "v2", "v3", "v4"]            # each posting clicked once
+    assert summary["site_total"] == 40 and summary["new"] == 4
+    assert [(v["variant"], v["new"]) for v in summary["variants"]] == [
+        ("relevance", 2), ("date", 1), ("last day", 1), ("whole country", 0), ("remote", 0)]
+    assert fake.searched() == ["relevance", "date", "last day", "whole country", "remote"]
+
+
+def test_variants_stop_at_the_site_total(workspace, run, fake):
+    fake.pages["relevance"] = page(card("t1"), card("t2"), total=2)
+    summary = read(workspace, run, fake)
+    assert fake.searched() == ["relevance"] and summary["new"] == 2
+
+
+def test_variants_stop_after_two_without_anything_new(workspace, run, fake):
+    fake.pages["relevance"] = page(card("n1"))
+    fake.pages["date"] = page(card("n1"))
+    fake.pages["last day"] = page(card("n1"))
+    read(workspace, run, fake)
+    assert fake.searched() == ["relevance", "date", "last day"]
+
+
+def test_the_cap_ends_the_title(workspace, run, fake, monkeypatch):
+    fake.pages["relevance"] = page(*(card(f"c{i}") for i in range(4)), total=50)
+    fake.pages["date"] = page(*(card(f"d{i}") for i in range(4)), total=50)
+    original = indeed.common.context
+
+    def capped(*args, **kwargs):
+        ctx = original(*args, **kwargs)
+        ctx.max_results = 3
+        return ctx
+
+    monkeypatch.setattr(indeed.common, "context", capped)
+    summary = read(workspace, run, fake)
+    assert summary["capped"] is True and summary["new"] == 3
+    assert fake.searched() == ["relevance"]
+
+
+@pytest.mark.parametrize("wall", [
+    page(title="Iniciar sesión | Cuentas Indeed"),
+    page(status=403, title="Security Check - Indeed.com"),
+])
+def test_a_wall_on_a_later_variant_ends_the_title_but_not_indeed(workspace, run, fake, wall):
+    fake.pages["relevance"] = page(card("w1"), total=30)
+    fake.pages["date"] = wall
+    summary = read(workspace, run, fake)
+    assert summary["stopped"] is None and summary["new"] == 1
+    assert summary["ended_early"].startswith("date:")
+    fake.pages["relevance"] = page(card("w2"), total=1)
+    later = read(workspace, run, fake, title="Analytics Engineer")
+    assert later["stopped"] is None and later["new"] == 1       # the next title still reads
 
 
 def test_no_results(workspace, run, fake):
     summary = read(workspace, run, fake)
-    assert (summary["pages"], summary["cards"], summary["stopped"]) == (1, 0, None)
+    assert (summary["cards"], summary["stopped"]) == (0, None)
 
 
 # ── pacing, duplicates, stored postings, one call at a time ──────────────
 
 def test_pacing_within_and_across_calls(workspace, run, fake):
-    fake.pages[0] = page(card("c1"), card("c2"))
+    fake.pages["relevance"] = page(card("c1"), card("c2"), total=2)
     read(workspace, run, fake)
     read(workspace, run, fake, title="Analytics Engineer")
     gaps = [b - a for a, b in zip(fake.times, fake.times[1:], strict=False)]
-    assert len(fake.times) == 4 and all(gap >= 5 for gap in gaps), gaps
+    assert len(fake.times) == 2 and all(gap >= 5 for gap in gaps), gaps
 
 
 def test_a_posting_stored_earlier_is_not_clicked(workspace, run, fake, cli, tmp_path):
-    fake.pages[0] = page(card("d1"))
+    fake.pages["relevance"] = page(card("d1"), total=1)
     summary = read(workspace, run, fake)
     readings = tmp_path / "r.json"
     readings.write_text(json.dumps([{"external_id": "d1", "language": "es"}]),
@@ -203,7 +277,7 @@ def test_a_posting_stored_earlier_is_not_clicked(workspace, run, fake, cli, tmp_
         str(readings))
     cli("run", "finish", str(run["run_id"]))
     later = start_run(cli)
-    fake.pages[0] = page(card("d1"), card("d2"))
+    fake.pages["relevance"] = page(card("d1"), card("d2"), total=2)
     summary = read(workspace, later, fake)
     assert (summary["already_seen"], summary["new"]) == (1, 1)
     assert fake.opened() == ["d1", "d2"]                  # d1 only in the first run
@@ -225,8 +299,8 @@ def test_a_second_call_while_one_runs_is_refused(workspace, run, fake):
     ((200, "<html></html>", "Iniciar sesión | Cuentas Indeed"), "blocked"),
     ((200, "<html><body>nothing</body></html>", "Indeed"), "error"),
 ])
-def test_stops(workspace, run, fake, answer, reason):
-    fake.pages[0] = answer
+def test_stops_on_the_first_page(workspace, run, fake, answer, reason):
+    fake.pages["relevance"] = answer
     summary = read(workspace, run, fake)
     assert summary["stopped"]["reason"] == reason
     with db.session(workspace) as conn:
@@ -240,18 +314,28 @@ def test_stops(workspace, run, fake, answer, reason):
 
 
 def test_a_missing_panel_keeps_what_was_read(workspace, run, fake):
-    fake.pages[0] = page(card("e1"), card("e2"), card("e3"))
-    fake.panels["e2"] = (None, "Empleos | Indeed")
+    fake.pages["relevance"] = page(card("e1"), card("e2"), card("e3"))
+    fake.panels["e2"] = None
     summary = read(workspace, run, fake)
     assert summary["stopped"]["reason"] == "error"
     assert [d["external_id"] for d in drafts_of(summary)] == ["e1"]
-    assert fake.opened() == ["e1", "e2"] and fake.closed == 1
+    assert fake.closed == 1
 
 
 def test_a_browser_failure_is_an_error(workspace, run, fake):
-    def broken(url):
+    def broken(url, select):
         raise RuntimeError("net::ERR_CONNECTION_RESET")
 
     fake.search = broken
     summary = read(workspace, run, fake)
     assert summary["stopped"]["reason"] == "error" and fake.closed == 1
+
+
+def test_a_missing_scrapling_names_the_install_command(workspace, run, fake):
+    def missing(locale):
+        raise JobTrackerError("missing_dependency", "Run: " + indeed.INSTALL, tool="scrapling")
+
+    with pytest.raises(JobTrackerError) as error:
+        indeed.read(workspace, run["run_id"], TITLE, "Lima", browser=missing,
+                    clock=fake.clock, sleep=fake.sleep)
+    assert "jt providers install indeed" in error.value.message

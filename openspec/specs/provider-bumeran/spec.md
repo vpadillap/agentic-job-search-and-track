@@ -9,26 +9,27 @@ pacing, without imitating a browser by other means and without ever applying.
 ## Requirements
 
 ### Requirement: Public pages in a real browser only
-The Bumeran provider SHALL read Bumeran only by opening, in a real browser
-without an account, saved cookies, or the user's own browser profile, two
-kinds of public page: the search results page for one title and posting age,
-and each posting's public page. It SHALL take the postings from the data the
-site sends to those pages. Every Bumeran request SHALL come from the system's
-Bumeran reader; the agent SHALL NOT request Bumeran itself. The provider SHALL
-NOT send requests to Bumeran's API outside a page the browser opened, SHALL
-NOT make a non-browser client look like a browser, and SHALL NOT use proxies,
-rotating identities, the user's Bumeran account, or the browser extension.
+The Bumeran provider SHALL read Bumeran only by opening, in a headless stealth
+browser session (Scrapling) without an account, saved cookies, or the user's
+own browser profile, two kinds of public page: the search results page for one
+title and posting age, and each posting's public page. It SHALL take the
+postings from the data the site sends to those pages. Every Bumeran request
+SHALL come from the system's Bumeran reader; the agent SHALL NOT request
+Bumeran itself. The provider SHALL NOT send requests to Bumeran's API outside
+a page the browser opened, and SHALL NOT use the user's Bumeran account or
+browser. Because no account is involved, the session MAY get past the site's
+automated checks; no browser window opens.
 
 #### Scenario: Normal search
 - **WHEN** a search runs with Bumeran enabled
-- **THEN** Bumeran is read only through the public search page and public posting pages opened by the reader's browser, without any account or stored cookie
+- **THEN** Bumeran is read only through the public search page and public posting pages opened by the reader's headless session, without any account or stored cookie, and no window opens
 
 #### Scenario: Requests only through the reader
 - **WHEN** the agent searches Bumeran
 - **THEN** it runs the reader command and sends no Bumeran request of its own
 
 #### Scenario: Browser refused
-- **WHEN** the site answers the browser with a block or a challenge page
+- **WHEN** the site answers the session with a block or a challenge page it does not pass
 - **THEN** Bumeran is recorded as failed for that run with what happened, and no other access method is tried
 
 ### Requirement: Never apply or write on Bumeran
@@ -152,12 +153,12 @@ of that file and what it did.
 - **THEN** a drafts file with one record per new posting is written in the run's capture folder, and the summary gives its path and the numbers of pages opened, postings found, postings outside the window, postings already seen, and new postings
 
 ### Requirement: Missing browser is reported
-When Bumeran is enabled and the browser automation package or its browser is
-not installed, diagnostics and the reader SHALL name what is missing and how
-to install it, and the reader SHALL open no page.
+When Bumeran is enabled and Scrapling or its browser is not installed,
+diagnostics and the reader SHALL name what is missing and how to install it,
+and the reader SHALL open no page.
 
 #### Scenario: Browser not installed
-- **WHEN** the reader is called and the browser is not installed
+- **WHEN** the reader is called and Scrapling or its browser is not installed
 - **THEN** it answers with the missing piece and the install command, and Bumeran is not recorded as searched
 
 ### Requirement: Terms-of-use risk is stated
