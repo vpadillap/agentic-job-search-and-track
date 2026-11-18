@@ -59,6 +59,8 @@
   "skip.not_searched": "no se buscó",
   "skip.other_country": "solo funciona en otros países",
   "coverage.global": "Global",
+  "coverage.private": "Privado",
+  "coverage.privateHint": "Un proveedor que agregaste tú (en tu carpeta privada)",
   "coverage.local": "Local · {countries}",
   "coverage.filter": "Mostrar sitios de",
   "coverage.all": "Todos los países",

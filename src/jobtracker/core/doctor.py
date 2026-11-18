@@ -31,6 +31,13 @@ def _check(check_id: str, status: str, detail: str, fix: str | None = None) -> d
     return result
 
 
+def _where(provider: dict) -> str:
+    """How to name a provider's file: `providers/<file>`, or its path when private."""
+    if provider.get("origin") == "private":
+        return str(provider.get("path") or provider["file"])
+    return f"providers/{provider['file']}"
+
+
 def _tool_available(name: str) -> bool:
     module = name.replace("-", "_")
     try:
@@ -122,7 +129,7 @@ def run(paths: Paths) -> dict:
             checks.append(_check(
                 f"provider:{provider_id}", "warn",
                 f"invalid provider file: {'; '.join(map(str, provider['problems']))}",  # type: ignore[call-overload]
-                f"Fix providers/{provider['file']} (see providers/_template.md). Searches skip "
+                f"Fix {_where(provider)} (see providers/_template.md). Searches skip "
                 f"it until then.",
             ))
             continue
