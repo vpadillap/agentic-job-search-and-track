@@ -138,6 +138,7 @@
     "other": "range {min}–{max} · {count} sources"
   },
   "row.openSource": "Open the posting on {site} (new tab)",
+  "row.sourceSite": "Where the web search found this posting",
   "row.dateUnknown": "Date unknown",
   "action.track": "Track",
   "action.trackApplied": "Track and mark applied",

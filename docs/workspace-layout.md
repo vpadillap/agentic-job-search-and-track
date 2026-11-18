@@ -72,7 +72,9 @@ recorded keeps the name `resume-base.<ext>` until it is replaced.
   titles), search runs, postings, scores and their breakdowns, salary
   suggestions with evidence, tracked applications, statuses and tags, form
   questions and answers, the event timeline, rules (preferences and lessons),
-  provider state, and the path of every document below.
+  provider state, the companies the web-search provider found per season
+  (careers page, titles, last check, excluded or not; `jobtracker companies`),
+  and the path of every document below.
 - **Disk**: only documents a human opens (resumes, cover letters, posting
   snapshots) and raw captures. Every such file is registered in the database.
   One exception: `learning/history.jsonl` is a derived file, rebuilt from the

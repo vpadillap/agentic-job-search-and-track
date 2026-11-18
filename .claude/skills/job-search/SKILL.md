@@ -93,6 +93,12 @@ For each provider id in `to_search`, in order:
    description, and when they disagree follow the description and add a
    flag saying so (in the panel language). Hints are never imported as they
    are; only your reading is.
+   A provider with `access: web-search` (such as `agentic-search`) has no
+   reader: you search and read the web yourself as its file says, build each
+   record (with `source_site`, the host the posting came from), remember the
+   companies with `jt companies record -`, and never invent a publication
+   date (leave it out and add the flag the file names). Say in the report
+   when one of its limits (postings or companies per title) was reached.
 6. If the site errors, blocks you, or stops matching its recipe, record
    `jt run provider <run_id> <id> --status failed --reason error|blocked
    --detail "<what happened>"` and continue with the next provider. One

@@ -138,6 +138,7 @@
     "other": "rango {min}–{max} · {count} fuentes"
   },
   "row.openSource": "Abrir el aviso en {site} (pestaña nueva)",
+  "row.sourceSite": "Dónde encontró este aviso la búsqueda en la web",
   "row.dateUnknown": "Fecha desconocida",
   "action.track": "Seguir",
   "action.trackApplied": "Seguir y marcar postulado",

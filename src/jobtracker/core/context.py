@@ -5,6 +5,7 @@ from pathlib import Path
 
 from . import (
     board,
+    companies,
     config,
     db,
     learning,
@@ -67,6 +68,7 @@ def build(paths: Paths) -> dict:
                          "last_refresh": refresh.last_refresh(conn)},
             "pending": board.pending(conn),
             "providers": providers.with_state(conn),
+            "companies": companies.summary(conn),
             "score_weights": scoring.active_weights(conn),
             "latest_run": (
                 search.summary(conn, run_id)
