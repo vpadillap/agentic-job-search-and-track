@@ -57,6 +57,12 @@ name them and say that job sites start switched off and are turned on in
 a site on yourself. If there are no sites at all, say that none is available
 yet (each site is added by its own update).
 
+A local site that works only in other countries than the profile's arrives
+already `skipped` with reason `other_country` (its `detail` names its
+countries): do not search it, and name it in the report. If every enabled site
+was skipped this way, say that the user can turn on the global sites or the
+sites of their country in the panel.
+
 ## 3. Search each provider
 
 For each provider id in `to_search`, in order:

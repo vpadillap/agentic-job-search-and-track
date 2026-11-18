@@ -4,6 +4,7 @@
 import { html, useState, useEffect } from '../vendor/preact-htm.js';
 import { api } from '../api.js';
 import { useUi, CommandChip, CopyButton, Menu } from '../components/shell.js';
+import { CoverageTag, CountryFilter, filterByCountry, defaultCountry } from '../components/coverage.js';
 
 const ACCESS = ['chrome-extension', 'playwright', 'scrapling', 'http', 'web-search'];
 
@@ -226,23 +227,27 @@ function providerStatus(p, t, fmt) {
   return { tone: 'idle', text: t('prov.unused') };
 }
 
-function ProvidersCard({ providers, onToggle }) {
+function ProvidersCard({ providers, profileCountry, onToggle }) {
   const { t, fmt } = useUi();
+  const [country, setCountry] = useState(defaultCountry(profileCountry));
+  const shown = filterByCountry(providers, country);
   return html`
     <section class="card pa-card" aria-labelledby="pa-providers-title">
       <div class="pa-head">
         <h2 id="pa-providers-title">${t('providers.title')}</h2>
         <span class="small">${t('prov.sub')}</span>
       </div>
+      <${CountryFilter} id="pa-providers-country" providers=${providers} profileCountry=${profileCountry}
+        value=${country} onChange=${setCountry} />
       ${providers.length === 0 ? html`<p class="note">${t('providers.empty')}</p>` : html`
         <ul class="pa-list">
-          ${providers.map((p) => {
+          ${shown.map((p) => {
             const status = providerStatus(p, t, fmt);
             const access = ACCESS.includes(p.access) ? t('access.' + p.access) : p.access;
             return html`
               <li class="pa-provider">
                 <div class="pa-provider-name">
-                  <strong>${p.name}</strong>
+                  <strong>${p.name} <${CoverageTag} provider=${p} /></strong>
                   <span class="small">${access}${p.requires_login ? ' · ' + t('prov.login') : ''}</span>
                 </div>
                 <div class="pa-provider-state">
@@ -300,7 +305,8 @@ export function ProfileBoard({ version, onAction, onViewSeason }) {
       </div>
       <div class="pa-col">
         <${MemoryCard} rules=${data.rules} />
-        <${ProvidersCard} providers=${data.providers} onToggle=${toggle} />
+        <${ProvidersCard} providers=${data.providers}
+          profileCountry=${data.profile ? data.profile.country : null} onToggle=${toggle} />
       </div>
     </div>`;
 }

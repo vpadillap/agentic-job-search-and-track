@@ -2,7 +2,7 @@
 id: example                      # lowercase, matches the file name
 name: Example Jobs
 kind: jobs                       # jobs | salary | both
-regions: [global]                # ISO country codes or "global"
+regions: [global]                # [global], or the uppercase ISO codes of a local site: [PE] or [PE, CL]
 access: chrome-extension         # chrome-extension | playwright | scrapling | http | web-search
 requires_login: false            # decided by this provider's own study
 live_walk: false                 # true = the user must be present; skip in unattended runs
@@ -18,6 +18,17 @@ last_verified: 2026-01-01
 
 Which tool to use and why, as decided by this provider's own study. State
 explicitly what does NOT work.
+
+## Countries (local providers)
+
+Required when `regions` lists two or more countries; optional for one. One
+row per country in `regions`, and only those: the site address used there and
+the date the recipe was last checked in that country. Delete this section for
+a global provider.
+
+| Country | Site | Last verified |
+|---|---|---|
+| XX | https://example.test | 2026-01-01 |
 
 ## Search recipe
 

@@ -223,7 +223,9 @@ def create_app() -> FastAPI:
     @app.get("/api/providers")
     def provider_list() -> dict:
         with db.session(get_paths()) as conn:
-            return {"ok": True, "providers": providers.with_state(conn)}
+            active = profile.get_active(conn)
+            return {"ok": True, "providers": providers.with_state(conn),
+                    "profile_country": active.get("country") if active else None}
 
     # ── write ─────────────────────────────────────────────────────────────
 

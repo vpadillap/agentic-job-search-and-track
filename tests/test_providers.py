@@ -149,6 +149,62 @@ def test_setup_turns_on_the_chosen_sites():
     assert "terms-of-use risk" in step
 
 
+# ── global and local coverage ─────────────────────────────────────────────
+
+COUNTRIES = ("\n## Countries\n\n| Country | Site | Last verified |\n|---|---|---|\n"
+             "| PE | https://pe.example.test | 2026-11-01 |\n{extra}")
+CL_ROW = "| CL | https://cl.example.test | 2026-11-02 |\n"
+
+
+def _problems(tmp_path, cli, name, text):
+    path = tmp_path / f"{name}.md"
+    path.write_text(text, encoding="utf-8")
+    _, out, _ = cli("providers", "validate", str(path))
+    return out["files"][0]["problems"]
+
+
+def test_global_and_local_coverage_are_listed(workspace, cli, tmp_path, monkeypatch):
+    folder = tmp_path / "sites"
+    folder.mkdir()
+    (folder / "world.md").write_text(provider_text("world", regions="[global]"), encoding="utf-8")
+    (folder / "andes.md").write_text(
+        provider_text("andes", regions="[PE, CL]")
+        + COUNTRIES.format(extra=CL_ROW),
+        encoding="utf-8")
+    (folder / "lima.md").write_text(provider_text("lima"), encoding="utf-8")
+    monkeypatch.setenv("JOBTRACKER_PROVIDERS_DIR", str(folder))
+    _, out, _ = cli("providers", "list")
+    listed = {p["id"]: p for p in out["providers"]}
+    assert (listed["world"]["coverage"], listed["world"]["countries"]) == ("global", [])
+    assert (listed["andes"]["coverage"], listed["andes"]["countries"]) == ("local", ["PE", "CL"])
+    assert (listed["lima"]["coverage"], listed["lima"]["countries"]) == ("local", ["PE"])
+    assert all(p["valid"] for p in listed.values()), listed
+
+
+def test_invalid_regions_are_reported(tmp_path, cli):
+    for value in ("[global, PE]", "[pe]", "[]", "[Peru]"):
+        problems = _problems(tmp_path, cli, "bad", provider_text("bad", regions=value))
+        assert any(p.startswith("field 'regions' must be [global]") for p in problems), value
+
+
+def test_every_country_of_a_multi_country_provider_is_verified(tmp_path, cli):
+    text = provider_text("andes", regions="[PE, CL]")
+    assert "missing section '## Countries' (one row per country in 'regions')" in _problems(
+        tmp_path, cli, "andes", text)
+    problems = _problems(tmp_path, cli, "andes", text + COUNTRIES.format(extra=""))
+    assert problems == ["country 'CL' has no row in '## Countries'"]
+    problems = _problems(tmp_path, cli, "andes", text + COUNTRIES.format(
+        extra="| CL | https://cl.example.test | soon |\n"
+              "| AR | https://ar.example.test | 2026-11-01 |\n"))
+    assert problems == ["country 'CL' needs a 'Last verified' date like 2026-11-15",
+                        "country 'AR' is in '## Countries' but not in 'regions'"]
+    assert _problems(tmp_path, cli, "andes", text + COUNTRIES.format(extra=CL_ROW)) == []
+
+
+def test_one_country_provider_needs_no_countries_table(tmp_path, cli):
+    assert _problems(tmp_path, cli, "lima", provider_text("lima")) == []
+
+
 # ── the repository's provider files ───────────────────────────────────────
 
 def test_every_provider_file_in_the_repository_is_valid():

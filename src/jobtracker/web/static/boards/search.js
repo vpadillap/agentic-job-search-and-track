@@ -7,6 +7,7 @@ import * as Icon from '../components/icons.js';
 import { api } from '../api.js';
 import { WorkModeEditor } from '../components/work-mode.js';
 import { PostingDescription } from '../components/posting-description.js';
+import { CoverageTag, CountryFilter, filterByCountry, defaultCountry, ALL } from '../components/coverage.js';
 
 const MODES = ['remote', 'hybrid', 'onsite'];
 const CONTRACTS = ['full-time', 'part-time', 'contractor'];
@@ -166,11 +167,17 @@ function ProvidersDialog({ open, onClose }) {
   const { t } = useUi();
   const dialog = useRef(null);
   const [items, setItems] = useState(null);
+  const [profileCountry, setProfileCountry] = useState(null);
+  const [country, setCountry] = useState(ALL);
   useEffect(() => {
     if (!dialog.current) return;
     if (open && !dialog.current.open) {
       dialog.current.showModal();
-      api.providers().then((r) => setItems(r.providers)).catch(() => setItems([]));
+      api.providers().then((r) => {
+        setItems(r.providers);
+        setProfileCountry(r.profile_country || null);
+        setCountry(defaultCountry(r.profile_country));
+      }).catch(() => setItems([]));
     } else if (!open && dialog.current.open) {
       dialog.current.close();
     }
@@ -184,12 +191,15 @@ function ProvidersDialog({ open, onClose }) {
       <div class="dialog-body">
         <h2 id="providers-title">${t('providers.title')}</h2>
         ${items && items.length === 0 && html`<p class="muted">${t('providers.empty')}</p>`}
-        ${items && items.map((p) => html`
+        ${items && items.length > 0 && html`<${CountryFilter} id="providers-country" providers=${items}
+          profileCountry=${profileCountry} value=${country} onChange=${setCountry} />`}
+        ${items && filterByCountry(items, country).map((p) => html`
           <div class="provider-row">
             <label>
               <input type="checkbox" checked=${p.enabled} onChange=${(e) => toggle(p.id, e.currentTarget.checked)} />
               ${p.name}
             </label>
+            <${CoverageTag} provider=${p} />
             ${!p.valid && html`<span class="small">${t('providers.invalid')}</span>`}
           </div>`)}
         <div class="menu-actions">

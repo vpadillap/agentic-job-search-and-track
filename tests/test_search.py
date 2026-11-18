@@ -86,6 +86,45 @@ def test_disabled_provider_is_not_searched(searchable, cli, write_json):
     assert beta["status"] == "disabled" and beta["found"] == 0
 
 
+def test_local_provider_of_another_country_is_skipped(searchable, cli, providers_dir):
+    from tests.helpers import provider_text
+
+    (providers_dir / "santiago.md").write_text(provider_text("santiago", regions="[CL]"),
+                                               encoding="utf-8")
+    (providers_dir / "world.md").write_text(provider_text("world", regions="[global]"),
+                                            encoding="utf-8")
+    cli("providers", "enable", "santiago")
+    cli("providers", "enable", "world")
+    run = start(cli)                                   # the persona's country is PE
+    santiago = next(p for p in run["providers"] if p["id"] == "santiago")
+    assert (santiago["status"], santiago["reason"]) == ("skipped", "other_country")
+    assert "CL" in santiago["detail"] and "PE" in santiago["detail"]
+    assert "santiago" not in run["to_search"]
+    assert {"alpha", "world"} <= set(run["to_search"])  # PE-local and global are searched
+
+
+def test_local_providers_are_searched_when_the_profile_has_no_country(
+        searchable, cli, providers_dir, write_json):
+    from tests.helpers import provider_text
+
+    (providers_dir / "santiago.md").write_text(provider_text("santiago", regions="[CL]"),
+                                               encoding="utf-8")
+    cli("providers", "enable", "santiago")
+    code, out, _ = cli("profile", "set", write_json({"country": None}))
+    assert code == 0, out
+    assert "santiago" in start(cli)["to_search"]
+
+
+def test_disabled_local_provider_of_another_country_stays_disabled(
+        searchable, cli, providers_dir):
+    from tests.helpers import provider_text
+
+    (providers_dir / "santiago.md").write_text(provider_text("santiago", regions="[CL]"),
+                                               encoding="utf-8")
+    santiago = next(p for p in start(cli)["providers"] if p["id"] == "santiago")
+    assert (santiago["status"], santiago["reason"]) == ("disabled", "disabled")
+
+
 def test_provider_needing_the_user_is_skipped_and_reported(searchable, cli, write_json):
     run = start(cli)
     gamma = next(p for p in run["providers"] if p["id"] == "gamma")
