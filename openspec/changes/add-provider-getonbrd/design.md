@@ -108,9 +108,28 @@ True, solve_cloudflare=True, locale=…)`, one session per call:
   session. So the reader treats a sign-in or security page on a later results
   page as the end of that title (not a block) and says so in the summary; only
   such a page on the **first** results page is a block. Every title
-  keeps its first page, where today only the first title does. Getting more
-  than one page per title logged out (for example splitting the window or the
-  city) is not part of this change.
+  keeps its first page, where today only the first title does.
+
+  **Beyond one page: several first pages** (study 1.10). Instead of `start=10…`,
+  the reader loads the first page of several variants of the same search,
+  each as the first load of a **fresh** headless session, in this order, and
+  clicks only the postings not handled yet:
+
+  1. relevance, the run's window (`fromage`);
+  2. sorted by date (`sort=date`), the run's window;
+  3. last day (`fromage=1`);
+  4. the profile's city (`l=<city>`), when the profile has one;
+  5. remote (`l=remoto`);
+  6. last 3 days (`fromage=3`), when the window is longer than 3 days.
+
+  It stops when the cap is reached (`max_results_per_query` rises from 30 to
+  60), when Indeed's own total for the search (`totalJobCount` in the page
+  data) has been reached, or when two variants in a row add nothing new. A
+  sign-in or security page on a variant after the first ends the variants for
+  that title (not a block). Postings outside the run's window are dropped as
+  today. The summary reports the site's total, the variants used, and the
+  postings each one added. For "analista" in Peru (263 results) this gave 44
+  unique postings against 15.
 
 Provider files: `access: scrapling`, `dependencies: [scrapling]`; "A browser
 window opens" becomes "no window opens"; the forbidden list keeps "the user's

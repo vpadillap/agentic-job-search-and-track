@@ -85,6 +85,25 @@ session. Logged out, Indeed serves one results page per search by any route,
 and today's reader turns the 403 into a block that stops Indeed for the rest
 of the run.
 
+Indeed, getting past the second-page wall (owner's request, 2026-11-18):
+other first pages of the same search, each as the first load of a fresh
+headless Scrapling session. "analista", Peru (Indeed reports 263 results in 7
+days):
+
+| First page of | Cards | Not in the default page |
+|---|---|---|
+| default (relevance, 7 days) | 15 | — |
+| sorted by date (`sort=date`) | 15 | 14 |
+| last day (`fromage=1`) | 15 | 11 |
+| Lima (`l=Lima`) | 15 | 8 |
+| remote (`l=remoto`) | 15 | 7 |
+| last 3 days (`fromage=3`) | 15 | 2 |
+| **all together** | **44 unique** | **+29 (about three times one page)** |
+
+The RSS feed (`/rss?q=…`) answers 403. For "data engineer" (about 15 results
+in 7 days) every variant returned the same 15: there was no second page to
+recover. A variant can take up to two minutes when Cloudflare's check is slow.
+
 Indeed, second try (owner's request): a headless Scrapling session loads the
 search page and the **current side-panel clicks run inside it**: 15 cards, 5
 descriptions in a row complete (1,621–6,059 characters, the same as the

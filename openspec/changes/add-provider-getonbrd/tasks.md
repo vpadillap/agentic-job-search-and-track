@@ -8,7 +8,8 @@
 - [x] 1.7 Scrapling for Get on Board: time and results against the other routes
 - [x] 1.8 Scrapling on Indeed, Bumeran, LinkedIn (study only): time, postings, descriptions, blocks, window; results recorded for the owner
 - [x] 1.6 Results in the proposal and design (D3–D7); owner's decisions of 2026-11-18 recorded
-- [ ] 1.9 Owner approves the design before section 2
+- [x] 1.9 Owner approves the design before section 2 (2026-11-18)
+- [x] 1.10 Indeed's second-page wall (owner's request): ways to get more than one page of postings per title logged out (other sort order, shorter windows, cities, remote filter, feeds), each as the first load of a fresh session; unique postings against the 15 of one page
 
 ## 2. Get on Board reader
 
@@ -19,9 +20,9 @@
 ## 3. Bumeran and Indeed on Scrapling
 
 - [ ] 3.1 Bumeran adapter: headless `StealthySession`, listener attached before each load, same captures; missing Scrapling reported (D6)
-- [ ] 3.2 Indeed adapter: headless `StealthySession`, side-panel clicks in the page action; a sign-in page or a security page on a later results page ends the title without a block, so later titles still read (D6)
+- [ ] 3.2 Indeed adapter: headless `StealthySession`, side-panel clicks in the page action; several first pages per title, each in a fresh session (relevance, date, last day, city, remote, 3 days), stop at the cap (60), the site's total, or two variants without new postings; a sign-in or security page after the first variant ends the title without a block (D6)
 - [ ] 3.3 `providers/bumeran.md` and `providers/indeed.md`: `access: scrapling`, `dependencies: [scrapling]`, no window, updated forbidden lists and terms text
-- [ ] 3.4 Tests: existing reader tests pass with their fake browsers; new tests for the Indeed sign-in-on-page-2 rule and the missing-Scrapling message
+- [ ] 3.4 Tests: existing reader tests pass with their fake browsers; new tests for the Indeed variants (order, stop rules, no repeats) and the sign-in rule and the missing-Scrapling message
 
 ## 4. Dependencies installed by the agent
 
