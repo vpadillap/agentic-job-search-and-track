@@ -19,11 +19,17 @@
 ## 3. Bumeran and Indeed on Scrapling
 
 - [ ] 3.1 Bumeran adapter: headless `StealthySession`, listener attached before each load, same captures; missing Scrapling reported (D6)
-- [ ] 3.2 Indeed adapter: headless `StealthySession`, side-panel clicks in the page action; a sign-in page on a later results page ends the title without a block (D6)
+- [ ] 3.2 Indeed adapter: headless `StealthySession`, side-panel clicks in the page action; a sign-in page or a security page on a later results page ends the title without a block, so later titles still read (D6)
 - [ ] 3.3 `providers/bumeran.md` and `providers/indeed.md`: `access: scrapling`, `dependencies: [scrapling]`, no window, updated forbidden lists and terms text
 - [ ] 3.4 Tests: existing reader tests pass with their fake browsers; new tests for the Indeed sign-in-on-page-2 rule and the missing-Scrapling message
 
-## 4. Agentic web search
+## 4. Dependencies installed by the agent
+
+- [ ] 4.0 `jt providers install <id>` / `--enabled`: installs a provider's missing dependencies into the project's Python and reports the doctor check (D8)
+- [ ] 4.0a `/job-search`: before searching, installs missing dependencies of enabled providers and tells the user; skips only if the install fails. `/setup` step 8 uses the same command
+- [ ] 4.0b Tests: install command with a fake runner (known dependency, unknown dependency, failure), skill texts
+
+## 4b. Agentic web search
 
 - [ ] 4.1 `providers/agentic-search.md`: Get on Board in "Sites you never read here"
 

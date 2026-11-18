@@ -47,3 +47,17 @@ it, whether the Get on Board provider is enabled or not.
 #### Scenario: Web search finds a Get on Board posting
 - **WHEN** the agentic web search finds a posting on getonbrd.com
 - **THEN** it does not read or import it
+
+### Requirement: The agent installs what an enabled provider needs
+Before a search, the agent SHALL install any missing dependency of an enabled
+provider into the project's environment, tell the user what it installed, and
+search the provider; it SHALL skip the provider only when the installation
+fails, saying why. The user SHALL NOT have to install anything by hand.
+
+#### Scenario: Update that needs a new tool
+- **WHEN** an update makes an enabled provider need a tool that is not installed
+- **THEN** the next search installs it, says so in one line, and searches the provider as usual
+
+#### Scenario: Installation fails
+- **WHEN** installing a provider's tool fails
+- **THEN** that provider is skipped with the reason and the other providers are searched

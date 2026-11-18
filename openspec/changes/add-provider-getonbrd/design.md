@@ -97,18 +97,48 @@ True, solve_cloudflare=True, locale=…)`, one session per call:
 - **Indeed**: the search page is loaded once per results page; the page action
   runs the current side-panel clicks (`a.jcs-JobTitle[data-jk]`, wait for
   `vjk=<id>` and `.simple-job-description-html`). Posting pages (`/viewjob`)
-  stay unused (slow under Scrapling, sign-in without it). The second results
-  page asked to sign in under Scrapling, so the reader treats a sign-in page on
-  page 2 as the end of the results for that title (not a block) and says so
-  in the summary.
+  stay unused (slow under Scrapling, sign-in without it).
+
+  **No loss of results** (checked 2026-11-18, owner's condition): logged out,
+  Indeed no longer serves a second results page by any route. The current
+  visible reader gets page 1 (15 postings) and then **403 "Security Check"**
+  on `start=10` ("Un momento…" on `start=20`), which its stop rules record as
+  a block, stopping Indeed for the rest of the run: later titles get nothing.
+  Under Scrapling page 2 is a sign-in page, also as the first load of a fresh
+  session. So the reader treats a sign-in or security page on a later results
+  page as the end of that title (not a block) and says so in the summary; only
+  such a page on the **first** results page is a block. Every title
+  keeps its first page, where today only the first title does. Getting more
+  than one page per title logged out (for example splitting the window or the
+  city) is not part of this change.
 
 Provider files: `access: scrapling`, `dependencies: [scrapling]`; "A browser
 window opens" becomes "no window opens"; the forbidden list keeps "the user's
 account or browser" and drops "a headless browser" (allowed now through
-Scrapling). Users who had Playwright only: `jt doctor` names the install
-command for Scrapling (as for Glassdoor); the old Playwright adapters are
-removed, there is no fallback. Tests keep using fake browsers; the adapter
-change is checked by a real run.
+Scrapling). The old Playwright adapters are removed. Tests keep using fake
+browsers; the adapter change is checked by a real run.
+
+### D8. The agent installs what an enabled provider needs
+
+After this change is pulled, a user with Bumeran or Indeed on has Playwright
+but not Scrapling. The user must not have to notice or fix that: the agent
+makes the search work.
+
+- New `jt providers install <id>` (and `--enabled` for every enabled
+  provider): installs each missing dependency of the provider into the
+  project's own Python (`sys.executable -m pip install …`, then the
+  dependency's browser step: `scrapling install`, or
+  `python -m playwright install chromium`), and answers what it installed and
+  whether the provider's doctor check now passes. Known dependencies only
+  (`scrapling`, `playwright`); anything else answers with the provider file's
+  instructions.
+- `/job-search`, before searching: `jt doctor`; for every enabled provider
+  whose check fails for a missing dependency, run `jt providers install <id>`,
+  tell the user in one line what was installed and why (for example "Bumeran
+  and Indeed now read without opening a window; installed Scrapling, about
+  120 MB"), and search it. Only if the install fails is the provider skipped
+  with `missing_dependency` and the reason.
+- `/setup` step 8 uses the same command when a provider is turned on.
 
 ### D7. The agentic web search
 

@@ -77,6 +77,14 @@ LinkedIn), 5 s between requests, "data engineer" in Peru, 7 days:
 | Bumeran (visible window; captures `searchV2` and `fichaAvisoNormalizada`) | search page: 200 in 14 s, `searchV2` captured (5 postings); posting page: 200 in 13 s, ficha captured, description 2,627 characters | **Same data with no window**: a good candidate for its own change |
 | LinkedIn (plain HTTP to the public guest endpoint) | Scrapling `Fetcher` (browser impersonation): **429** on the first request; the same request in plain HTTP right after: 200 in 0.7 s | **Worse**: keep the current reader |
 
+Indeed, page 2 (owner's question, 2026-11-18): the current reader's own way
+(visible Chromium, page 1 then `start=10` in the same context) got page 1 (15
+postings) and then **403 "Security Check"** ("Un momento…" on `start=20`);
+Scrapling got a sign-in page for page 2, also as the first load of a fresh
+session. Logged out, Indeed serves one results page per search by any route,
+and today's reader turns the 403 into a block that stops Indeed for the rest
+of the run.
+
 Indeed, second try (owner's request): a headless Scrapling session loads the
 search page and the **current side-panel clicks run inside it**: 15 cards, 5
 descriptions in a row complete (1,621–6,059 characters, the same as the
@@ -95,7 +103,10 @@ global, with remote postings valid for the user's country included; the
 24-hour clause accepted as personal use, with the date each posting was read
 visible in the panel and a link to the posting; and, in this same change,
 Bumeran and Indeed move to the headless Scrapling session (the owner chose to
-include them here instead of separate changes). LinkedIn stays as it is.
+include them here instead of separate changes), on the condition that no
+results are lost (Indeed: one page per title either way; today's reader loses
+every later title); and the agent installs what an enabled provider needs,
+the user never has to. LinkedIn stays as it is.
 
 Decision for the owner: the "refreshed at least every 24 hours" clause is
 written for sites that republish Get on Board's jobs; in this tool a posting

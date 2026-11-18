@@ -23,8 +23,8 @@ browser window opens.
 - **THEN** it runs the reader command and does not open Indeed by any other means
 
 #### Scenario: A further results page asks to sign in
-- **WHEN** a later results page of a title shows a sign-in page instead of results
-- **THEN** the reader ends that title with the postings already read, says so in its summary, and does not record Indeed as blocked
+- **WHEN** a later results page of a title shows a sign-in or security page instead of results
+- **THEN** the reader ends that title with the postings already read, says so in its summary, does not record Indeed as blocked, and the next titles are still read
 
 ### Requirement: Terms-of-use risk is stated
 The provider file SHALL state that Indeed's terms forbid automated access
