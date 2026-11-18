@@ -7,6 +7,7 @@ consistent between runs.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from datetime import date, datetime, timedelta
 
@@ -24,6 +25,7 @@ SKIP_REASONS = (
     "live_walk", "login_required", "missing_dependency", "invalid_file", "disabled", "error",
     "blocked", "not_searched", "other_country",
 )
+SITE_HOST = re.compile(r"(?=.{4,253}$)([a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,63}")
 QUESTION_KINDS = ("text", "long_text", "choice", "multi_choice", "number", "yes_no", "file")
 DUPLICATE_DAYS = 7   # publication dates this close make a same company+title a possible duplicate
 DEFAULT_AGE_DAYS = 7
@@ -372,7 +374,14 @@ def _validate_record(record: object, index: int, reference: date) -> dict:
     flags = record.get("flags") or []
     if not isinstance(flags, list) or any(not isinstance(f, str) or not f.strip() for f in flags):
         _fail(f"{where}: 'flags' must be a list of texts")
+    source_site = record.get("source_site")
+    if source_site is not None:
+        if not isinstance(source_site, str) or not SITE_HOST.fullmatch(source_site.strip().lower()):
+            _fail(f"{where}: 'source_site' must be the site's host, such as careers.example.com",
+                  field="source_site")
+        source_site = source_site.strip().lower()
     return {
+        "source_site": source_site,
         "provider": provider, "external_id": external_id, "url": url, "title": title,
         "company": company, "location": normalize.clean_text(location) if location else None,
         "country": country.upper() if country else None,
@@ -504,8 +513,8 @@ def import_postings(conn: sqlite3.Connection, run_id: int, records: object) -> d
                 " location, country, work_mode, work_mode_detail, contract_type, seniority,"
                 " posted_at,"
                 " description, published_salary, language, flags, match_key, first_run_id,"
-                " captured_at, is_demo)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " captured_at, is_demo, source_site)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (item["provider"], item["external_id"], item["url"], url_key, item["title"],
                  item["company"], item["location"], item["country"], item["work_mode"],
                  item["work_mode_detail"], item["contract_type"], item["seniority"],
@@ -514,7 +523,7 @@ def import_postings(conn: sqlite3.Connection, run_id: int, records: object) -> d
                  json.dumps(item["published_salary"]) if item["published_salary"] else None,
                  item["language"], json.dumps(item["flags"], ensure_ascii=False),
                  normalize.match_key(item["company"], item["title"]), run_id, now,
-                 run["is_demo"]),
+                 run["is_demo"], item["source_site"]),
             )
             posting_id = int(cursor.lastrowid)  # type: ignore[arg-type]
             created = True
@@ -689,6 +698,7 @@ def posting(conn: sqlite3.Connection, posting_id: int, *, detail: bool = True) -
         "published_salary": json.loads(row["published_salary"])
         if row["published_salary"] else None,
         "language": row["language"], "flags": json.loads(row["flags"]),
+        "source_site": row["source_site"],
         "form_question_count": conn.execute(
             "SELECT COUNT(*) FROM form_questions WHERE posting_id = ?", (posting_id,)
         ).fetchone()[0],

@@ -13,6 +13,7 @@ from jobtracker.core import (
     answers,
     applications,
     board,
+    companies,
     config,
     context,
     db,
@@ -482,6 +483,27 @@ def cmd_score_weights(args: argparse.Namespace) -> dict:
             return {"weights": scoring.set_weights(conn, _read_json(args.set), args.note)}
         return {"weights": scoring.active_weights(conn),
                 "history": scoring.weights_history(conn)}
+
+
+def cmd_companies_list(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        flag = True if args.excluded else (None if args.all else False)
+        return {"companies": companies.list_companies(conn, excluded=flag)}
+
+
+def cmd_companies_record(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return companies.record(conn, _read_json(args.file))
+
+
+def cmd_companies_exclude(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"company": companies.exclude(conn, args.company, args.reason)}
+
+
+def cmd_companies_include(args: argparse.Namespace) -> dict:
+    with db.session(get_paths()) as conn:
+        return {"company": companies.include(conn, args.company)}
 
 
 def cmd_salary_evidence_add(args: argparse.Namespace) -> dict:
@@ -969,6 +991,24 @@ def build_parser() -> argparse.ArgumentParser:
     score_weights.add_argument("--set", help="JSON file with new maximums (creates a version)")
     score_weights.add_argument("--note")
     score_weights.set_defaults(run=cmd_score_weights)
+
+    companies_parser = sub.add_parser("companies", help="companies the web search found")
+    companies_sub = companies_parser.add_subparsers(dest="action", required=True,
+                                                    parser_class=_Parser)
+    companies_list = companies_sub.add_parser("list", help="this season's known companies")
+    companies_list.add_argument("--excluded", action="store_true", help="only excluded ones")
+    companies_list.add_argument("--all", action="store_true", help="known and excluded")
+    companies_list.set_defaults(run=cmd_companies_list)
+    companies_record = companies_sub.add_parser("record", help="store companies found or revisited")
+    companies_record.add_argument("file", help="JSON list of companies, or - for stdin")
+    companies_record.set_defaults(run=cmd_companies_record)
+    companies_exclude = companies_sub.add_parser("exclude", help="never explore this company")
+    companies_exclude.add_argument("company", help="its id or careers page")
+    companies_exclude.add_argument("--reason", help="why, in the user's words")
+    companies_exclude.set_defaults(run=cmd_companies_exclude)
+    companies_include = companies_sub.add_parser("include", help="explore it again")
+    companies_include.add_argument("company", help="its id or careers page")
+    companies_include.set_defaults(run=cmd_companies_include)
 
     salary_parser = sub.add_parser("salary", help="salary evidence and suggestions")
     salary_sub = salary_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)

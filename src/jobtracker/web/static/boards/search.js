@@ -591,9 +591,12 @@ export function SearchBoard({ data, runId, onRunChange, commands, setupRequired,
         <span>${fmt.ago(r.posted_at)}</span><span class="small">${fmt.dayMonth(r.posted_at)}</span></div>`
         : html`<span class="small">${t('row.dateUnknown')}</span>`) },
     { key: 'source', label: t('column.source'), sortable: true, width: '120px',
-      render: (r) => (safeHref(r.url) ? html`<a class="source" href=${safeHref(r.url)} target="_blank"
-        rel="noopener noreferrer" aria-label=${t('row.openSource', { site: providerName(r.provider, run) })}>
-        ${providerName(r.provider, run)}${Icon.External()}</a>` : providerName(r.provider, run)) },
+      render: (r) => html`<div class="stack">
+        ${safeHref(r.url) ? html`<a class="source" href=${safeHref(r.url)} target="_blank"
+          rel="noopener noreferrer" aria-label=${t('row.openSource', { site: providerName(r.provider, run) })}>
+          ${providerName(r.provider, run)}${Icon.External()}</a>` : providerName(r.provider, run)}
+        ${r.source_site && html`<span class="small source-site" title=${t('row.sourceSite')}>${r.source_site}</span>`}
+      </div>` },
     { key: 'actions', label: t('column.actions'), width: '250px',
       render: (r) => html`<${RowActions} row=${r} onTrack=${track} onDismiss=${dismiss} onRestore=${restore} />` },
   ];
