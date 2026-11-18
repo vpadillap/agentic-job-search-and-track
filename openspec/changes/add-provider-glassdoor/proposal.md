@@ -137,34 +137,36 @@ sign-in ("Sign in to unlock all salaries") and are not read.
 
 ## What Changes
 
-- New reader `jobtracker providers read glassdoor <run_id> --title "<title>"`:
-  a visible Chromium opens a fresh context (logged out by construction) per
-  title, loads the search URL for the profile's country and the run's window
-  once, takes up to 30 postings from the page's embedded data, clicks each new
-  posting, closes the sign-up modal with Escape when it appears, copies the
-  description from the side panel (a posting whose description never loads is
-  skipped with a note), and writes drafts and raw captures to the run's
-  capture folder. The agent imports them with `--readings`, as for Indeed.
-- New salary reader `jobtracker providers salary glassdoor --title "<title>"
-  [--run <run_id>]`: one fresh context loads the salary page for the title and
-  the profile's country and returns the percentiles, currency, period, pay
-  type, sample size, latest report dates, and the URL, for the agent to store
-  with `jt salary evidence add` (one source; the two-source rule still
+Route chosen by the owner after the study: **Scrapling** (point 1.7).
+
+- New reader `jobtracker providers read glassdoor <run_id> --title "<title>"
+  [--search-url <url>]`: a headless Scrapling stealth session (no cookies, no
+  account, discarded after the call) loads the search for the profile's
+  country and the run's window, presses the page's own "Show more jobs" until
+  the site shows no more or the provider's cap (150) is reached, closes the
+  sign-up modal with Escape when it appears, then loads each new posting's
+  page and takes its complete description and fields from the page's
+  structured data (`JobPosting`). Drafts and raw captures go to the run's
+  capture folder; the agent imports them with `--readings`, as for Indeed.
+  No browser window opens.
+- New salary reader `jobtracker providers salary glassdoor --title "<title>"`:
+  one session loads the salary page for the title and the profile's country
+  and returns one evidence draft (25th–75th percentile range, currency,
+  period, sample size, newest report date, link) for the agent to check and
+  store with `jt salary evidence add` (one source; the two-source rule still
   applies).
 - Country ids: a `## Countries` table in the provider file (Peru 189). For
-  another country the agent asks the user for one Glassdoor search URL and
-  passes it with `--search-url`; the reader reads the id from it.
-- Same shared rules as the other readers (`readers/common.py`): at least 5
-  seconds between actions, one call at a time per run, a posting stored by an
-  earlier run is not opened, stop and record Glassdoor as blocked on a block
-  page, a challenge that does not clear, or a sign-in wall that Escape does
-  not close; stop with an error when the page no longer matches the reader.
-- `providers/glassdoor.md`: `kind: both`, `regions: [global]`, access
-  `playwright`, `dependencies: [playwright]`, no login, `max_results_per_query:
-  30`, the job and salary recipes, fields, the terms risk, stop conditions,
-  pitfalls (headless and plain HTTP are blocked; internal endpoints, posting
-  pages, page 2, and a second search in a context are never used; the modal;
-  postings whose description never loads; the FAQ's wrong period).
+  another country the agent asks the user once for one Glassdoor search URL;
+  the reader reads the id from it and saves it in the user's private settings.
+- `providers/glassdoor.md`: `kind: both`, `regions: [global]`, `access:
+  scrapling`, `dependencies: [scrapling]`, no login, `max_results_per_query:
+  150`, the job and salary recipes, fields, the terms risk, stop conditions,
+  pitfalls (plain HTTP and plain headless Chromium are blocked; page 2 URLs
+  repeat page 1; internal endpoints are never called directly; the modal;
+  postings without a readable description; the FAQ's wrong period).
+- `jt doctor`'s install hint for `scrapling` names the browser download
+  (`scrapling install`).
+- `docs/backlog.md`: try Scrapling on the other providers (owner's note).
 
 ## Capabilities
 
@@ -179,9 +181,11 @@ None.
 
 ## Impact
 
-- New `src/jobtracker/core/readers/glassdoor.py` (Playwright imported only
-  when it runs); registry entry `glassdoor`.
+- New `src/jobtracker/core/readers/glassdoor.py` (Scrapling imported only
+  when it runs); registry entry `glassdoor`; a `providers salary` command.
 - `providers/glassdoor.md` (new).
 - Tests with a fake browser and fictional pages; a real check with one title.
-- Playwright and its Chromium are installed by `/setup` only when the user
-  turns Glassdoor on (already the case for Indeed and Bumeran).
+- Scrapling and its browser are installed by `/setup` only when the user
+  turns Glassdoor on, as Playwright is for Indeed and Bumeran.
+- `docs/workspace-layout.md`: `provider-settings/<id>.json` in the private
+  home (the saved Glassdoor country ids).

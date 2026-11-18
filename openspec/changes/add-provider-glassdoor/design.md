@@ -1,132 +1,167 @@
 ## Context
 
-See the proposal's table for the first study. Observed details:
+See the proposal's study log. The owner chose Scrapling (point 1.7):
+Scrapling's `StealthySession` (headless, `solve_cloudflare=True`) loads
+searches, the site's "Show more jobs", posting pages, and salary pages in one
+session, where Playwright gets Cloudflare's challenge. Observed structure:
 
-- Search page: Next.js app. The postings are in the page's flight data
-  (`self.__next_f`): `searchResultsData.jobListings.jobListings[]`, each with
-  `jobview.header` (`ageInDays`, `employerNameFromSearch`, `jobTitleText`,
-  `locationName`, `payPeriod` and salary fields, `indeedJobAttribute.
-  extractedJobAttributes` such as "Integral/Full-time" and "Modelo Híbrido",
-  `easyApply`, `expired`) and the listing id. The same page has a JSON-LD
-  `ItemList` with each posting's name and `job-listing/…?jl=<id>` URL.
-- Cards: `li[data-test="jobListing"][data-jobid=<id>]`. A transparent tracking
-  link (`a[data-test="job-link"]`) covers each card; a click on the card goes
-  to it and the site shows the posting in the side panel without leaving the
-  page. The first posting is selected on load.
-- Description: element whose class starts with `JobDetails_jobDescription`;
-  it shows skeleton lines until the text arrives, a moment after the click.
-- Sign-up modal: `dialog[open]` with "Never Miss an Opportunity", buttons
-  "Continue with Google", "Continue with Apple or email", and a close button
-  `data-test="auth-modal-close-button"`. Escape closed it.
-- Headless and plain HTTP get 403; calling internal endpoints (location
-  lookup) from the page led to a challenge on the next load.
+- **Search page** (`/Job/<place>-<title>-jobs-SRCH_IL.0,<n>_IN<locId>_KO<a>,<b>.htm?fromAge=<d>`):
+  cards `li[data-test="jobListing"][data-jobid=<id>]`, each with a title link
+  `a.JobCard_jobTitle…[href="https://www.glassdoor.com/job-listing/…?jl=<id>"]`;
+  the page's flight data holds `jobListings[].jobview` for the first 30.
+- **"Show more jobs"** (`button[data-test="load-more"]`): each click adds up to
+  30 cards; its response (`/job-search-next/bff/jobSearchResultsQuery`) is JSON
+  `data.jobListings` with `jobListings[].jobview.header` (`ageInDays`,
+  `employerNameFromSearch`, `jobTitleText`, `locationName`, `seoJobLink`,
+  `payCurrency`, `indeedJobAttribute.extractedJobAttributes`, `expired`),
+  `jobview.job.listingId`, and `totalJobsCount`. In the study the button
+  disappeared at 127 cards of 152.
+- **Posting page** (`seoJobLink`): JSON-LD `JobPosting` with `title`,
+  `datePosted`, `validThrough`, `hiringOrganization.name`,
+  `jobLocation.address` (locality, country), `description` (HTML; same text as
+  the visible description), `salaryCurrency`, sometimes `baseSalary`,
+  `employmentType`, `industry`.
+- **Salary page** (`/Salaries/<place>-<title>-salary-SRCH_IL.0,<n>_IN<locId>_KO<a>,<b>.htm`):
+  JSON-LD `Occupation.estimatedSalary[]` (`MonetaryAmountDistribution`:
+  `currency`, `duration`, `percentile10/25`, `median`, `percentile75/90`);
+  page text "N salaries" and "submitted on <date>".
+- **Sign-up modal**: `dialog[open]`; Escape closes it.
 
 ## Goals / Non-Goals
 
-**Goals:** Glassdoor postings with complete descriptions and Glassdoor
-salary reports as evidence, logged out, with the same pacing, stop rules, and
-draft/readings flow as Indeed.
+**Goals:** as many Glassdoor postings per title as the site lists, with
+complete descriptions, and Glassdoor salary reports as evidence, logged out,
+headless, with the same drafts/readings flow and stop rules as the other
+readers.
 
 **Non-Goals:** signing in; the user's browser or account (the project's rule
 against working around site checks protects the user's accounts; reading
-logged out, working around Cloudflare's check with fresh contexts is allowed,
-owner's clarification 2026-11-18); internal endpoints; posting pages under `/job-listing/` (403 even
-on a first load; links in the drafts only); page 2 of a search (it repeats
-page 1 logged out); a second search in a context; individual salaries that
-need a sign-in; company reviews; applying.
+logged out, working around Cloudflare's check is allowed, owner's
+clarification 2026-11-18); the site's internal endpoints called directly
+(only the page's own button triggers them); page 2 URLs (they repeat page 1);
+individual salaries that need a sign-in; company reviews; applying.
 
 ## Decisions
 
-### D1. A reader like Indeed's, one fresh context per search
+### D1. Scrapling, one stealth session per reader call
 
-`readers/glassdoor.py` with an injectable browser adapter
-(`search(url) -> (status, title, html)`, `open(job_id) -> panel text`,
-`salary(url) -> (status, title, html)`, `close()`); the real adapter is a
-visible Chromium with a **new context for every search page and every salary
-page** (owner's decision 1): the first load of a context is the only search
-request it makes; clicking postings inside it is allowed. Locale of the
-country. Parsing the flight data, the JSON-LD, and the salary page are pure
-functions tested with fictional pages. Shared run state, pacing, lock, seen
-postings, and stop recording come from `readers/common.py`.
+`readers/glassdoor.py` with an injectable fetcher adapter:
+`search(url, max_cards) -> SearchResult` (page HTML, show-more JSON bodies,
+status, title), `page(url) -> (status, title, html)`, `close()`. The real
+adapter wraps `scrapling.fetchers.StealthySession(headless=True,
+solve_cloudflare=True, locale=<country locale>)`, imported only when it runs,
+created per call (one title, or one salary page) and closed at the end: no
+cookies survive between calls. No window opens. Parsing (cards, show-more
+JSON, JSON-LD) is pure functions tested with fictional pages. Shared run
+state, pacing, lock, seen postings, and stop recording come from
+`readers/common.py`.
+
+`providers/glassdoor.md`: `access: scrapling`, `dependencies: [scrapling]`.
+`INSTALL_HINTS["scrapling"]` becomes `pip install "scrapling[fetchers]", then:
+scrapling install` (the browser download, about 120 MB). `/setup` installs it
+only when the user turns Glassdoor on.
 
 ### D2. The modal is closed, never answered
 
-When `dialog[open]` appears, the reader presses Escape once; if a dialog is
-still open it clicks only `data-test="auth-modal-close-button"`. It never
-clicks a sign-in option. If the dialog stays open, Glassdoor is recorded as
-blocked (sign-in wall).
+Inside the search page action, when `dialog[open]` appears the reader presses
+Escape; if a dialog stays open it clicks only
+`data-test="auth-modal-close-button"`. It never clicks a sign-in option. A
+dialog that stays open is a sign-in wall (blocked).
 
 ### D3. Search URL and country id
 
-`https://www.glassdoor.com/Job/<place>-<title>-jobs-SRCH_IL.0,<len(place)>_IN<locId>_KO<len(place)+1>,<len(place)+1+len(title)>.htm?fromAge=<d>`
-with slugs in lowercase and hyphens; `fromAge` the smallest of 1, 3, 7, 14,
-30 covering the run's window (larger windows use 30; the import drops older
-postings). `locId` comes from the provider file's `## Countries` table (a
-global provider may carry it as a lookup table: country, Glassdoor id, date
-verified), or from `--search-url <url>` (the reader takes `IN<digits>` and
-the place slug from a URL the user pasted; anything else is refused). A
-country with neither is skipped with reason `error` and a detail asking for
-the URL.
+The SEO search URL above, with slugs in lowercase and hyphens and `fromAge`
+the smallest of 1, 3, 7, 14, 30 covering the run's window. The country's
+Glassdoor id and place slug come from, in order:
 
-### D4. Postings, at most 30 per title
+1. the provider file's `## Countries` table (`| Country | Glassdoor id |
+   Place | Last verified |`, e.g. `| PE | 189 | peru | 2026-11-18 |`);
+2. the user's saved setting `<home>/provider-settings/glassdoor.json`
+   (`{"countries": {"CL": {"id": …, "place": …, "from_url": …}}}`);
+3. `--search-url <url>`: a Glassdoor search URL the user pasted; the reader
+   takes `IN<digits>` and the place slug (the first `n` characters of the path
+   segment, from `IL.0,<n>`), uses them, and saves them to (2), so the user
+   pastes it once. Anything that is not a Glassdoor `/Job/…SRCH_IL…_IN…` URL
+   is refused.
 
-The page's flight data (`jobListings[].jobview.header`) gives up to 30
-postings (owner's decision 2). If the page's total is larger, the run report
-says the title was cut off at 30. `external_id` = listing id; `url` = the
-JSON-LD `job-listing` URL; title, company, location as given;
-`posted_at` = run date minus `ageInDays`; description = side-panel text
-(spaces collapsed per line, at most one blank line); hints `site_attributes`
-(extracted job attributes such as "Full-time", "Hybrid") and `site_salary`
-(the card's salary text as shown, with "Employer provided" or estimate). Work
-mode and contract type are the agent's reading, as for Indeed.
+A country with none of these is a `missing_country` error that tells the
+agent to ask the user for one Glassdoor search URL.
 
-A posting whose description does not appear within 30 seconds of the click is
-skipped with a note in the capture and the run continues (one employer's
-posting never loaded, also on a fresh context); after three such postings in
-a row the reader stops with `error`.
+### D4. Listing, up to the provider's cap
 
-### D5. Salary reader
+The page action clicks "Show more jobs" (5 s apart, Escape for the modal)
+until the button disappears, no new cards arrive, or the cards reach
+`max_results_per_query` (150 in the provider file). Cards are read in page
+order: ids and links from the title links, and `ageInDays`, company, title,
+location, attributes, and salary currency from the show-more JSON (and the
+page's flight data for the first 30, when present). A card older than the
+run's window, already handled in the run, or stored by an earlier run (seen)
+is not opened. The run report states the site's total and how many were
+listed, so a title cut by the cap or by the site's end is visible.
 
-`jt providers salary glassdoor --title "<title>" [--country CC] [--run <id>]`
-(country defaults to the profile's). URL:
-`/Salaries/<place>-<title>-salary-SRCH_IL.0,<n>_IN<locId>_KO<a>,<b>.htm`.
-It returns one evidence draft, never stored by itself:
+### D5. One posting page per new posting
+
+Each new posting's `seoJobLink` is loaded in the same session, 5 s apart. The
+draft comes from its JSON-LD `JobPosting`: `external_id` = listing id;
+`url` = `seoJobLink` without tracking parameters; `title`; `company` =
+`hiringOrganization.name`; `location` = address locality (and region when
+present); `country` = the profile's country; `posted_at` = `datePosted`'s
+date; `description` = the HTML description as plain text (block elements
+become line breaks, spaces collapsed, at most one blank line); hints
+`site_attributes` (extracted attributes such as "Tiempo completo",
+"Modelo Híbrido"), `site_employment_type`, and `site_salary` (from
+`baseSalary` when present, as shown). Work mode, contract type, language,
+flags, and a stated salary are the agent's reading, as for Indeed.
+
+A posting page without `JobPosting`, or with a description under 100
+characters, is skipped with a note (`unreadable` in the summary, the page
+kept in the captures); three in a row stop the provider with `error`.
+
+### D6. Salary reader
+
+`jt providers salary glassdoor --title "<title>" [--search-url <url>]` (the
+profile's country, D3). One session loads the salary page and returns one
+evidence draft, never stored by itself:
 
 | Evidence field | From |
 |---|---|
 | `source` | "Glassdoor" |
 | `url` | the salary page |
-| `amount_min`, `amount_max` | P25 and P75 of the JSON-LD `MonetaryAmountDistribution` (Glassdoor's "most likely range") |
-| `currency`, `period` | its `currency`; `duration` P1M → month, P1Y → year (anything else: refused) |
-| `sample_size` | "N salaries" in the page |
-| `observed_on` | the newest visible report date, else today |
-| `summary` | median and P10–P90, pay type ("base"), total pay range if shown |
+| `amount_min`, `amount_max` | `percentile25` and `percentile75` of the first distribution (Glassdoor's "most likely range") |
+| `currency`, `period` | `currency`; `duration` P1M → month, P1Y → year (anything else: no data) |
+| `sample_size` | "N salaries" in the page, when shown |
+| `observed_on` | the newest "submitted on" date, else today |
+| `summary` | median, P10–P90, pay type (the distribution's `name`, e.g. "base") |
 | `country` | the search's country |
 
-The agent adds `basis`, `level`, the posting or research key, and decides
-comparability, then stores it with `jt salary evidence add`. The page's FAQ
-text is never used for figures (it names the wrong period). No JSON-LD
-distribution → "no data" with the reason; nothing guessed.
+The agent adds `basis`, `level`, the posting or research key, checks
+comparability, and stores it with `jt salary evidence add`. The page's prose
+(FAQ) is never used for figures: it names the wrong period. No distribution →
+`{"data": false, "reason": …}`.
 
-### D6. Stop rules
+### D7. Stop rules
 
-Blocked (record `blocked`, refuse later calls in the run): response 403/429
-on a first load, a title with "Security", "Un momento", or "Just a moment"
-that does not clear within 30 seconds, or a sign-in wall (D2). Error: no
-postings data on a page that is not a "no results" page, a card without its
-id, three descriptions in a row that never load, or a salary page without the
-`Occupation` data.
+Blocked (record `blocked`, refuse later calls in the run): status 403/429, a
+title with "Security", "Un momento", or "Just a moment" after Scrapling's
+challenge handling, or a sign-in wall (D2). Error: a search page with neither
+cards nor a "no results" message, show-more JSON that does not parse, three
+unreadable postings in a row (D5), or a salary page without `Occupation`
+data. `scrapling` not installed → `missing_dependency` naming the install
+command.
 
 ## Risks / Trade-offs
 
-- [A window appears on the user's screen during the search] → Said in the
-  provider file; one title per call.
-- [30 postings per title] → Narrow windows (`fromAge`); cut-off reported.
-- [A country without an id] → The user pastes one search URL once.
-- [Glassdoor changes the page or its checks] → The reader stops with
-  `error` or `blocked` naming what happened.
+- [Cloudflare changes its check and Scrapling stops passing] → D7 records
+  Glassdoor as blocked; the run continues with the other providers; the
+  provider is revisited in its own change.
+- [Long runs: up to 150 posting pages per title at 5 s] → New postings only
+  (seen ones are not opened); the provider file states the time per title;
+  the cap is a front-matter value the user can lower in a private copy later.
+- [Third-party dependency, ~120 MB browser] → Installed only when Glassdoor
+  is turned on; `jt doctor` checks it.
 - [Terms] → Stated before turning it on.
 
 ## Migration Plan
 
 None: no schema change; Glassdoor starts switched off.
+`docs/workspace-layout.md` gains `provider-settings/<id>.json`.
