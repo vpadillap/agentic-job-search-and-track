@@ -16,23 +16,28 @@ from ..paths import Paths
 READERS = {"linkedin": "jobtracker.core.readers.linkedin",
            "bumeran": "jobtracker.core.readers.bumeran",
            "indeed": "jobtracker.core.readers.indeed",
-           "glassdoor": "jobtracker.core.readers.glassdoor"}
+           "glassdoor": "jobtracker.core.readers.glassdoor",
+           "greenhouse": "jobtracker.core.readers.greenhouse"}
 SALARY_READERS = {"glassdoor": "jobtracker.core.readers.glassdoor"}
-SEARCH_URL_READERS = {"glassdoor"}   # readers that accept --search-url
+# Options a reader takes besides the title and location: CLI flag -> keyword argument.
+OPTIONS = {"glassdoor": {"search_url": "search_url_given"},
+           "greenhouse": {"found": "found", "place_words": "place_words"}}
 
 
 def read(provider_id: str, paths: Paths, run_id: int, title: str,
-         location: str | None = None, search_url: str | None = None) -> dict:
+         location: str | None = None, **options: str | None) -> dict:
     module = READERS.get(provider_id)
     if module is None:
         raise JobTrackerError(
             "no_reader", f"'{provider_id}' has no reader; follow providers/{provider_id}.md")
-    if search_url and provider_id not in SEARCH_URL_READERS:
-        raise JobTrackerError("invalid_option", f"'{provider_id}' does not take --search-url")
-    if search_url:
-        return import_module(module).read(paths, run_id, title, location,
-                                          search_url_given=search_url)
-    return import_module(module).read(paths, run_id, title, location)
+    allowed = OPTIONS.get(provider_id, {})
+    given = {name: value for name, value in options.items() if value}
+    for name in given:
+        if name not in allowed:
+            raise JobTrackerError(
+                "invalid_option", f"'{provider_id}' does not take --{name.replace('_', '-')}")
+    return import_module(module).read(paths, run_id, title, location,
+                                      **{allowed[name]: value for name, value in given.items()})
 
 
 def salary(provider_id: str, paths: Paths, title: str, search_url: str | None = None) -> dict:

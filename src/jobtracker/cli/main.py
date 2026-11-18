@@ -411,7 +411,8 @@ def cmd_providers_read(args: argparse.Namespace) -> dict:
     from jobtracker.core import readers
 
     return {"read": readers.read(args.provider, get_paths(), args.run_id, args.title,
-                                 args.location, args.search_url)}
+                                 args.location, search_url=args.search_url, found=args.found,
+                                 place_words=args.place_words)}
 
 
 def cmd_providers_salary(args: argparse.Namespace) -> dict:
@@ -881,6 +882,12 @@ def build_parser() -> argparse.ArgumentParser:
     providers_read.add_argument("--location", help="where to search, as the site expects it")
     providers_read.add_argument(
         "--search-url", help="a search address the user pasted, when the provider file says so")
+    providers_read.add_argument(
+        "--found", help="a JSON list of links found for this title, when the provider file "
+        "says so")
+    providers_read.add_argument(
+        "--place-words", help="words that place a job in the user's country, when the "
+        "provider file says so")
     providers_read.set_defaults(run=cmd_providers_read)
     providers_salary = providers_sub.add_parser(
         "salary", help="read a provider's salary page for one title: an evidence draft")
