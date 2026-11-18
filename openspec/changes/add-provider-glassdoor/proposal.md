@@ -113,7 +113,26 @@ loads logged out as the first load of a fresh context (200, no modal):
 | By company and related titles | page text | e.g. one company PEN 4K–6K /mo; "Senior Data Engineer" PEN 140K–205K /yr |
 
 Cautions: the FAQ text says "PEN 6,167 per year" while the structured data
-says per month; the structured data is used. Some individual salaries need a
+says per month; the structured data is used.
+
+**2026-11-18, point 1.7: Scrapling** (owner's addition; Scrapling 0.5.1,
+`StealthySession(headless=True, solve_cloudflare=True)`, in a throwaway
+environment outside the project). One headless session, no window:
+
+| Test | Playwright, visible | Scrapling, headless |
+|---|---|---|
+| Search page | 200 (headless: 403) | 200, 30 postings |
+| Second search in the same session | 403, challenge | 200, 30 postings |
+| "Show more jobs" | its request 403; list emptied | 200 each round: 30 → 60 → 90 → 120 → 127, then no button; **126 unique postings of 152** |
+| Posting page `/job-listing/…?jl=<id>` | 403 even on a first load | 200, 6 of 6 in a row; full descriptions (1,683–5,372 characters; the same posting gave 5,375 in Playwright's side panel, so the panel is complete too); one posting gave only 14 characters |
+| Salary page | 200 | 200, same figures |
+
+So with Scrapling: no visible window, one session per run, up to the site's
+own end of the list instead of 30 per title, and descriptions fetched by URL
+instead of clicking cards. Costs: a new dependency (`scrapling[fetchers]`,
+which brings patchright and its own Chromium, about 120 MB), maintained by a
+third party; a stealth tool can stop working when Cloudflare changes its
+check, in which case the stop rules apply. Some individual salaries need a
 sign-in ("Sign in to unlock all salaries") and are not read.
 
 ## What Changes

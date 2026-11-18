@@ -5,6 +5,7 @@
 - [x] 1.3 `locId` for a country other than Peru through the site's own search box (no internal endpoints) — not reliable; owner chose the table plus a pasted URL
 - [x] 1.4 Description completeness and the posting link to store
 - [x] 1.5 Salary pages logged out (owner's addition)
+- [x] 1.7 Scrapling (owner's addition), in a throwaway environment outside the project: headless search, second search in one session, "Show more jobs" beyond 30, posting page opened directly; results table next to Playwright's
 - [ ] 1.6 Owner approves the study results and the revised design before section 2
 
 ## 2. Glassdoor reader
