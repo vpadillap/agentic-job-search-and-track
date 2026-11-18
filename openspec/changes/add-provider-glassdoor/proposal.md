@@ -64,6 +64,36 @@ to let the IP cool down; the next probe moves to the next page or the next
 title through the page itself (the site's search box and its own
 "more results" control), not a second direct URL load.
 
+**2026-11-18, what triggers the challenge (owner: the site opens normally in
+their own browser, so not an IP block).** One variable per probe:
+
+| Probe | Result |
+|---|---|
+| A. Fresh browser, one direct load of a search | 200, 30 cards; Cloudflare (`server: cloudflare`) sets `cf_clearance` |
+| B. Same session, second direct load (another title) 10 s later | 307 then **403**, `cf-mitigated: challenge` (Turnstile); does not clear |
+| C. Same session, the site's own "Show more jobs" button | its call `POST /job-search-next/bff/jobSearchResultsQuery` gets **403**; the list empties |
+| D1. Page 2 (`…_IP2.htm`) as the first load of a fresh context | 200, but the **same 30 postings as page 1** (30 of 30 ids equal) |
+| D2. Second title as the first load of a new context in the same browser | 200, 30 cards |
+| E. `sortBy=date_desc` | ignored (ages unordered); `fromAge` does filter |
+| F. Typing a country in the site's location box (Chile) | no suggestions this time; not reliable for finding a country id |
+
+So in an automated, logged-out browser: the first search load of a context
+and opening postings (detail requests) work; any further search request in
+the same context is challenged. Logged out, only the first 30 results of a
+search are reachable (page 2 is page 1), in relevance order.
+
+Decisions for the owner before the reader is designed:
+1. **One fresh browser context per search** (title × country), like Indeed's
+   new context per call. Nothing is changed in the browser's identity; but
+   the reason is that a second search in the same context is challenged.
+2. **At most 30 postings per title per run**, limited by the date window
+   (`fromAge`); with 7 days the Peru examples had 11 ("data engineer").
+3. **Country ids:** the provider file carries a table of verified Glassdoor
+   country ids (Peru 189; Portugal 195 seen), and a country not in it is
+   skipped with a reason until someone verifies its id (the site's box was
+   not reliable). Alternatively the user pastes one Glassdoor search URL
+   for their country once and the id is read from it.
+
 ## What Changes
 
 - New reader `jobtracker providers read glassdoor <run_id> --title "<title>"`:
