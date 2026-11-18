@@ -1,10 +1,12 @@
 ## 1. Study (scratch scripts only; nothing in the repo but this change's text)
 
-- [ ] 1.1 Public structured data: API or embedded data for searches and postings; filters, paging, description (every address verified with a real request)
-- [ ] 1.2 Pages: search and posting pages over plain HTTP, headless, visible browser; checks or sign-in walls
-- [ ] 1.3 Fields: id, link, title, company, location and remote scope, date, salary, seniority, description; application questions without applying
-- [ ] 1.4 Coverage: countries served, how a posting states its country or remote scope; global or local
-- [ ] 1.5 Terms of use and robots.txt
+- [x] 1.1 Public structured data: API or embedded data for searches and postings; filters, paging, description (every address verified with a real request)
+- [x] 1.2 Pages: search and posting pages over plain HTTP, headless, visible browser; checks or sign-in walls
+- [x] 1.3 Fields: id, link, title, company, location and remote scope, date, salary, seniority, description; application questions without applying
+- [x] 1.4 Coverage: countries served, how a posting states its country or remote scope; global or local
+- [x] 1.5 Terms of use and robots.txt
+- [x] 1.7 Scrapling for Get on Board: time and results against the other routes
+- [ ] 1.8 Scrapling on Indeed, Bumeran, LinkedIn (study only): time, postings, descriptions, blocks, window; results recorded for the owner (changes to those providers go in their own changes)
 - [ ] 1.6 Write the results table into the proposal and design (D3+); owner chooses the route before section 2
 
 ## 2. Implementation (shape depends on 1.6)
