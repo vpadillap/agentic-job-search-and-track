@@ -112,19 +112,28 @@ def test_tabs_have_counters(seeded, page):
     expect(page.get_by_role("heading", name="Agent memory")).to_be_visible()
 
 
+def _switch_language(page, name: str) -> None:
+    """Click a language button and wait until the server has saved the choice: the
+    panel switches at once, the save follows in the background."""
+    with page.expect_response(lambda r: r.url.endswith("/api/settings/language")
+                              and r.request.method == "POST") as saved:
+        page.get_by_role("button", name=name, exact=True).click()
+    assert saved.value.ok
+
+
 def test_switching_language_without_reload_and_it_persists(seeded, page):
     open_board(page)
     page.evaluate("window.__marker = 1")
-    page.get_by_role("button", name="ES", exact=True).click()
+    _switch_language(page, "ES")
     expect(page.get_by_role("heading", name="Última búsqueda")).to_be_visible()
     assert page.evaluate("window.__marker") == 1                     # no reload
-    page.get_by_role("button", name="EN", exact=True).click()
+    _switch_language(page, "EN")
     expect(page.get_by_role("heading", name="Latest search")).to_be_visible()
     expect(page.locator(".tab", has_text="Applications")).to_be_visible()
     page.evaluate("localStorage.clear()")
     page.reload()                                                      # a restart reads config
     expect(page.get_by_role("heading", name="Latest search")).to_be_visible()
-    page.get_by_role("button", name="ES", exact=True).click()
+    _switch_language(page, "ES")
     expect(page.get_by_role("heading", name="Última búsqueda")).to_be_visible()
     page.evaluate("localStorage.clear()")
     page.reload()

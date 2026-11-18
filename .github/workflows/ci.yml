@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: [main]   # change branches are checked when they reach main or a pull request
   pull_request:
 
 permissions:
@@ -23,9 +24,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
+      # Linux and Windows (the owner's system), oldest and newest supported Python.
+      # macOS was dropped: GitHub often had no macOS runner free and cancelled the jobs.
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python: ["3.11", "3.12", "3.13", "3.14"]
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.14"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
