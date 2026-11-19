@@ -87,6 +87,7 @@
   "reason.salary": "Salary",
   "reason.rule": "Your rules",
   "providers.title": "Job sites",
+  "providers.salarySources": "Salary sources, always used for salary research (no switch): {names}",
   "providers.empty": "No job sites are available yet. Each site is added in its own update after it is studied.",
   "providers.invalid": "Its instruction file has problems; searches skip it.",
   "providers.close": "Close",

@@ -33,6 +33,18 @@ export function filterByCountry(providers, country) {
     || (p.countries || []).includes(country));
 }
 
+// Job sites have a switch; salary sources never do (they are always used), so the
+// switch lists show job sites and one line names the salary sources.
+export const jobSites = (providers) => (providers || []).filter((p) => p.kind !== 'salary');
+
+export function SalarySourcesNote({ providers, country }) {
+  const { t } = useUi();
+  const names = filterByCountry((providers || []).filter((p) => p.kind === 'salary' || p.kind === 'both'),
+    country).map((p) => p.name);
+  if (!names.length) return null;
+  return html`<p class="small salary-sources">${t('providers.salarySources', { names: names.join(', ') })}</p>`;
+}
+
 export function CountryFilter({ providers, profileCountry, value, onChange, id }) {
   const { t } = useUi();
   const countries = siteCountries(providers);

@@ -52,9 +52,15 @@ In this order, skipping every source listed in `checked`:
 2. **The market**: the same role family and level in the same country, at
    comparable companies. Store with `"scope": "market"` (the default).
 
-Use only the salary sources the enabled provider files describe (`kind:
-salary` or `both`): today Glassdoor, Indeed, Computrabajo, Payscale, and Talent.com, each following
-the "Salary data" section of its file. Each has a **salary reader** (for
+**Salary sources are always available**: they are never switched on or off
+(a job site's switch is about searching its postings only). `jt salary lookup`
+lists in `sources` every salary source that serves the posting's country,
+with `ready` (its tools are installed), `reader`, and `checked` (what it
+already answered for this posting's keys). Ask the ones that fit the posting
+(its country, its language for titles, company references before market
+data), skip the ones already checked, and follow the "Salary data" section of
+each one's file. When `ready` is false, run `jt providers install <id>` first;
+never ask the user to install anything. Each source has a **salary reader** (for
 example `jt providers salary indeed --title "<title>"`): it returns an `evidence`
 draft from the site's own data. Add only what you decide (`basis`, `level`,
 `scope`, `posting_id` or `research`, context fields), check that it is

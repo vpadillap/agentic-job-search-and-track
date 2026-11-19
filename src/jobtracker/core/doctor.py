@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import shutil
 import sqlite3
 import subprocess
@@ -73,6 +74,22 @@ def _tool_available(name: str) -> bool:
     except (ImportError, ValueError):
         pass
     return shutil.which(name) is not None
+
+
+def profile_country(paths: Paths) -> str | None:
+    """The active profile's country, read without the profile module (standard library)."""
+    if not paths.database.is_file():
+        return None
+    try:
+        with closing(sqlite3.connect(paths.database)) as conn:
+            row = conn.execute("SELECT data FROM profile_versions WHERE is_active = 1").fetchone()
+    except sqlite3.Error:
+        return None
+    try:
+        country = json.loads(row[0]).get("country") if row else None
+    except (ValueError, AttributeError):
+        return None
+    return str(country).upper() if country else None
 
 
 def _enabled_provider_ids(paths: Paths) -> set[str]:
@@ -160,9 +177,11 @@ def run(paths: Paths) -> dict:
         ))
 
     enabled = _enabled_provider_ids(paths)
+    salary_ids = ({str(item["id"]) for item in providers.salary_sources(profile_country(paths))}
+                  if is_initialized(paths) else set())
     for provider in providers.list_providers():
         provider_id = str(provider["id"])
-        if provider_id not in enabled:
+        if provider_id not in enabled and provider_id not in salary_ids:
             continue
         if not provider.get("valid", True):
             checks.append(_check(

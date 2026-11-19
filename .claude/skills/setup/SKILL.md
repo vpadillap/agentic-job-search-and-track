@@ -210,14 +210,21 @@ the user says so.
    Read each one's file
    (`providers/<id>.md`, section `## Limits and etiquette`) and tell the user
    any terms-of-use risk it states, in a sentence. Ask which to use.
+   Offer only job sites (`kind: jobs` or `both`). Salary sources (`kind:
+   salary`, and the salary pages of job sites) are never switched: say in
+   one line that they are always used for salary research, naming those
+   that serve the user's country, with their terms note.
 4. Every job site starts switched off. `jt providers enable <id>` for each one
    the user picks; leave the others off. A site added later by an update also
    arrives off, so nothing is searched without the user's choice.
-5. For each enabled provider with `dependencies`, tell the user what will be
-   installed and its size, then `jt providers install <id>`: it installs the
-   missing tools into the project's environment and checks they work. Confirm
-   with `jt doctor` that its `provider:<id>` check passes. If installation
-   fails, run `jt providers disable <id>` and say why.
+5. For each enabled provider with `dependencies`, and each salary source of
+   the user's country, tell the user what will be installed and its size,
+   then run `jt providers install <id>` (or `jt providers install --enabled`
+   for all of them at once): it installs the missing tools into the
+   project's environment and checks they work. Confirm with `jt doctor` that
+   its `provider:<id>` check passes. If installing a job site fails, run
+   `jt providers disable <id>` and say why; a salary source that fails is
+   skipped in research until it is fixed.
 
 ## 9. Preferences (`preferences`)
 

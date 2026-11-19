@@ -108,8 +108,10 @@ it worth updating?".
 
 ## Job sites
 
-Every site starts **switched off**: you choose which ones to use in `/setup`
-or in the panel, so an update never starts searching a new site on its own.
+Every job site starts **switched off**: you choose which ones to search in
+`/setup` or in the panel, so an update never starts searching a new site on
+its own. **Salary sources are always used** (no switch): the agent asks the
+ones that serve each posting's country when it researches a salary.
 *Global* sites serve many countries; a *local* site serves only its
 countries, and setup offers you the global ones plus those of your country.
 
@@ -310,9 +312,11 @@ ofrece una sola vez. Para ver qué trajo cada actualización, lee
 
 ## Portales de empleo
 
-Cada portal empieza **apagado**: eliges cuáles usar en `/configurar` o en el
-panel, así una actualización nunca empieza a buscar en un portal nuevo por su
-cuenta. Los portales *globales* sirven a muchos países; uno *local* solo a sus
+Cada portal empieza **apagado**: eliges en cuáles buscar en `/configurar` o
+en el panel, así una actualización nunca empieza a buscar en un portal nuevo
+por su cuenta. **Las fuentes de salario se usan siempre** (sin interruptor):
+el agente consulta las que sirven al país de cada aviso al investigar un
+salario. Los portales *globales* sirven a muchos países; uno *local* solo a sus
 países, y la configuración te ofrece los globales más los de tu país.
 
 | Portal | Cobertura | Cómo se lee |

@@ -337,9 +337,33 @@ def with_state(conn) -> list[dict[str, object]]:
     return result
 
 
+def salary_sources(country: str | None) -> list[dict[str, object]]:
+    """The salary sources that serve `country` (all of them without a country): providers
+    of kind salary or both with a valid file. They are never switched on or off."""
+    from .readers import SALARY_READERS
+
+    found = []
+    for item in list_providers():
+        if item.get("kind") not in ("salary", "both") or not item.get("valid", True):
+            continue
+        code = (country or "").upper()
+        if code and item.get("coverage") == "local" and code not in (item.get("countries") or []):
+            continue
+        found.append({"id": item["id"], "name": item.get("name"), "kind": item.get("kind"),
+                      "coverage": item.get("coverage"), "countries": item.get("countries"),
+                      "reader": str(item["id"]) in SALARY_READERS,
+                      "dependencies": item.get("dependencies") or []})
+    return found
+
+
 def set_enabled(conn, provider_id: str, enabled: bool) -> list[dict[str, object]]:
-    if provider_id not in {str(p["id"]) for p in list_providers()}:
+    listed = {str(p["id"]): p for p in list_providers()}
+    if provider_id not in listed:
         raise JobTrackerError("not_found", f"There is no provider '{provider_id}'")
+    if listed[provider_id].get("kind") == "salary":
+        raise JobTrackerError(
+            "salary_source", f"{listed[provider_id].get('name') or provider_id} is a salary "
+            "source: salary sources are always used, there is nothing to turn on or off")
     now = now_iso()
     conn.execute(
         "INSERT INTO providers_state (provider_id, enabled, updated_at) VALUES (?, ?, ?)"
