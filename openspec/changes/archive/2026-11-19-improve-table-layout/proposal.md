@@ -17,6 +17,37 @@ user has to do to reach the actions. The captures and a short table go into
 this proposal; the layout below is confirmed or revised with them, and the
 owner approves before implementing.
 
+### Study results (2026-11-19, demo data, Chromium)
+
+Before: whether the page or the table scrolls sideways, which columns are cut
+off, and the median row height.
+
+| Width | Search | Applications |
+|---|---|---|
+| 1,920 / 1,440 | fits | fits |
+| 1,366 | table scrolls; **Actions** cut | fits |
+| 1,280 | table scrolls; **Actions** cut | table scrolls; **Next step** cut |
+| 1,024 | page and table scroll; Published, Source, Actions cut | Applied, Asked, Next step cut |
+| 768 | + Salary cut | + Documents cut |
+| 390 (phone) | only Score visible | only Score visible |
+
+Causes: `.table { min-width: 1300px }`; the actions column (three text
+buttons, 250 px) and the separate source column (120 px); headers that never
+wrap ("SUGGESTED SALARY / MONTH" alone took 212 px); the work-mode chip
+growing to 260 px. Rows: 105 px (Search), 137 px (Applications).
+
+After the change: no width from 1,920 down to 390 scrolls sideways, and no
+column is cut off (measured the same way). Search rows are 113 px (the source
+link is now in the job cell). On a phone, rows are cards. Captures in
+`captures/` (before and after at 1,366, Applications before at 1,280, Search
+on a phone after).
+
+D2 and D4 confirmed. D3 revised: "Track" stays a text button (the most used
+action; an icon alone would be ambiguous), "Already applied" and "Dismiss" are
+icon buttons with a label and tooltip; with three actions a "more" menu is not
+needed. Breakpoints: 1,100 px (priority 2 columns into the detail), 900 px
+(priority 3), 760 px (cards).
+
 ## What Changes (expected; revised after the study)
 
 - **No sideways scroll from 1,280 pixels up**: the fixed minimum width goes;

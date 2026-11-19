@@ -30,11 +30,12 @@ space (job and conditions grow; score, date, and actions stay narrow). Text
 that does not fit wraps to at most two lines; longer text is cut with an
 ellipsis and shown whole on hover and in the detail.
 
-### D3. Actions (expected)
+### D3. Actions
 
-Icon buttons (track, dismiss, open the original posting) with
-`aria-label` and tooltip, plus a "more" menu for the rest; the column is about
-120 pixels. Keyboard order and focus are kept.
+"Track" stays a text button; "Already applied" (check icon) and "Dismiss"
+(cross, with its reasons menu) are icon buttons with `aria-label` and tooltip.
+The column is about 150 pixels. Keyboard order and focus are kept. The link to
+the original posting moves into the job cell, under the company.
 
 ### D4. Narrow widths (expected)
 

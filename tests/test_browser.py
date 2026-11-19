@@ -775,3 +775,69 @@ def test_offered_salary_is_entered_and_shown(seeded, page):
     expect(app_row(page, "Finlima S.A.").locator(".offered")).to_contain_text("11")
     page.reload()
     expect(app_row(page, "Finlima S.A.").locator(".offered")).to_contain_text("offered")
+
+
+# ── the tables fit the screen (improve-table-layout) ─────────────────────
+
+def _fits(page) -> dict:
+    expect(page.locator("section.results tbody tr").first).to_be_attached()
+    return page.evaluate("""() => {
+      const doc = document.documentElement;
+      const box = document.querySelector('section.results');
+      return { page: doc.scrollWidth <= doc.clientWidth + 1,
+               table: box.scrollWidth <= box.clientWidth + 1 };
+    }""")
+
+
+@pytest.mark.parametrize("width", [1366, 1280])
+@pytest.mark.parametrize("tab", ["search", "applications"])
+def test_tables_fit_a_laptop_screen(seeded, page, tab, width):
+    page.set_viewport_size({"width": width, "height": 900})
+    open_board(page, tab)
+    expect(page.locator("tbody tr").first).to_be_visible()
+    assert _fits(page) == {"page": True, "table": True}
+    last = page.locator("thead th").last
+    box = last.bounding_box()
+    assert box and box["x"] + box["width"] <= width          # the last column is on screen
+    if tab == "search":
+        actions = row(page, "Mistral Pagos").get_by_role("button", name="Track", exact=True)
+        expect(actions).to_be_in_viewport()
+
+
+def test_narrow_screen_moves_secondary_columns_into_the_detail(seeded, page):
+    page.set_viewport_size({"width": 1024, "height": 900})
+    open_board(page)
+    expect(page.locator("thead th", has_text="Published")).to_be_hidden()
+    assert _fits(page)["table"]
+    target = row(page, "Mistral Pagos")
+    target.get_by_role("button", name=re.compile("Show details")).click()
+    hidden = page.locator(".detail-cell .hidden-cols")
+    expect(hidden.get_by_text("Published", exact=True)).to_be_visible()
+    expect(hidden.get_by_text("Conditions", exact=True)).to_be_hidden()   # still in the row
+
+
+def test_phone_shows_each_posting_as_a_card(seeded, page):
+    page.set_viewport_size({"width": 390, "height": 900})
+    open_board(page)
+    expect(page.locator("thead")).to_be_hidden()
+    assert _fits(page) == {"page": True, "table": True}
+    card = row(page, "Mistral Pagos")
+    expect(card.locator(".job-title")).to_be_visible()
+    expect(card.locator("td.col-labelled")).to_be_visible()                # the salary
+    expect(card.get_by_role("button", name="Track", exact=True)).to_be_visible()
+    expect(card.locator("td", has_text="days ago")).to_be_hidden()        # published: detail
+    card.get_by_role("button", name=re.compile("Show details")).click()
+    hidden = page.locator(".detail-cell .hidden-cols")
+    expect(hidden.get_by_text("Published", exact=True)).to_be_visible()
+
+
+def test_compact_actions_have_names_and_are_reachable_by_keyboard(seeded, page):
+    open_board(page)
+    target = row(page, "Mistral Pagos")
+    applied = target.get_by_role("button", name="Already applied: Track and mark applied")
+    expect(applied).to_have_attribute("title", "Already applied: Track and mark applied")
+    target.get_by_role("button", name="Track", exact=True).focus()
+    page.keyboard.press("Tab")
+    expect(applied).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(target.get_by_role("button", name="Dismiss with a reason")).to_be_focused()

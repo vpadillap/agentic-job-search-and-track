@@ -377,8 +377,9 @@ function RowActions({ row, onTrack, onDismiss, onRestore }) {
   return html`
     <div class="row-actions">
       <button type="button" class="btn btn-sm" onClick=${() => onTrack([row.id], false)}>${t('action.track')}</button>
-      <button type="button" class="btn btn-sm" onClick=${() => onTrack([row.id], true)}
-        aria-label=${`${t('action.applied')}: ${t('action.trackApplied')}`}>${t('action.applied')}</button>
+      <button type="button" class="btn btn-sm btn-icon outlined" onClick=${() => onTrack([row.id], true)}
+        title=${`${t('action.applied')}: ${t('action.trackApplied')}`}
+        aria-label=${`${t('action.applied')}: ${t('action.trackApplied')}`}>${Icon.Check(16)}</button>
       <${DismissMenu} row=${row} onDismiss=${onDismiss} />
     </div>`;
 }
@@ -583,18 +584,24 @@ export function SearchBoard({ data, runId, onRunChange, commands, setupRequired,
         ${r.estimate && html`<${ChanceCell} estimate=${r.estimate} compact />`}
         ${r.fit && html`<${FitCell} fit=${r.fit} compact />`}
       </div>` },
-    { key: 'title', label: t('column.job'), sortable: true,
+    { key: 'title', label: t('column.job'), sortable: true, className: 'col-main',
       render: (r) => html`
         <div class="job">
           <span class="job-title">${r.title}</span>
           <span class="job-company">${r.company}</span>
+          <span class="job-source">
+            ${safeHref(r.url) ? html`<a class="source" href=${safeHref(r.url)} target="_blank"
+              rel="noopener noreferrer" aria-label=${t('row.openSource', { site: providerName(r.provider, run) })}>
+              ${providerName(r.provider, run)}${Icon.External()}</a>` : providerName(r.provider, run)}
+            ${r.source_site && html`<span class="small source-site" title=${t('row.sourceSite')}>${r.source_site}</span>`}
+          </span>
           <div class="tags">
             ${r.form_question_count > 0 && html`<span class="tag info">${t('row.form', { count: r.form_question_count })}</span>`}
             ${r.flags.map((flag) => html`<span class="tag warn">${flag}</span>`)}
             <${DuplicateMark} row=${r} run=${run} />
           </div>
         </div>` },
-    { key: 'conditions', label: t('column.conditions'),
+    { key: 'conditions', label: t('column.conditions'), priority: 3,
       render: (r) => html`
         <div class="tags">
           ${r.contract_type && html`<span class="cond">${t('contract.' + r.contract_type)}</span>`}
@@ -602,19 +609,13 @@ export function SearchBoard({ data, runId, onRunChange, commands, setupRequired,
           ${(r.location || r.country) && html`<span class="cond">${r.work_mode === 'remote'
             ? (fmt.country(r.country) || r.location) : r.location}</span>`}
         </div>` },
-    { key: 'salary', label: t('column.salary'), sortable: true, render: (r) => html`<${SalaryCell} salary=${r.salary} />` },
-    { key: 'published', label: t('column.published'), sortable: true, width: '96px',
+    { key: 'salary', label: t('column.salary'), sortable: true, className: 'col-full col-labelled',
+      render: (r) => html`<${SalaryCell} salary=${r.salary} />` },
+    { key: 'published', label: t('column.published'), sortable: true, width: '96px', priority: 2,
       render: (r) => (r.posted_at ? html`<div class="stack">
         <span>${fmt.ago(r.posted_at)}</span><span class="small">${fmt.dayMonth(r.posted_at)}</span></div>`
         : html`<span class="small">${t('row.dateUnknown')}</span>`) },
-    { key: 'source', label: t('column.source'), sortable: true, width: '120px',
-      render: (r) => html`<div class="stack">
-        ${safeHref(r.url) ? html`<a class="source" href=${safeHref(r.url)} target="_blank"
-          rel="noopener noreferrer" aria-label=${t('row.openSource', { site: providerName(r.provider, run) })}>
-          ${providerName(r.provider, run)}${Icon.External()}</a>` : providerName(r.provider, run)}
-        ${r.source_site && html`<span class="small source-site" title=${t('row.sourceSite')}>${r.source_site}</span>`}
-      </div>` },
-    { key: 'actions', label: t('column.actions'), width: '250px',
+    { key: 'actions', label: t('column.actions'), width: '150px', className: 'col-full',
       render: (r) => html`<${RowActions} row=${r} onTrack=${track} onDismiss=${dismiss} onRestore=${restore} />` },
   ];
 

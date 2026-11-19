@@ -618,7 +618,7 @@ export function ApplicationsBoard({ data, version, commands, onAction, onReload 
         ${chance}
       </div>`;
     } },
-    { key: 'company', label: t('col.job'), sortable: true, render: (a) => html`
+    { key: 'company', label: t('col.job'), sortable: true, className: 'col-main', render: (a) => html`
       <div class="job">
         <span class="job-title">${a.posting.title}</span>
         <span class="job-company">${[a.posting.company,
@@ -627,15 +627,15 @@ export function ApplicationsBoard({ data, version, commands, onAction, onReload 
         <${PostingLink} url=${a.posting.url} site=${providerName(a.posting.provider)} className="source small-link" />
         <span class="small mono">${a.job_id}</span>
       </div>` },
-    { key: 'status', label: t('col.statusTags'), sortable: true, render: (a) => html`
+    { key: 'status', label: t('col.statusTags'), sortable: true, className: 'col-full col-labelled', render: (a) => html`
       <${StatusTagMenu} app=${a} statuses=${statuses} onStatus=${changeStatus}
         onTags=${a.earlier_season ? null : changeTags} />` },
-    { key: 'documents', label: t('col.documents'), width: '190px', render: (a) => html`<${DocLines} app=${a} />` },
-    { key: 'applied', label: t('col.applied'), sortable: true, width: '110px', render: (a) => html`<div class="stack">
+    { key: 'documents', label: t('col.documents'), width: '190px', priority: 2, render: (a) => html`<${DocLines} app=${a} />` },
+    { key: 'applied', label: t('col.applied'), sortable: true, width: '110px', priority: 3, render: (a) => html`<div class="stack">
       <span>${a.applied_on ? fmt.dayMonth(a.applied_on) : t('row.notApplied')}</span>
       <span class="small">${a.channel || providerName(a.posting.provider)}</span></div>` },
-    { key: 'asked', label: t('col.askedSuggested'), width: '160px', render: (a) => html`<${AskedSuggested} app=${a} />` },
-    { key: 'next', label: t('col.next'), sortable: true, render: (a) => html`
+    { key: 'asked', label: t('col.askedSuggested'), width: '160px', priority: 2, render: (a) => html`<${AskedSuggested} app=${a} />` },
+    { key: 'next', label: t('col.next'), sortable: true, className: 'col-full col-labelled', render: (a) => html`
       <${NextStep} app=${a} onStatus=${changeStatus} thresholds=${limits} />` },
   ];
 
