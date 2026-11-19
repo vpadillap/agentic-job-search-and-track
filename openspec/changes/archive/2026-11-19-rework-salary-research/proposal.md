@@ -130,7 +130,11 @@ reader uses a Scrapling session, as the job readers do.
 
 Implemented: the Indeed and Computrabajo salary readers (shared pacing and
 cool-down), checked for real in PE and MX (Indeed) and PE and CO
-(Computrabajo). Payscale and Talent.com wait for the owner's choice.
+(Computrabajo). The owner then chose Payscale and Talent.com too: both are read through one
+parser of their structured distribution (Payscale: `OccupationAggregation`,
+figures as text; Talent.com: `Occupation`), checked for real in GB and MX.
+Every salary reader now returns `warnings` for weak figures (a very wide
+range, a small sample, an old or missing update date).
 
 
 ## Capabilities

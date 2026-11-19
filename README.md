@@ -119,6 +119,8 @@ countries, and setup offers you the global ones plus those of your country.
 | Get on Board | global (mostly Latin America and remote) | Get on Board's free public API |
 | Bumeran Perú | local: PE | A headless browser session (no window, no account) |
 | Computrabajo | local: PE, MX, CO, CL, AR, EC; salaries only for now | A headless browser session (no window, no account) that reads its salary pages |
+| Payscale | global; salaries only | A headless browser session (no window, no account) that reads its salary pages |
+| Talent.com | global; salaries only | A headless browser session (no window, no account) that reads its salary pages |
 | Web search (company sites) | global | The agent searches the open web for companies' own careers pages and remembers the companies it finds |
 
 Each site's file in [`providers/`](providers/) says exactly how it is read and
@@ -316,6 +318,8 @@ países, y la configuración te ofrece los globales más los de tu país.
 | Get on Board | global (sobre todo Latinoamérica y remotos) | La API pública y gratuita de Get on Board |
 | Bumeran Perú | local: PE | Una sesión de navegador sin ventana ni cuenta |
 | Computrabajo | local: PE, MX, CO, CL, AR, EC; por ahora solo salarios | Una sesión de navegador sin ventana ni cuenta que lee sus páginas de salarios |
+| Payscale | global; solo salarios | Una sesión de navegador sin ventana ni cuenta que lee sus páginas de salarios |
+| Talent.com | global; solo salarios | Una sesión de navegador sin ventana ni cuenta que lee sus páginas de salarios |
 | Búsqueda web (sitios de empresas) | global | El agente busca en la web las páginas de empleo de las propias empresas y recuerda las empresas que encuentra |
 
 El archivo de cada portal en [`providers/`](providers/) dice exactamente cómo

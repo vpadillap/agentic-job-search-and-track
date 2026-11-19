@@ -19,7 +19,7 @@
 - [x] 3.2 Results table in the proposal; the owner chose Indeed salaries and Computrabajo salaries (2026-11-19), and asked to study more global sources: the project is not only for Peru
 - [x] 3.3 Global study: Indeed salaries and Computrabajo salaries in every country they serve (address per country, currency, period, sample); other sources with global or multi-country coverage; results table in the proposal
 - [x] 3.4 Provider files (`kind: salary`) and salary readers for Indeed salaries and Computrabajo salaries, every country they serve, period taken from structured data; tests on fictional pages; a real check per reader in at least two countries
-- [ ] 3.5 Further global sources the study recommends (Payscale, Talent.com), after the owner chooses
+- [x] 3.5 Payscale and Talent.com (owner's yes, 2026-11-19): provider files, readers sharing one parser of the schema.org distribution, quality warnings (wide range, small sample, old or missing update date); checked for real in GB and MX each
 
 ## 3b. Currency
 

@@ -164,3 +164,56 @@ def test_a_country_without_pages(workspace, cli, tmp_path):
     cli("profile", "set", str(path))
     result = _read(workspace, FakePages([]), ["data analyst"], [0.0])
     assert result["data"] is False and "no salary pages for US" in result["reason"]
+
+
+# ── Payscale and Talent.com ──────────────────────────────────────────────
+
+def distribution_page(kind="OccupationAggregation", text_numbers=True, p25=True,
+                      updated="(last updated Jul 28 2026)", sample="223"):
+    def val(v):
+        return str(v) if text_numbers else v
+    base = {"@type": "MonetaryAmountDistribution", "name": "base", "currency": "GBP",
+            "duration": "P1Y", "median": val(47000), "percentile10": val(30000),
+            "percentile90": val(70000)}
+    if p25:
+        base.update(percentile25=val(38000), percentile75=val(60000))
+    total = {**base, "name": "total", "median": val(50000)}
+    data = {"@type": kind, "name": "Data Engineer", "estimatedSalary": [total, base]}
+    return (f'<script type="application/ld+json">{json.dumps(data)}</script>'
+            f"<p>Based on {sample} salary profiles {updated}</p>")
+
+
+def test_payscale_base_pay_quartiles_from_text_numbers():
+    result = salary_sources.parse_distribution("Payscale", distribution_page(), "u", "GB", TODAY)
+    evidence = result["evidence"]
+    assert (evidence["amount_min"], evidence["amount_max"], evidence["period"]) == (
+        38000, 60000, "year")
+    assert evidence["sample_size"] == 223 and evidence["observed_on"] == "2026-07-28"
+    assert "total pay median 50000" in evidence["summary"]
+
+
+def test_talent_deciles_and_relative_update():
+    page = distribution_page("Occupation", text_numbers=False, p25=False,
+                             updated="Last updated: 13 days ago")
+    evidence = salary_sources.parse_distribution("Talent.com", page, "u", "GB", TODAY)["evidence"]
+    assert (evidence["amount_min"], evidence["amount_max"]) == (30000, 70000)
+    assert evidence["observed_on"] == "2026-11-06"
+
+
+def test_quality_warnings():
+    weak = {"amount_min": 40000, "amount_max": 110000000, "sample_size": 4,
+            "observed_on": "2024-11-06"}
+    found = salary_sources.quality_warnings(weak, TODAY)
+    assert len(found) == 3 and "very wide range" in found[0]
+    assert salary_sources.quality_warnings(
+        {"amount_min": 38000, "amount_max": 60000, "sample_size": 223,
+         "observed_on": "2026-10-19"}, TODAY) == []
+
+
+def test_payscale_and_talent_addresses():
+    assert salary_sources.payscale_url("data engineer", "GB") == (
+        "https://www.payscale.com/research/UK/Job=Data_Engineer/Salary")
+    assert salary_sources.talent_url("Data Engineer", "US") == (
+        "https://www.talent.com/salary?job=data+engineer")
+    assert salary_sources.talent_url("data engineer", "MX").startswith("https://mx.talent.com/")
+    assert {"payscale", "talent"} <= set(readers.SALARY_READERS)

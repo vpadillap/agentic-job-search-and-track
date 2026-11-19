@@ -53,13 +53,16 @@ In this order, skipping every source listed in `checked`:
    comparable companies. Store with `"scope": "market"` (the default).
 
 Use only the salary sources the enabled provider files describe (`kind:
-salary` or `both`): today Glassdoor, Indeed, and Computrabajo, each following
+salary` or `both`): today Glassdoor, Indeed, Computrabajo, Payscale, and Talent.com, each following
 the "Salary data" section of its file. Each has a **salary reader** (for
 example `jt providers salary indeed --title "<title>"`): it returns an `evidence`
 draft from the site's own data. Add only what you decide (`basis`, `level`,
 `scope`, `posting_id` or `research`, context fields), check that it is
 comparable, and store it with `jt salary evidence add -`. Never change its
-figures. `"data": false` → record it as checked with `found: false`.
+figures. `"data": false` → record it as checked with `found: false`. Read the
+reader's `warnings` (a very wide range, a small sample, an old or missing
+update date): such a figure is weak evidence; set it aside with the reason
+or use it as supporting only.
 `"throttled": true` → the site was not checked: do not record it, do not call
 it again before `resume_after`, and tell the user.
 

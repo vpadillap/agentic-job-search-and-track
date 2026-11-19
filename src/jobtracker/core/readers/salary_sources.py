@@ -40,6 +40,33 @@ def page_date(text: str, today: date) -> date | None:
     return None
 
 
+def quality_warnings(evidence: dict, today: date) -> list[str]:
+    """Signs that a figure is weak evidence; the agent decides what to do with it."""
+    found = []
+    low, high = evidence.get("amount_min") or 0, evidence.get("amount_max") or 0
+    if low and high / low > 5:
+        found.append(f"very wide range ({low}-{high}): the figures may be unreliable")
+    sample = evidence.get("sample_size")
+    if isinstance(sample, int) and sample < 10:
+        found.append(f"small sample ({sample})")
+    observed = date.fromisoformat(evidence["observed_on"])
+    if (today - observed).days > 365:
+        found.append(f"last updated {observed.isoformat()}, more than a year ago")
+    return found
+
+
+
+def _with_warnings(paths: Paths, *args, **options) -> dict:
+    result = salary_pages.read(paths, *args, **options)
+    if result.get("data"):
+        result["warnings"] = quality_warnings(result["evidence"],
+                                              options.get("today") or date.today())
+        if not result.get("updated_on"):
+            result["warnings"].append("the page shows no update date: observed_on is today's "
+                                      "date, not the data's")
+    return result
+
+
 # ── Indeed ───────────────────────────────────────────────────────────────
 
 def indeed_url(title: str, country: str) -> str:
@@ -79,6 +106,7 @@ def parse_indeed(html: str, url: str, country: str, today: date) -> dict:
                         f"{round(low)}-{round(high)} {first.get('currency')} per {period}"),
         },
         "updated_on": observed.isoformat() if observed else None,
+        "warnings": [],
         # The agent adds: basis, level, posting_id or research, and checks that the
         # figures are plausible (a small or old sample is weak evidence).
     }
@@ -86,7 +114,7 @@ def parse_indeed(html: str, url: str, country: str, today: date) -> dict:
 
 def indeed(paths: Paths, titles: str | list[str], *, search_url_given: str | None = None,
            **options) -> dict:
-    return salary_pages.read(paths, "indeed", titles, indeed_url, parse_indeed, **options)
+    return _with_warnings(paths, "indeed", titles, indeed_url, parse_indeed, **options)
 
 
 # ── Computrabajo ─────────────────────────────────────────────────────────
@@ -155,5 +183,101 @@ def parse_computrabajo(html: str, url: str, country: str, today: date) -> dict:
 
 def computrabajo(paths: Paths, titles: str | list[str], *, search_url_given: str | None = None,
                  **options) -> dict:
-    return salary_pages.read(paths, "computrabajo", titles, computrabajo_url,
+    return _with_warnings(paths, "computrabajo", titles, computrabajo_url,
                              parse_computrabajo, **options)
+
+
+# ── Payscale and Talent.com: the same structured salary distribution ────
+
+SHORT_MONTHS = {m[:3]: n for m, n in MONTHS.items() if m.isascii()}
+
+
+def _updated(text: str, today: date) -> date | None:
+    """"last updated Jul 28 2026", "Last updated: 13 days ago", or a long date."""
+    ago = re.search(r"[Uu]pdated:?\s+(\d+)\s+days?\s+ago", text)
+    if ago:
+        from datetime import timedelta
+
+        return today - timedelta(days=int(ago.group(1)))
+    short = re.search(r"[Uu]pdated:?\s+([A-Z][a-z]{2})[a-z]*\.? (\d{1,2}),? (\d{4})", text)
+    if short and short.group(1).casefold() in SHORT_MONTHS:
+        try:
+            found = date(int(short.group(3)), SHORT_MONTHS[short.group(1).casefold()],
+                         int(short.group(2)))
+            return found if found <= today else None
+        except ValueError:
+            return None
+    return page_date(text, today)
+
+
+def _amount(value: object) -> float | None:
+    try:
+        return float(value)  # Payscale writes them as text
+    except (TypeError, ValueError):
+        return None
+
+
+def parse_distribution(source: str, html: str, url: str, country: str, today: date) -> dict:
+    """One evidence draft from a schema.org salary distribution (`Occupation` or
+    `OccupationAggregation`): the 25th-75th percentile when given, else 10th-90th; base
+    pay preferred over total pay. Figures and period only from the structured data."""
+    occupation = (salary_pages.json_ld(html, "Occupation")
+                  or salary_pages.json_ld(html, "OccupationAggregation"))
+    items = (occupation or {}).get("estimatedSalary") or []
+    items = [i for i in (items if isinstance(items, list) else [items]) if isinstance(i, dict)]
+    chosen = next((i for i in items if i.get("name") == "base"), items[0] if items else None)
+    if chosen is None:
+        return {"data": False, "url": url, "reason": f"{source} has no salary distribution "
+                "for this title in this country"}
+    period = salary_pages.PERIODS.get(str(chosen.get("duration") or "").upper())
+    p25, p75 = _amount(chosen.get("percentile25")), _amount(chosen.get("percentile75"))
+    p10, p90 = _amount(chosen.get("percentile10")), _amount(chosen.get("percentile90"))
+    median = _amount(chosen.get("median"))
+    low, high, which = (p25, p75, "25th-75th") if p25 and p75 else (p10, p90, "10th-90th")
+    if period is None or not low or not high or low > high:
+        return {"data": False, "url": url,
+                "reason": f"unusable distribution (duration {chosen.get('duration')!r})"}
+    text = salary_pages.plain_text(html)
+    sample = re.search(r"[Bb]ased on\s+([\d.,]+)\s+(?:salar|profile)", text)
+    observed = _updated(text, today)
+    total = next((i for i in items if i.get("name") == "total" and i is not chosen), None)
+    extra = (f"; total pay median {round(_amount(total.get('median')) or 0)}"
+             if total and _amount(total.get("median")) else "")
+    return {
+        "data": True,
+        "evidence": {
+            "source": source, "url": url, "scope": "market",
+            "amount_min": round(low), "amount_max": round(high),
+            "currency": str(chosen.get("currency") or ""), "period": period,
+            "sample_size": salary_pages.number(sample.group(1)) if sample else None,
+            "observed_on": (observed or today).isoformat(), "country": country,
+            "summary": (f"{source} {chosen.get('name') or 'pay'} for "
+                        f"'{(occupation or {}).get('name')}' (all levels): {which} percentile "
+                        f"{round(low)}-{round(high)}, median {round(median or 0)} "
+                        f"{chosen.get('currency')} per {period}{extra}"),
+        },
+        "updated_on": observed.isoformat() if observed else None,
+    }
+
+
+def payscale_url(title: str, country: str) -> str:
+    code = "UK" if country == "GB" else country
+    words = "_".join(w[:1].upper() + w[1:] for w in title.split())
+    return f"https://www.payscale.com/research/{code}/Job={words}/Salary"
+
+
+def talent_url(title: str, country: str) -> str:
+    host = "www" if country == "US" else ("uk" if country == "GB" else country.lower())
+    return f"https://{host}.talent.com/salary?job={'+'.join(title.lower().split())}"
+
+
+def payscale(paths: Paths, titles: str | list[str], *, search_url_given: str | None = None,
+             **options) -> dict:
+    return _with_warnings(paths, "payscale", titles, payscale_url,
+                             lambda *a: parse_distribution("Payscale", *a), **options)
+
+
+def talent(paths: Paths, titles: str | list[str], *, search_url_given: str | None = None,
+           **options) -> dict:
+    return _with_warnings(paths, "talent", titles, talent_url,
+                             lambda *a: parse_distribution("Talent.com", *a), **options)
