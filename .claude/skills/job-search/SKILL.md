@@ -66,9 +66,12 @@ change what a site needs), run `jt providers install --enabled`. It installs
 the missing tools into the project's environment and checks they work. Tell
 the user in one line what was installed and why, with its size (for example:
 "Bumeran and Indeed now read without opening a window; I installed Scrapling,
-about 150 MB"). Then search as usual. Only a provider whose install failed is
-skipped later, with `--reason missing_dependency` and the failure in
-`--detail`.
+about 150 MB"). Then search as usual. If a reader later answers
+`missing_dependency` (for example its browser could not start), run
+`jt providers install <id>` once: it checks that the browser really starts
+and installs it again when it does not; then read that site again. Only a
+provider whose install failed is skipped later, with
+`--reason missing_dependency` and the failure in `--detail`.
 
 ## 2. Start the run
 

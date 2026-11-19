@@ -25,11 +25,21 @@ def test_default_location_is_user_data_in_the_repo(monkeypatch):
 
 
 def test_overridden_location(home, cli):
+    # A clone used for a real search has its own user-data/: it must stay untouched,
+    # not be absent (contributors run the tests from such clones).
+    repo_data = paths_module.repo_root() / "user-data"
+    before = _fingerprint(repo_data) if repo_data.is_dir() else None
     code, out, _ = cli("init")
     assert code == 0
     assert Path(out["home"]) == home.home
     assert home.database.is_file()
-    assert not (paths_module.repo_root() / "user-data" / "jobtracker.db").exists()
+    after = _fingerprint(repo_data) if repo_data.is_dir() else None
+    assert after == before
+
+
+def test_user_data_is_never_committed():
+    ignored = (paths_module.repo_root() / ".gitignore").read_text(encoding="utf-8")
+    assert "/user-data/" in ignored.splitlines()
 
 
 def test_initialization_creates_the_documented_structure(workspace):

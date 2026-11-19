@@ -25,7 +25,16 @@ the summary only shows them as skipped: install it so they run, as CI does.
 The job-site readers that use a browser (Bumeran, Indeed, Glassdoor) run on
 Scrapling at use time; their tests use fake browsers and need nothing extra.
 To try a reader for real, `python scripts/jt.py providers install <id>`
-installs what it needs into the environment.
+installs what it needs into the environment and checks that its browser
+starts (reinstalling the browser when it does not).
+
+On Windows, `jt` keeps those browsers in `%USERPROFILE%\.cache\ms-playwright`
+(it sets `PLAYWRIGHT_BROWSERS_PATH` unless you set it yourself). Playwright's
+default, `%LOCALAPPDATA%\ms-playwright`, is redirected when the agent runs
+inside a packaged app such as the Claude desktop app, and the full Chromium
+that Scrapling starts then fails with `spawn UNKNOWN`. Install reader
+browsers through `jt providers install`, not with `playwright install`
+directly, so they land in that folder.
 
 ## The rules that never bend
 
