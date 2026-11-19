@@ -1,7 +1,31 @@
 #!/bin/sh
 # Privacy guard. Enable once per clone with: git config core.hooksPath .githooks
+#
+# Runs scripts/check_private.py with the first Python that really runs:
+# the project's own .venv first (always a real interpreter), then the `py`
+# launcher, then python3 and python. On Windows, `python`/`python3` on the PATH
+# can be the Microsoft Store's app aliases, which open the Store or fail when no
+# Python is installed; a candidate counts only if it actually runs Python 3.11+.
 root="$(git rev-parse --show-toplevel)"
-if command -v python3 >/dev/null 2>&1 && python3 -c "" >/dev/null 2>&1; then
-  exec python3 "$root/scripts/check_private.py"
-fi
-exec python "$root/scripts/check_private.py"
+check='import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)'
+
+works() {
+  "$@" -c "$check" >/dev/null 2>&1
+}
+
+for candidate in "$root/.venv/Scripts/python.exe" "$root/.venv/bin/python"; do
+  if [ -x "$candidate" ] && works "$candidate"; then
+    exec "$candidate" "$root/scripts/check_private.py"
+  fi
+done
+for candidate in py python3 python; do
+  if command -v "$candidate" >/dev/null 2>&1 && works "$candidate"; then
+    exec "$candidate" "$root/scripts/check_private.py"
+  fi
+done
+
+echo "Privacy guard: no working Python 3.11+ found, so the commit was not checked and is blocked." >&2
+echo "Fix: run /setup in Claude Code (it installs Python and creates the project's .venv)," >&2
+echo "or install Python 3.11+ and open a new terminal. On Windows, a 'python' that opens the" >&2
+echo "Microsoft Store is only an alias: install Python itself (see README, Troubleshooting)." >&2
+exit 1

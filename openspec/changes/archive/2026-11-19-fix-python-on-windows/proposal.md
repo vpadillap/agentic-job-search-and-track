@@ -29,6 +29,23 @@ not reinstall anything here:
 3. A real commit on this machine with `python` removed from the hook's PATH
    (the `.venv` interpreter must be used).
 
+### Study results (2026-11-19)
+
+| Finding | Source |
+|---|---|
+| Python's recommended Windows route is now the **Python install manager** (`py install`), per-user; adding `%LocalAppData%\Python\bin` to PATH is optional. The classic python.org installer "is deprecated since 3.14 and will not be produced for Python 3.16 or later" | docs.python.org/3/using/windows.html |
+| The Store's `python.exe`/`python3.exe` app-execution aliases in `%LocalAppData%\Microsoft\WindowsApps` open the Store (no arguments) or print "Python was not found" and fail (exit 9009) when no Python is installed; they come first in PATH | bugs.python.org issue 41327; Microsoft Q&A |
+| A PATH change made by an installer is seen only by **new** terminals | docs.python.org (same page); Windows behavior |
+| `winget` offers `Python.Python.3.13` (3.13.17) and `Python.PythonInstallManager` | `winget search`, this machine |
+| On this machine, `python`, `python3`, and `py` resolve first to the WindowsApps aliases (backed by the install manager, so they work); from Git Bash, the shell git hooks run in, each runs Python | `Get-Command`, Git Bash, this machine |
+| Simulated: a `python3` that fails like the Store alias, then a real `python` → the old hook stopped at the alias's failure; the new hook skips it. No Python on PATH but a project `.venv` → the new hook runs the guard with `.venv` | tests in `tests/test_privacy_guard.py` |
+| Real: the hook with no Python at all on PATH (only git and the shell), in this repository → ran the guard with `.venv`, exit 0 | this machine |
+
+D2 is confirmed. D3 is confirmed with the route below; the install manager is
+the long-term route, but the classic `Python.Python.3.13` package installs to a
+fixed, known path, which is what lets the agent use it by full path in the same
+session.
+
 ## What Changes (expected; revised after the study)
 
 - **The privacy guard runs with the project's own Python first**:
