@@ -24,6 +24,7 @@
 .claude/skills/analizar-resultados/
 .claude/skills/nueva-temporada/
 .claude/skills/agregar-proveedor/
+.claude/skills/actualizar/
 
 # ── Python ────────────────────────────────────────────────────────────────
 __pycache__/

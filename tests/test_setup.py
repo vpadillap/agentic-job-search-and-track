@@ -17,7 +17,7 @@ from tests.helpers import make_docx
 REPO = Path(__file__).resolve().parent.parent
 PERSONA = json.loads((REPO / "tests" / "fixtures" / "persona.json").read_text(encoding="utf-8"))
 SPANISH_ALIASES = ["configurar", "buscar-empleos", "preparar-documentos", "formulario",
-                   "analizar-resultados", "nueva-temporada", "agregar-proveedor"]
+                   "analizar-resultados", "nueva-temporada", "agregar-proveedor", "actualizar"]
 
 
 def _git_status() -> str:

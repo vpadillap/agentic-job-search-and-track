@@ -530,6 +530,36 @@ def cmd_salary_none(args: argparse.Namespace) -> dict:
         return {"salary": salary.mark_no_data(conn, args.id, args.checked)}
 
 
+def cmd_update_check(args: argparse.Namespace) -> dict:
+    from jobtracker.core import update
+
+    return update.check(get_paths())
+
+
+def cmd_update_finish(args: argparse.Namespace) -> dict:
+    from jobtracker.core import update
+
+    return update.finish(get_paths())
+
+
+def cmd_offers_list(args: argparse.Namespace) -> dict:
+    from jobtracker.core import offers
+
+    paths = get_paths()
+    language = str(config.load(paths.config)["language"])
+    with db.session(paths) as conn:
+        return {"offers": offers.pending(conn, paths, language)}
+
+
+def cmd_offers_answer(args: argparse.Namespace) -> dict:
+    from jobtracker.core import offers
+
+    paths = get_paths()
+    with db.session(paths) as conn:
+        action = offers.accept if args.answer == "accept" else offers.decline
+        return action(conn, paths, args.offer)
+
+
 def cmd_salary_lookup(args: argparse.Namespace) -> dict:
     with db.session(get_paths()) as conn:
         return salary.lookup(conn, args.id)
@@ -879,6 +909,22 @@ def build_parser() -> argparse.ArgumentParser:
     skills_sub.add_parser("sync", help="install aliases for the panel language").set_defaults(
         run=cmd_skills_sync)
     skills_sub.add_parser("list").set_defaults(run=cmd_skills_list)
+
+    update_parser = sub.add_parser("update", help="update this clone from the repository")
+    update_sub = update_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)
+    update_sub.add_parser("check", help="fetch and report; changes nothing").set_defaults(
+        run=cmd_update_check)
+    update_sub.add_parser("finish", help="after the pull: reinstall, migrate, refresh"
+                          ).set_defaults(run=cmd_update_finish)
+
+    offers_parser = sub.add_parser("offers", help="one-time offers for existing users")
+    offers_sub = offers_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)
+    offers_sub.add_parser("list", help="pending offers that apply").set_defaults(
+        run=cmd_offers_list)
+    for answer in ("accept", "decline"):
+        answer_parser = offers_sub.add_parser(answer)
+        answer_parser.add_argument("offer")
+        answer_parser.set_defaults(run=cmd_offers_answer, answer=answer)
 
     setup_parser = sub.add_parser("setup", help="first-run progress")
     setup_sub = setup_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)

@@ -59,6 +59,7 @@ UNDO: dict[int, list[str]] = {
         "DROP INDEX companies_season",
         "DROP TABLE companies",
     ],
+    16: ["DROP TABLE offers"],
 }
 # 0008 adds `is_main` and 0009 drops it again, so undoing 9 then 8 leaves no
 # `is_main` column: that matches a version-7 database.
