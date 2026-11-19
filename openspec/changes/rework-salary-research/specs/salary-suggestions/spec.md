@@ -1,25 +1,25 @@
 ## MODIFIED Requirements
 
 ### Requirement: Evidence-gated suggestions
-The system SHALL store a suggested salary range of one of two kinds, each with
-a source and a link per piece of evidence: a **company** suggestion, from
-salary references for the same company and a similar role, which MAY rest on
-a single source and SHALL then be labelled as one source; or a **market**
-suggestion, for similar roles and industries in the same country and level,
-which SHALL rest on at least two pieces of comparable evidence. A market
-suggestion SHALL be made only when no company reference exists.
+The system SHALL store a suggested salary range only with at least one cited
+source and a short note, written by the agent, that justifies it. A suggestion
+resting on references for the same company or on the user's own history
+(salaries offered to the user, salaries published in stored postings) MAY rest
+on one source; a suggestion resting only on market evidence SHALL rest on at
+least two comparable sources. The suggestion SHALL state how many sources of
+each kind support it.
 
 #### Scenario: One source only
-- **WHEN** a market suggestion is submitted with a single piece of evidence
+- **WHEN** a suggestion is submitted with a single piece of market evidence and nothing else
 - **THEN** it is rejected and the posting shows that there is no reliable data
 
 #### Scenario: Two comparable sources
-- **WHEN** a market suggestion is submitted with two comparable, linked pieces of evidence
-- **THEN** the suggestion is stored with its amount, range, and confidence
+- **WHEN** a suggestion is submitted with two comparable, linked pieces of market evidence and a note
+- **THEN** the suggestion is stored with its amount, range, confidence, and note
 
-#### Scenario: One company reference
-- **WHEN** the only salary reference found is one source for the same company and a similar role
-- **THEN** a company suggestion is stored and shown as resting on one source
+#### Scenario: One offer from a similar company
+- **WHEN** the agent's suggestion rests on one salary offered to the user by a company of similar industry, size, and level, with a note saying so
+- **THEN** the suggestion is stored and shown as resting on one source from the user's history
 
 ### Requirement: Evidence reuse
 The system SHALL reuse stored evidence instead of researching again: market
@@ -42,31 +42,33 @@ data" for the same key and source for the same periods.
 
 ## ADDED Requirements
 
-### Requirement: The user's own data as salary evidence
-Salaries offered to the user (recorded on applications) and salaries published
-in the user's stored postings SHALL count as evidence: for the same company,
-in the company's earlier offers; for similar companies and similar positions
-under the same conditions (country, level, currency, gross or net, work mode),
-as market evidence, each with its reference and link, used before web sources
-are searched.
+### Requirement: The agent analyses all available data
+For each posting the system SHALL give the agent, in one answer and without
+searching, everything available: the offered salary, the user's history
+(salaries offered to the user and salaries published in stored postings, each
+with its company profile, level, country, work mode, and date), and fresh
+stored evidence with what was already checked. The agent SHALL search only
+what is missing, weigh data from the same company more, otherwise extrapolate
+from similar companies (industry, size, type, level), and record which inputs
+it used.
 
-#### Scenario: An offer from a similar company
-- **WHEN** the user recorded an offer from another company for the same role family and level, in the same country, currency, basis, and work mode
-- **THEN** that offer counts as one market source for the new posting, referenced to its application, and only one web source is still needed
+#### Scenario: No data from the same company
+- **WHEN** the user's history has offers and published salaries only from other companies
+- **THEN** the agent uses those of similar companies, says so in the note, and lists them as the inputs used
 
-#### Scenario: An offer from the same company
-- **WHEN** the user recorded an offer from the same company for a similar role
-- **THEN** it appears in the company's earlier offers, marked as offered to the user
+#### Scenario: Nothing missing
+- **WHEN** fresh stored evidence and the user's history are enough for the agent's suggestion
+- **THEN** no salary source is searched for that posting
 
-### Requirement: Three salary figures per posting
-For each posting the system SHALL provide, when they exist: the salary the
-posting offers (monthly), what the same company offered for similar roles in
-the user's stored postings (range, number of postings, latest date), and the
-suggested range with its kind and number of sources.
+### Requirement: Company profiles
+The system SHALL keep for each company the user meets a profile (industry,
+size band, type) taken from the posting's text or a linked source, with that
+source recorded, or "unknown"; it SHALL NOT come from the model's own
+knowledge.
 
-#### Scenario: Company offered before
-- **WHEN** the user's stored postings include two earlier postings of the same company for the same role family with published salaries
-- **THEN** the posting shows that company's earlier offered range, from two postings, with the latest date
+#### Scenario: Profile from a linked source
+- **WHEN** the agent records a company's size band from the company's page on a job site
+- **THEN** the profile stores the size band with that page's link and is reused for that company's later postings
 
 ### Requirement: Outliers set aside with a reason
 When a salary source shows several reports, the agent SHALL decide which are

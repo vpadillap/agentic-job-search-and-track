@@ -6,36 +6,60 @@ posting on its own: the evidence cache reuses data only when company, role,
 and location all match (60 days), so market data for a role (role, level,
 country) found for one company is never reused for the next company, and the
 same Glassdoor and web searches are repeated for every posting. And what a
-job seeker needs to see is more than one number. The owner wants the column to
-show three things, the research to follow a clear order and reuse what it
-already found, and more salary sources studied and added over time.
+job seeker needs is an informed suggestion, not only a count of sources. The
+owner wants the agent to analyse everything available (including what similar
+companies offered the user), search only what is missing, justify its
+suggestion in a short note, reuse what it already found, and more salary
+sources studied and added over time.
 
 ## What Changes
 
-### The salary column shows three things
+### The agent analyses, then suggests with a short note
 
-1. **Offered**: the salary or band the posting publishes, as a monthly figure
-   (unchanged source: the posting's `published_salary`).
-2. **This company before**: what the same company offered for similar roles,
-   from the user's own data, no web research: the salaries it published in
-   earlier postings the user stored, and the salary it **offered the user**
-   (recorded on an application), each marked as such, with how many and when.
-3. **Suggested range**: a reasonable amount to ask for, from, in this order:
-   - **a) the same company's references on the web** (for example Glassdoor's
-     salary reports for that company and role). When a source shows several
-     reports, the agent decides what is normal, may set aside reports far from
-     the rest, and records why. **One source is enough here, and it is shown
-     as "1 source"**;
-   - **b) only when (a) finds nothing: the market** (similar positions, similar
-     industries, same country and level), with **at least two** comparable
-     sources, as today. **The user's own data comes first**: salaries offered
-     to the user and salaries published in stored postings, by similar
-     companies for similar positions under the same conditions (country,
-     level, currency, gross or net, work mode), each counting as one source
-     with its reference (the application or posting and its link). Web sources
-     only complete what is missing.
-   Each part says where it comes from; the detail lists every source with its
-   link and what was set aside.
+The salary research becomes the agent's analysis, not a rule applied posting
+by posting:
+
+1. **It gets all the data available** for the posting, gathered by one
+   command: the salary the posting offers (monthly); the user's own history,
+   meaning salaries **offered to the user** (recorded on applications) and
+   salaries published in stored postings, each with its company's profile
+   (industry, size, type), level, country, work mode, and date; and the
+   salary evidence already stored and still fresh for the posting's keys
+   (below).
+2. **It searches only what is missing**: the same company's salary references
+   on the web first (for example Glassdoor's reports for that company and
+   role), then the market (similar positions and industries, same country and
+   level) from the salary sources; never a source already checked for the same
+   key recently.
+3. **It proposes a suggested range with a short note** that justifies it in
+   one or two sentences, for example: "Close to what similar large banks
+   offered you (2 offers, 2026) and to Glassdoor's reports for this company (7
+   reports; one far above the rest set aside)". Data from the same company
+   weighs more; otherwise the agent extrapolates from **similar companies**
+   (industry, size, type, level), which is the usual case, and says so.
+
+The salary column shows the **offered** salary when the posting has one, and
+the **suggested** range with its note and how many sources of which kind
+support it; the detail lists every input it used (each history item and web
+source, with its link or reference), what was set aside and why.
+
+**The evidence rule** (owner's decision, 2026-11-19; `AGENTS.md` rule 3
+changes accordingly): every suggestion cites at least one source. When it
+rests on references for the same company or on the user's own history, one
+source can be enough, and the note says how many and what kind. When it rests
+only on the market, at least two comparable sources are needed, as today.
+Without any source: "no reliable data", with what was checked. Nothing comes
+from the model's own knowledge.
+
+### Company profiles
+
+To compare companies, each company the user meets gets a short profile:
+industry, size band (for example "1,001–5,000 employees"), and type (bank,
+consultancy, outsourcing, startup, public sector…), taken from the posting's
+own text or from a source with a link (for example the company's page on a
+job site); otherwise "unknown". The agent fills it in when it reads a posting
+or researches a salary, through the CLI; it is reused for every later posting
+of that company.
 
 ### Research once, reuse everywhere
 
@@ -70,18 +94,19 @@ Sources can keep being added later the same way, including through
 
 ### Modified Capabilities
 
-- `salary-suggestions`: three parts per posting, company references before the
-  market, the agent's judgment on outliers recorded, and evidence reused by
-  role and country.
-- `search-results-board`: the salary column and its detail show the three
-  parts.
+- `salary-suggestions`: the agent's analysis of all available data with a
+  justifying note; the evidence rule per kind of source; outliers recorded;
+  evidence reused by role and country; company profiles.
+- `search-results-board`: the salary column shows the offered salary and the
+  suggestion with its note; the detail lists every input.
 
 ## Impact
 
-- `core/salary.py` (keys for market and company evidence, reuse, the
-  company-history query, single-source company references, set-aside records),
-  a migration (role family and level on evidence, set-aside reasons), CLI
-  (`jt salary lookup` returns all three parts; `jt salary set` takes the kind of
-  suggestion), the salary guide and `job-search` skill, the Search board's
+- `core/salary.py` (keys and reuse, the user's history with company profiles,
+  the evidence rule per kind, set-aside records, the note), a migration
+  (company profiles; scope, role family, and level on evidence; set-aside
+  reasons; the suggestion's note and kinds of sources), CLI (`jt salary
+  lookup` returns everything available; `jt salary set` takes the note;
+  `jt companies profile` records a company's profile), `AGENTS.md` rule 3, the salary guide and `job-search` skill, the Search board's
   salary cell and detail (en/es), new provider files and readers after the
   study; tests.

@@ -1,16 +1,17 @@
 ## ADDED Requirements
 
-### Requirement: Salary column with three figures
-The salary cell SHALL show, when they exist, the offered salary, the same
-company's earlier offered range, and the suggested range with its kind
-(company or market) and number of sources; the salary detail SHALL list every
-source with its link, the reports set aside and why, and the dates. When none
-exists, it SHALL say that there is no salary data and what was checked.
+### Requirement: Salary column with the agent's suggestion
+The salary cell SHALL show the offered salary when the posting has one and the
+suggested range with the count of sources by kind; the agent's note SHALL be
+shown in the salary detail and as the cell's tooltip. The detail SHALL list
+every input used with its link or reference, the reports set aside and why,
+and the dates. When there is no suggestion, it SHALL say that there is no
+salary data and what was checked.
 
-#### Scenario: All three figures
-- **WHEN** a posting offers a range, its company offered before, and a company suggestion rests on one source
-- **THEN** the cell shows the three figures and the suggestion is marked as company, one source
+#### Scenario: Offered and suggested
+- **WHEN** a posting offers a range and the agent suggested a range from one company reference and two offers from the user's history
+- **THEN** the cell shows both ranges with "1 company, 2 your history", and the detail shows the note and each input
 
-#### Scenario: Only a market suggestion
-- **WHEN** a posting offers no salary and only a market suggestion from three sources exists
-- **THEN** the cell shows the market range marked as market, three sources
+#### Scenario: No suggestion
+- **WHEN** a posting offers no salary and the agent found no source
+- **THEN** the cell says there is no salary data and the detail lists what was checked
