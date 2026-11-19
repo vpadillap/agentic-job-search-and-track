@@ -16,10 +16,10 @@ already found, and more salary sources studied and added over time.
 
 1. **Offered**: the salary or band the posting publishes, as a monthly figure
    (unchanged source: the posting's `published_salary`).
-2. **This company before**: what the same company offered for similar roles in
-   earlier postings the user has stored (same company, same title family,
-   similar level), with how many postings and when. Computed from the user's
-   own data; no web research.
+2. **This company before**: what the same company offered for similar roles,
+   from the user's own data, no web research: the salaries it published in
+   earlier postings the user stored, and the salary it **offered the user**
+   (recorded on an application), each marked as such, with how many and when.
 3. **Suggested range**: a reasonable amount to ask for, from, in this order:
    - **a) the same company's references on the web** (for example Glassdoor's
      salary reports for that company and role). When a source shows several
@@ -27,8 +27,13 @@ already found, and more salary sources studied and added over time.
      the rest, and records why. **One source is enough here, and it is shown
      as "1 source"**;
    - **b) only when (a) finds nothing: the market** (similar positions, similar
-     industries, same country and level), with **at least two** comparable,
-     linked sources, as today.
+     industries, same country and level), with **at least two** comparable
+     sources, as today. **The user's own data comes first**: salaries offered
+     to the user and salaries published in stored postings, by similar
+     companies for similar positions under the same conditions (country,
+     level, currency, gross or net, work mode), each counting as one source
+     with its reference (the application or posting and its link). Web sources
+     only complete what is missing.
    Each part says where it comes from; the detail lists every source with its
    link and what was set aside.
 
