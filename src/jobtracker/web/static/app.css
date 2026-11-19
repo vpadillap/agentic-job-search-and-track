@@ -105,7 +105,7 @@ button { cursor: pointer; }
 
 /* table */
 .results { overflow-x: auto; }
-.table { width: 100%; min-width: 1300px; border-collapse: collapse; }
+.table { width: 100%; border-collapse: collapse; }
 .table th { padding: 10px 6px; background: var(--surface-sunken); font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; text-align: left; white-space: nowrap; }
 .table th:first-child, .table td:first-child { padding-left: 16px; }
 .table th:last-child, .table td:last-child { padding-right: 16px; }
@@ -121,7 +121,8 @@ button { cursor: pointer; }
 .score.high { background: var(--ok-bg); color: var(--ok-fg); }
 .score.mid { background: var(--info-bg); color: var(--info-fg); }
 .score.none { font-size: 13px; color: var(--muted); background: transparent; padding: 0; }
-.job { display: flex; flex-direction: column; gap: 4px; min-width: 220px; }
+.job { display: flex; flex-direction: column; gap: 4px; min-width: 180px; }
+.job-source { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; font-size: 13px; }
 .job-title { font-weight: 600; font-size: 15px; }
 .job-company { font-size: 13px; color: var(--muted); }
 .tags { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -141,6 +142,39 @@ button { cursor: pointer; }
 .small { font-size: 12px; color: var(--muted); }
 .source { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; text-decoration: none; }
 .row-actions { display: flex; gap: 6px; align-items: center; }
+.row-actions .btn-icon.outlined { border-color: var(--line-strong); color: var(--text-2); }
+
+/* Narrow screens: secondary columns move into the row's detail; on a phone each row
+   becomes a card (see components/data-table.js). */
+.hidden-cols { display: none; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 0; padding: 14px 16px 0; }
+.hidden-cols > div { display: none; }
+.hidden-cols dt { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; padding-top: 4px; }
+.hidden-cols dd { margin: 0; }
+@media (max-width: 1100px) {
+  .table th { white-space: normal; }
+  .wm-chip { max-width: 180px; }
+  .table th.col-p2, .table td.col-p2 { display: none; }
+  .hidden-cols { display: grid; }
+  .hidden-cols > .hidden-p2 { display: contents; }
+}
+@media (max-width: 900px) {
+  .table th.col-p3, .table td.col-p3 { display: none; }
+  .hidden-cols > .hidden-p3 { display: contents; }
+}
+@media (max-width: 760px) {
+  .table thead { display: none; }
+  .table, .table tbody { display: block; }
+  .table tbody tr { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 10px 12px; border-top: 1px solid var(--line); }
+  .table tbody tr.detail-row { padding: 0; border-top: 0; }
+  .table tbody td, .table th:first-child, .table td:first-child, .table td:last-child { display: block; padding: 0; border-top: 0; }
+  .table tbody td.detail-cell { flex: 1 1 100%; }
+  .table td.expand-cell .expand-btn { width: 36px; height: 36px; }
+  .table tbody td:not(.col-main):not(.col-full):not(.detail-cell) { flex: 0 0 auto; max-width: 96px; }
+  .table td.col-main { flex: 1 1 0; min-width: 0; }
+  .table td.col-main .job { min-width: 0; }
+  .table td.col-full { flex: 1 1 100%; }
+  .table td.col-labelled::before { content: attr(data-label); display: block; margin-bottom: 2px; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+}
 .tracked { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: var(--radius); background: var(--ok-bg); color: var(--ok-fg); text-decoration: none; font-size: 13px; font-weight: 600; }
 a.tracked:hover { color: var(--ok-fg); text-decoration: underline; }
 

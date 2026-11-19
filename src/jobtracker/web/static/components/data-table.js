@@ -1,6 +1,11 @@
 // A reusable table: sortable columns, row selection, and expandable detail rows.
 //
-// columns: [{key, label, sortable, width, render(row), className}]
+// columns: [{key, label, sortable, width, render(row), className, priority}]
+//   priority: 1 (default) always shown; 2 hidden below 1,100 px wide, 3 below 900 px.
+//     A hidden column is listed in the row's detail instead, so nothing is lost.
+//   className: also sets the column's place when rows become cards on a phone:
+//     'col-main' takes the rest of the first line, 'col-full' a line of its own,
+//     'col-labelled' shows the column's label above the value.
 // sort: {key, dir: 'asc'|'desc'}; onSort(key)
 // selected: Set of row keys; onSelect(key, checked); onSelectAll(checked)
 // expanded: Set of row keys; onExpand(key)
@@ -8,6 +13,9 @@
 import { html } from '../vendor/preact-htm.js';
 import { useUi } from './shell.js';
 import * as Icon from './icons.js';
+
+const priorityClass = (column) => ((column.priority || 1) > 1 ? `col-p${column.priority}` : '');
+const cellClass = (column) => [priorityClass(column), column.className || ''].join(' ').trim();
 
 export function DataTable({
   columns, rows, rowKey, rowLabel, sort, onSort, selected, onSelect, onSelectAll,
@@ -20,18 +28,30 @@ export function DataTable({
   const allSelected = selectable && selectableRows.length > 0
     && selectableRows.every((row) => selected.has(rowKey(row)));
   const span = columns.length + (selectable ? 1 : 0) + (expandable ? 1 : 0);
+  const secondary = columns.filter((column) => (column.priority || 1) > 1);
 
   const header = (column) => {
-    if (!column.sortable) return html`<th scope="col" style=${column.width ? { width: column.width } : null}>${column.label}</th>`;
+    const style = column.width ? { width: column.width } : null;
+    const cls = priorityClass(column) || undefined;
+    if (!column.sortable) return html`<th scope="col" class=${cls} style=${style}>${column.label}</th>`;
     const active = sort && sort.key === column.key;
     const ariaSort = active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none';
     return html`
-      <th scope="col" aria-sort=${ariaSort} style=${column.width ? { width: column.width } : null}>
+      <th scope="col" class=${cls} aria-sort=${ariaSort} style=${style}>
         <button type="button" class="th-sort" onClick=${() => onSort(column.key)}>
           ${column.label}<span aria-hidden="true">${active ? (sort.dir === 'asc' ? '↑' : '↓') : ''}</span>
         </button>
       </th>`;
   };
+
+  // The columns a narrow screen hides, shown at the top of the row's detail.
+  const hiddenColumns = (row) => secondary.length > 0 && html`
+    <dl class="hidden-cols">
+      ${secondary.map((column) => html`
+        <div class=${'hidden-p' + column.priority}>
+          <dt>${column.label}</dt><dd>${column.render(row)}</dd>
+        </div>`)}
+    </dl>`;
 
   return html`
     <table class="table">
@@ -57,7 +77,7 @@ export function DataTable({
           return [html`
               <tr key=${key} class=${[open ? 'open' : '', rowClass ? rowClass(row) : ''].join(' ').trim()}>
                 ${expandable && html`
-                  <td>
+                  <td class="expand-cell">
                     <button type="button" class="expand-btn" aria-expanded=${String(open)}
                       aria-controls=${open ? detailId : undefined}
                       aria-label=${open ? t('table.collapse', { title: label }) : t('table.expand', { title: label })}
@@ -71,10 +91,11 @@ export function DataTable({
                       aria-label=${t('table.selectRow', { title: label })}
                       onChange=${(e) => onSelect(key, e.currentTarget.checked)} />`}
                   </td>`}
-                ${columns.map((column) => html`<td class=${column.className || ''}>${column.render(row)}</td>`)}
+                ${columns.map((column) => html`<td class=${cellClass(column)} data-label=${column.label}>${column.render(row)}</td>`)}
               </tr>`,
             open && html`
-                <tr key=${key + '-detail'} class="open"><td class="detail-cell" colspan=${span} id=${detailId}>${renderDetail(row)}</td></tr>`];
+                <tr key=${key + '-detail'} class="open detail-row"><td class="detail-cell" colspan=${span} id=${detailId}>
+                  ${hiddenColumns(row)}${renderDetail(row)}</td></tr>`];
         })}
       </tbody>
     </table>`;
