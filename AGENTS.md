@@ -1,27 +1,24 @@
 # Agent instructions
 
-Claude Job Tracker is a clone-and-run, local-first job search assistant: an AI
-agent (primarily Claude Code) searches, scores, and prepares application
-documents; a local web panel shows and edits the results; every outcome feeds
-back into future advice.
+Agentic Job Search and Track (Python package and CLI: `jobtracker`) is a
+clone-and-run, local-first job search assistant: an AI agent (primarily Claude
+Code) searches, scores, and prepares application documents; a local web panel
+shows and edits the results; every outcome feeds back into future advice.
 
-> Status: the foundation and first-run setup are implemented (private
-> workspace, database, the `jobtracker` CLI, privacy guard, `/setup`, the
-> versioned profile, Spanish command aliases), plus `/job-search` (runs,
-> import, filtering, scoring, salary evidence, provider-file validation; the
-> providers are `providers/linkedin.md`, `providers/bumeran.md`, and
-> `providers/indeed.md`, read by `jobtracker providers read …`, and every
-> provider starts switched off until the user enables it) and the panel shell with the Search board
-> (`jobtracker demo seed` loads fictional data), and application tracking
-> (statuses, tags, details, sent-resume upload, history, the Applications
-> board, `jobtracker applications …`, `jobtracker pending`), and document
-> preparation (`/prepare-documents`, `/form-answers`, `jobtracker documents …`,
-> `jobtracker answers …`), and the learning loop (`jobtracker learning refresh`
-> before scoring and tailoring, insights, lessons the user applies, validated
-> estimates, the Learning board, `/analyze-results`), and seasons (`/new-season`,
-> `jobtracker season …`, `jobtracker export`, full reset to an archive, the
-> Profile & agent board, `/panel`). `jobtracker context` lists which commands
-> are available.
+> Status: everything is implemented: first-run setup (`/setup`, versioned
+> profile, Spanish command aliases), the private workspace, database,
+> `jobtracker` CLI, and privacy guard; `/job-search` (runs, import, filtering,
+> scoring, salary evidence) over seven providers in `providers/` (LinkedIn,
+> Indeed, Glassdoor, Greenhouse, Get on Board, Bumeran Perú, and the agentic
+> web search), each switched off until the user enables it, global or local
+> (`regions`), read by `jobtracker providers read …` where a reader exists,
+> with missing tools installed by `jobtracker providers install`; application
+> tracking; document preparation (`/prepare-documents`, `/form-answers`); the
+> learning loop (`/analyze-results`); seasons (`/new-season`, export, full
+> reset); the panel with its four boards (`/panel`); private providers and
+> their contribution (`/add-provider`); and plain-language requests routed to
+> the skills (table below). `jobtracker context` lists which commands are
+> available.
 
 ## Which mode are you in?
 
@@ -86,7 +83,9 @@ command covers it, otherwise say what the closest command is.
 | `docs/workspace-layout.md` | Storage contract: where/how private data is stored and named |
 | `.claude/skills/` | User-facing skills (canonical, English names) |
 | `i18n/skill-aliases/` | Templates of the Spanish command names; installed by `jobtracker skills sync`, never edited in `.claude/skills/` |
-| `providers/` | One file per job site: how the agent must access and read it |
+| `providers/` | One file per job site: how the agent must access and read it; `CONTRIBUTING.md` (rules for adding a site) and `change-template/` (the OpenSpec change a new-site pull request carries) |
+| `CONTRIBUTING.md` | How to set up, the change workflow, and the checks before a pull request |
+| `tests/skill-evals/` | Plain-language requests each skill must (and must not) load for |
 | `openspec/` | Specs and change proposals (spec-driven development) |
 | `design/` | UX reference for the panel (four boards: Search, Applications, Learning, Profile & agent) |
 | `src/jobtracker/` | `core` (storage, rules), `cli` (agent interface), `web` (panel) |
@@ -112,7 +111,12 @@ command covers it, otherwise say what the closest command is.
 - OpenSpec's generated skills/commands are gitignored on purpose. Install them
   locally with `openspec init --tools claude` if you want them.
 - After cloning: `git config core.hooksPath .githooks` to enable the privacy
-  guard, then `uv sync --extra dev` (or `pip install -e ".[dev]"` in a venv).
+  guard, then `uv sync --extra dev` (or `pip install -e ".[dev]"` in a venv),
+  then `uv run playwright install chromium` so the panel's browser tests run
+  instead of being skipped. Details in `CONTRIBUTING.md`.
+- Cloners who add a job site for themselves (user mode) follow
+  `providers/CONTRIBUTING.md` through `/add-provider`; it may end in a pull
+  request built from `providers/change-template/`.
 - Before committing: `uv run ruff check .` and `uv run pytest`. Tests run
   against a temporary `JOBTRACKER_HOME`; never point them at real data.
 - The CLI prints JSON (`{"ok": true, …}` or `{"ok": false, "error": …}`).
