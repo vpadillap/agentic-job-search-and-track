@@ -1,6 +1,6 @@
 ---
 name: preparar-documentos
-description: "Prepara CV adaptados, cartas de presentación y respuestas de formulario para las vacantes en seguimiento: todas las pendientes (pendientes) o las indicadas (ids=…). (Alias en español de /prepare-documents.)"
+description: "Prepara lo que falta en las postulaciones en seguimiento: CV adaptado, carta de presentación cuando hace falta y respuestas de formulario, y vuelve a puntuarlas. Úsalo cuando el usuario pide preparar, completar o adaptar documentos, por ejemplo “completa los documentos faltantes de la J0007”, “prepárame el CV y la carta”, “hazme lo pendiente”. Argumentos: pendientes (por defecto), ids=J0007,J0012, todas. Nunca postula a nada. (Alias en español de /prepare-documents.)"
 ---
 
 # /preparar-documentos

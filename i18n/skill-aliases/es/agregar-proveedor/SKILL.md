@@ -1,6 +1,6 @@
 ---
 name: agregar-proveedor
-description: "Agrega un portal de empleo que el proyecto aún no cubre: lo estudia contigo, crea su archivo (y su lector si hace falta) en tu carpeta privada, lo prueba con una búsqueda real en cada país que cubre y lo activa. Ya probado, ofrece aportarlo al proyecto como pull request, solo si dices que sí y sin datos personales. (Alias en español de /add-provider.)"
+description: "Agrega un portal de empleo que el proyecto aún no cubre: lo estudia contigo, crea su archivo (y su lector si hace falta) en tu carpeta privada, lo prueba con una búsqueda real y lo activa; luego ofrece aportarlo como pull request, solo si dices que sí y sin datos personales. Úsalo cuando el usuario pide agregar o buscar en un portal nuevo, por ejemplo “agrega un portal de empleo de mi país”, “suma Computrabajo como proveedor”, “busca también en un portal que no tienen”. No para activar un portal que ya existe (eso es configurar). (Alias en español de /add-provider.)"
 ---
 
 # /agregar-proveedor

@@ -1,6 +1,6 @@
 ---
 name: new-season
-description: Starts a new job-search season (campaign) with a new or updated profile, for someone returning after a long pause or changing direction. Explains the three restart levels (new season, new season with learning reset, full reset), offers an export first, lets the user decide what happens to each open application, and reruns the profile steps of setup with the previous answers as defaults. Nothing is ever deleted.
+description: "Starts a new job-search season (campaign) with a new or updated profile; the earlier season stays viewable and nothing is deleted. Use when the user returns after a long pause, changes field, or wants to start over, such as “I'm back after six months”, “start fresh with a new profile”, “new season, reset what it learned” (also in Spanish: “nueva temporada”, “volví a buscar trabajo, empecemos de nuevo”, “cambio de rubro”). Not for changing one profile answer (that is setup)."
 ---
 
 # New season
@@ -21,6 +21,19 @@ private home. Pass JSON through standard input (`jt profile set -`). Do not
 commit anything.
 
 Talk to the user in the panel language (`jt context` → `language`).
+
+## When the request is in plain words
+
+The user may ask without the command ("I'm back after six months, let's start
+again", "cambio de rubro, quiero empezar de nuevo"). There are no arguments.
+
+- If the request already points to a level ("reset what it learned" → new
+  season + reset learning; "completely clean start" → full reset), recommend
+  that level in step 2, but still explain the three and ask; never pick one
+  without the user's answer.
+- If the user only wants to change one part of the profile (a title, the
+  minimum salary, the work mode) and is not starting a new campaign, that is
+  `/setup`, which revises single answers: say so and offer it instead.
 
 ## 1. Where things stand
 

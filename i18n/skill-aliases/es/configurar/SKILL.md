@@ -1,6 +1,6 @@
 ---
 name: configurar
-description: "Configuración inicial de Job Tracker: revisa e instala dependencias, pregunta el idioma del panel, importa tu CV, hace el cuestionario de necesidades, investiga y confirma los títulos objetivo y termina con un recorrido guiado. También sirve para cambiar esas respuestas más adelante. (Alias en español de /setup.)"
+description: "Configuración inicial de Job Tracker y sus cambios posteriores: dependencias, idioma del panel, CV, necesidades, títulos objetivo, portales y reglas propias. Úsalo cuando el usuario empieza o quiere cambiar algo de eso, por ejemplo “configura el proyecto”, “es la primera vez que lo uso”, “cambia mis títulos objetivo”, “activa LinkedIn”, “quiero el panel en inglés”. No para empezar una campaña nueva (eso es nueva-temporada). (Alias en español de /setup.)"
 ---
 
 # /configurar

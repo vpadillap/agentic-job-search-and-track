@@ -1,6 +1,6 @@
 ---
 name: setup
-description: First-run setup of Job Tracker. Checks and installs requirements, asks the panel language (English or Spanish), imports the user's resume, runs the job-needs questionnaire, researches and confirms target job titles, selects job sites, and ends with a guided tour. Also use it to revise any of those answers later.
+description: "First-run setup of Job Tracker and later revisions of it: requirements, panel language, resume, job needs, target titles, job sites, and the user's own rules. Use when the user is starting out or wants to change any of those, such as “I just cloned this, how do I start?”, “set up the job tracker”, “change my target titles”, “turn on LinkedIn” (also in Spanish: “configura el proyecto”, “cambia el idioma del panel”, “actualiza mi perfil”). Not for starting a whole new campaign (that is new-season)."
 ---
 
 # Setup
@@ -34,6 +34,22 @@ Below, `jt` means `python scripts/jt.py`.
   complete, the user wants to revise something: ask what, run `jt setup redo
   <step>`, and do that step again. Completed steps are not repeated unless the
   user asks.
+
+## When the request is in plain words
+
+The user may ask without the command ("I just cloned this, how do I start?",
+"cambia mis títulos objetivo", "quiero el panel en inglés"). Read the request:
+
+- First time, or setup not complete: resume as above.
+- Setup complete and the request names what to change: run
+  `jt setup redo <step>` for that step and do it, without asking again what
+  to revise: the panel language → `language`;
+  a new base resume → `resume`; work mode, location, salary, availability, and
+  other job needs → `questionnaire`; target titles → `titles`; job sites →
+  `providers`; the user's own rules → `preferences`.
+- Starting a whole new campaign (a new field, a long pause) is `/new-season`,
+  not a revision: say so and offer it. Adding a job site the project does not
+  have yet is `/add-provider`.
 
 Mark each step when it is finished with `jt setup done <step>` (several steps
 can be given at once). Steps 1–3 happen before the workspace exists, so mark

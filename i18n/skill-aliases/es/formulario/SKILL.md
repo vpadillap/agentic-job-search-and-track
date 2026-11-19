@@ -1,6 +1,6 @@
 ---
 name: formulario
-description: "Propone respuestas para el formulario de postulación de una o varias vacantes (ids=…); con alternativa propone otra versión sin reemplazar las actuales. (Alias en español de /form-answers.)"
+description: "Propone respuestas para el formulario de postulación de vacantes en seguimiento, solo con lo que respaldan el CV y el perfil, en el idioma del aviso. Úsalo cuando el usuario pide solo las respuestas del formulario u otra versión, por ejemplo “responde el formulario de la J0007”, “qué pongo en el formulario de la J0009?”, “dame otra alternativa de respuestas”. Argumentos: ids=J0007 (obligatorio), alternativa. Nunca llena ni envía un formulario. (Alias en español de /form-answers.)"
 ---
 
 # /formulario

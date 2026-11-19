@@ -1,0 +1,14 @@
+[
+  {"query": "do a job search for this week", "should_trigger": true, "language": "en"},
+  {"query": "can you look for new postings? it's been a few days since the last search", "should_trigger": true, "language": "en"},
+  {"query": "find me new data analyst openings from the last 3 days", "should_trigger": true, "language": "en"},
+  {"query": "busca trabajo nuevo, lo de esta semana", "should_trigger": true, "language": "es"},
+  {"query": "haz una búsqueda de empleos de los últimos 14 días por favor", "should_trigger": true, "language": "es"},
+  {"query": "hay vacantes nuevas? revisa los portales", "should_trigger": true, "language": "es"},
+  {"query": "what does the fit score on a posting mean?", "should_trigger": false, "language": "en"},
+  {"query": "prepare a tailored resume for J0007", "should_trigger": false, "language": "en"},
+  {"query": "how do I turn on Bumeran as a job site?", "should_trigger": false, "language": "en"},
+  {"query": "qué significa que una vacante esté descartada?", "should_trigger": false, "language": "es"},
+  {"query": "ábreme el panel para ver las vacantes", "should_trigger": false, "language": "es"},
+  {"query": "cómo me está yendo con mis postulaciones? quiero un análisis", "should_trigger": false, "language": "es"}
+]

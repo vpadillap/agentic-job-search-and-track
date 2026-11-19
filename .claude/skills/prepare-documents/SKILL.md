@@ -1,6 +1,6 @@
 ---
 name: prepare-documents
-description: Prepares what tracked job applications are missing - a tailored resume, a cover letter where one is needed, answers to the application form - and recalculates scores against the new resume. With `pending` (the default) it does everything pending in one go; with ids=J0007,J0012 only those applications; with `all` a tailored resume for every application not yet applied to that lacks one. Never applies to anything.
+description: "Prepares what tracked job applications are missing: a tailored resume, a cover letter where one is needed, and form answers, then rescores them. Use when the user asks to prepare, complete, or tailor documents for their applications, such as “complete the missing documents for J0007”, “get the resumes and cover letters ready”, “tailor my resume for all my applications” (also in Spanish: “completa los documentos faltantes de la J0007”, “prepárame el CV y la carta”, “hazme lo pendiente”). Arguments: pending (default), ids=J0007,J0012, all. Not for general questions about resumes or letters. Never applies to anything."
 ---
 
 # Prepare documents
@@ -26,6 +26,22 @@ anywhere else.
 | `all` | only tailored resumes, for every application not yet applied to that has none |
 
 Spanish alias: `pendientes` means `pending`, `todas` means `all`.
+
+## When the request is in plain words
+
+The user may ask without the command ("complete the missing documents for
+J0007", "prepárame el CV y la carta para la J0012"). Read the request:
+
+- Ids it states (J0007, J0012) become `ids=`. "Everything pending",
+  "lo que falta", or no application named: `pending`. "A tailored resume for
+  every application" / "CV para todas": `all`.
+- An application named by company or title instead of id ("my application at
+  the bank"): find it with `jt applications list --hide-ended`. One match: use
+  its id. Several: ask which one, naming each (id, company, title), before
+  preparing anything. None: say so and stop.
+- Only form answers asked for: that is `/form-answers`; use it instead.
+- Before preparing for more than three applications, say how many and what
+  will be made (from `jt pending`), and ask to continue.
 
 **Hard rules for this whole skill**
 

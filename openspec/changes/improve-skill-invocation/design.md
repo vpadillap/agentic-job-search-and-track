@@ -48,3 +48,51 @@ descriptions; it does not replace them.
   → Near-miss evals ("what is a cover letter?" must not start
   `prepare-documents`).
 - [Description length] → D2 keeps them short.
+
+## Trigger eval results
+
+How they were run: the method of `skill-creator`'s `run_eval` (each request
+sent to `claude -p`, the first Skill or Read tool call decides which skill it
+reached, 3 runs per request, a pass at a rate of 0.5). Its script reads pipes
+with `select()`, which does not work on Windows, so an equivalent script was
+used outside the repo. All seven user skills and the six Spanish aliases were
+installed together in a temporary project, so they competed for each request
+as they do for a real user; reaching an alias counts as reaching its skill.
+The temporary project had no `AGENTS.md`, so these numbers measure the
+descriptions alone. Model: `claude-opus-5-5`. Eval sets:
+`tests/skill-evals/<skill>.json` (12 requests each: 6 that must load the
+skill, 6 near-misses; half English, half Spanish).
+
+### Before (original descriptions)
+
+| Skill | Positives | Near-misses |
+|---|---|---|
+| setup | 5/6 | 6/6 |
+| job-search | 6/6 | 6/6 |
+| prepare-documents | 6/6 | 6/6 |
+| form-answers | 6/6 | 6/6 |
+| analyze-results | 6/6 | 6/6 |
+| new-season | 6/6 | 6/6 |
+| panel | 6/6 | 6/6 |
+
+Failure: "I just cloned this, how do I get started?" did not load `setup`
+(0/3; the agent explored the files first).
+
+### After (rewritten descriptions)
+
+| Skill | Positives | Near-misses |
+|---|---|---|
+| setup | 6/6 | 6/6 |
+| job-search | 6/6 | 6/6 |
+| prepare-documents | 6/6 | 6/6 |
+| form-answers | 6/6 | 6/6 |
+| analyze-results | 6/6 | 6/6 |
+| new-season | 6/6 | 6/6 |
+| panel | 6/6 | 6/6 |
+
+All 84 checks passed in one iteration, each request with the same result in all
+3 runs (rate 0 or 1). "I just cloned this, how do I get started?" now loads
+`setup` (3/3). A first attempt at this run was discarded: the account's usage
+limit was reached mid-run and the failed calls looked like "no skill"; the
+script was changed to count failed calls separately (0 of 249 in the run
+above).

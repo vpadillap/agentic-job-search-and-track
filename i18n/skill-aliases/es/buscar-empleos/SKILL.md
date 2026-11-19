@@ -1,6 +1,6 @@
 ---
 name: buscar-empleos
-description: "Busca empleos en los proveedores activos según tu perfil (por defecto, avisos de los últimos 7 días; cámbialo con dias=N), filtra, puntúa, investiga salarios y actualiza el panel. (Alias en español de /job-search.)"
+description: "Busca avisos nuevos en los portales activos para los títulos del perfil, los filtra y puntúa, investiga salarios con fuentes enlazadas y actualiza el panel. Úsalo cuando el usuario pide buscar trabajo, vacantes o avisos nuevos, por ejemplo “busca trabajo de esta semana”, “haz una búsqueda de empleos”, “hay vacantes nuevas?”, “revisa los portales”. Ventana: dias=N (7 por defecto). Nunca postula a nada. (Alias en español de /job-search.)"
 ---
 
 # /buscar-empleos

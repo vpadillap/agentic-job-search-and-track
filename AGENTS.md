@@ -33,6 +33,27 @@ back into future advice.
 
 If it is unclear, ask.
 
+## User mode: plain requests
+
+Users may type a command or just ask, in English or Spanish. When a request
+matches a row, load that skill (its "When the request is in plain words"
+section says how to fill in its arguments) even if it did not load on its own.
+A question that only needs an answer ("what is a cover letter?") is answered,
+not turned into a task. A request outside every row: do it with `jt` if a
+command covers it, otherwise say what the closest command is.
+
+| The user asks… | Skill |
+|---|---|
+| to get started, set things up, change the language, resume, job needs, titles, job sites, or their own rules ("configura el proyecto") | `/setup` |
+| to search for jobs, look for new postings ("busca trabajo de esta semana") | `/job-search` |
+| to prepare resumes, cover letters, or everything missing for applications ("completa los documentos de la J0007") | `/prepare-documents` |
+| only for answers to an application form ("responde el formulario de la J0007") | `/form-answers` |
+| how they are doing, why nobody calls, what to change ("analiza mis resultados") | `/analyze-results` |
+| to start over after a pause or in a new field ("empezar una nueva temporada") | `/new-season` |
+| to add a job site the project does not have yet ("agrega Computrabajo como portal") | `/add-provider` |
+| to open or close the panel ("abre el panel") | `/panel` |
+| to change a status, tag, or detail of an application ("pasa la J0007 a entrevista") | no skill: `jt applications …` |
+
 ## Non-negotiable rules
 
 1. **Privacy boundary.** All personal data goes under `user-data/` (or

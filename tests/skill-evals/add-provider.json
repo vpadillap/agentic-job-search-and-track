@@ -1,0 +1,14 @@
+[
+  {"query": "can you add Computrabajo as a job site? it's the big one in my country", "should_trigger": true, "language": "en"},
+  {"query": "I want to search on a niche board for remote data jobs that you don't support yet", "should_trigger": true, "language": "en"},
+  {"query": "add a new job site provider for a local board", "should_trigger": true, "language": "en"},
+  {"query": "agrega un portal de empleo nuevo, uno de mi país", "should_trigger": true, "language": "es"},
+  {"query": "quiero que también busques en un portal que el proyecto todavía no tiene", "should_trigger": true, "language": "es"},
+  {"query": "suma Computrabajo como proveedor", "should_trigger": true, "language": "es"},
+  {"query": "turn on LinkedIn for my searches", "should_trigger": false, "language": "en"},
+  {"query": "which job sites does this project support?", "should_trigger": false, "language": "en"},
+  {"query": "search Indeed for this week's postings", "should_trigger": false, "language": "en"},
+  {"query": "desactiva Bumeran, ya no quiero buscar ahí", "should_trigger": false, "language": "es"},
+  {"query": "qué es un proveedor en este proyecto?", "should_trigger": false, "language": "es"},
+  {"query": "busca vacantes en todos los portales activos", "should_trigger": false, "language": "es"}
+]

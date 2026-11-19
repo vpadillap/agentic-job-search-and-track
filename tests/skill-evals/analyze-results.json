@@ -1,0 +1,14 @@
+[
+  {"query": "how am I doing with my job search? analyze my results", "should_trigger": true, "language": "en"},
+  {"query": "I've had ten rejections, review my applications and tell me what to change", "should_trigger": true, "language": "en"},
+  {"query": "look at my outcomes and propose lessons", "should_trigger": true, "language": "en"},
+  {"query": "cómo me está yendo? analiza mis resultados", "should_trigger": true, "language": "es"},
+  {"query": "revisa mis postulaciones y dime qué está funcionando y qué no", "should_trigger": true, "language": "es"},
+  {"query": "por qué no me llaman? haz un análisis de mis resultados", "should_trigger": true, "language": "es"},
+  {"query": "mark J0007 as rejected", "should_trigger": false, "language": "en"},
+  {"query": "what does the learning level mean in the panel?", "should_trigger": false, "language": "en"},
+  {"query": "run a new search for this week", "should_trigger": false, "language": "en"},
+  {"query": "aplica la lección L0003 que propusiste", "should_trigger": false, "language": "es"},
+  {"query": "cuántas postulaciones tengo abiertas?", "should_trigger": false, "language": "es"},
+  {"query": "quiero empezar de cero con otro tipo de puesto", "should_trigger": false, "language": "es"}
+]

@@ -1,0 +1,14 @@
+[
+  {"query": "I just cloned this, how do I get started?", "should_trigger": true, "language": "en"},
+  {"query": "set up the job tracker, my resume is in my Downloads folder", "should_trigger": true, "language": "en"},
+  {"query": "change my target job titles and turn on LinkedIn", "should_trigger": true, "language": "en"},
+  {"query": "configura el proyecto, es la primera vez que lo uso", "should_trigger": true, "language": "es"},
+  {"query": "quiero cambiar el idioma del panel a inglés", "should_trigger": true, "language": "es"},
+  {"query": "actualiza mi perfil: ahora acepto trabajo híbrido", "should_trigger": true, "language": "es"},
+  {"query": "start a new season, I'm changing careers", "should_trigger": false, "language": "en"},
+  {"query": "open the panel", "should_trigger": false, "language": "en"},
+  {"query": "what does this project do?", "should_trigger": false, "language": "en"},
+  {"query": "busca empleos de esta semana", "should_trigger": false, "language": "es"},
+  {"query": "adapta mi CV para la J0007", "should_trigger": false, "language": "es"},
+  {"query": "cómo instalo Python en Windows en general?", "should_trigger": false, "language": "es"}
+]

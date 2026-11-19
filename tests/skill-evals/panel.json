@@ -1,0 +1,14 @@
+[
+  {"query": "open the panel", "should_trigger": true, "language": "en"},
+  {"query": "start the web panel so I can review the postings", "should_trigger": true, "language": "en"},
+  {"query": "stop the panel, I'm done for today", "should_trigger": true, "language": "en"},
+  {"query": "abre el panel", "should_trigger": true, "language": "es"},
+  {"query": "levanta el panel web para ver mis postulaciones", "should_trigger": true, "language": "es"},
+  {"query": "apaga el panel, ya terminé", "should_trigger": true, "language": "es"},
+  {"query": "the panel shows the wrong status for J0007, change it to interview", "should_trigger": false, "language": "en"},
+  {"query": "what are the four tabs in the panel for?", "should_trigger": false, "language": "en"},
+  {"query": "change the panel language to Spanish", "should_trigger": false, "language": "en"},
+  {"query": "busca vacantes y actualiza el panel", "should_trigger": false, "language": "es"},
+  {"query": "por qué el panel solo se abre en esta computadora?", "should_trigger": false, "language": "es"},
+  {"query": "en el panel, qué significa el nivel de aprendizaje?", "should_trigger": false, "language": "es"}
+]

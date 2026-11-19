@@ -1,6 +1,6 @@
 ---
 name: panel
-description: Starts the local Job Tracker panel in the background (if it is not already running) and gives its address, or stops it. Checks whether the port is free and proposes another one when it is busy.
+description: "Starts the local Job Tracker panel in the background and gives its address, or stops it. Use when the user asks to open, start, show, close, or stop the panel, such as “open the panel”, “start the web panel”, “stop the panel” (also in Spanish: “abre el panel”, “levanta el panel”, “apaga el panel”). Not for questions about what the panel shows. Never runs the agent."
 ---
 
 # Panel
@@ -15,6 +15,14 @@ interpreter.
 
 Talk to the user in the panel language (`jt context` → `language`). The user
 may ask to start (the default when no argument is given) or to stop.
+
+## When the request is in plain words
+
+"Open", "start", "show me the panel", "abre", "levanta", "muéstrame el
+panel": **Start**. "Stop", "close", "shut down", "apaga", "cierra", "detén el
+panel": **Stop**. Unclear: Start. A question about what the panel shows, or a
+change to data seen in it (a status, a tag), is not this skill: answer it, or
+make the change with `jt`.
 
 ## Start
 

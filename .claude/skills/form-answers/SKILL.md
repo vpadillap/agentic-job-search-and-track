@@ -1,6 +1,6 @@
 ---
 name: form-answers
-description: Proposes answers to the application-form questions of one or more tracked jobs (ids=J0007,J0012), grounded only in the user's resume, profile, and stored data, in the posting's language. Questions it cannot answer truthfully are left for the user with a note. With `alternative` it proposes another version to pick from, without replacing the current answers. Never fills in or submits a form.
+description: "Proposes answers to the application-form questions of tracked jobs, grounded only in the user's resume and profile, in the posting's language. Use when the user asks only for form answers, or for another version of them, such as “answer the form questions for J0007”, “draft my answers to the J0012 form”, “give me a different version of the answers” (also in Spanish: “responde el formulario de la J0007”, “otra alternativa de respuestas”). Arguments: ids=J0007 (required), alternative. Never fills in or submits a form."
 ---
 
 # Form answers
@@ -15,6 +15,20 @@ message, fix the cause, retry. Below, `jt` means `python scripts/jt.py`.
 **Arguments.** `ids=J0007,J0012` (required: which applications). Add
 `alternative` to propose other versions instead of replacing current answers
 (Spanish alias: `alternativa`).
+
+## When the request is in plain words
+
+The user may ask without the command ("answer the form questions for J0007",
+"dame otra alternativa de respuestas para la J0012"). Read the request:
+
+- Ids it states become `ids=`. "Another version", "a different version",
+  "otra alternativa", "otra versión": add `alternative`.
+- An application named by company or title instead of id: find it with
+  `jt applications list --hide-ended`. One match: use its id. Several: ask
+  which one, naming each (id, company, title). None: say so and stop.
+- No application named at all: ask which one; there is no default.
+- Resumes, cover letters, or "everything pending" asked for as well: that is
+  `/prepare-documents`, which also writes form answers; use it instead.
 
 ## 1. Load the context
 

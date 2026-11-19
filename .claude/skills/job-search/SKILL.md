@@ -1,6 +1,6 @@
 ---
 name: job-search
-description: Searches the enabled job sites for the user's target titles (postings from the last 7 days by default; change it with days=N), filters out what clearly does not fit and says why, scores the rest, researches salary with linked evidence, and updates the panel. Never applies to anything.
+description: "Searches the enabled job sites for new postings that match the user's target titles, filters and scores them, researches salary with linked evidence, and updates the panel. Use when the user asks to search for jobs, look for new postings or openings, or check the job sites, such as “do a job search for this week”, “any new postings?”, “find openings from the last 3 days” (also in Spanish: “busca trabajo”, “haz una búsqueda de empleos”, “hay vacantes nuevas?”). Window: days=N (7 by default). Never applies to anything."
 ---
 
 # Job search
@@ -19,6 +19,21 @@ write files with the user's data outside the private home.
 **Arguments.** `days=N` sets the posting-age window for this run only
 (Spanish alias: `dias=N`). Without it, the profile's window is used (7 days by
 default).
+
+## When the request is in plain words
+
+The user may ask without the command ("do a job search for this week",
+"busca trabajo de los últimos 3 días"). Read the request:
+
+- A window it states becomes `days`: "this week" / "esta semana" is 7, "the
+  last N days" / "los últimos N días" is N, "this month" / "este mes" is 30.
+  No window stated: use the profile's window; do not ask.
+- The search covers the profile's included titles only. If the user names a
+  title that is not among them, say so and offer to add it with `/setup`
+  (titles step) before searching; do not search it on the side.
+- A search visits each enabled site in turn and takes a while. Before step 2
+  (starting the run), say in one line the window you will use and that it
+  will take a while, and ask to continue.
 
 **Hard rules for this whole skill**
 

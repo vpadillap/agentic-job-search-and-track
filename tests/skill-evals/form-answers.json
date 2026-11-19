@@ -1,0 +1,14 @@
+[
+  {"query": "answer the application form questions for J0007", "should_trigger": true, "language": "en"},
+  {"query": "the form for J0012 asks about my salary expectations and notice period, draft the answers", "should_trigger": true, "language": "en"},
+  {"query": "give me a different version of the form answers for J0007, I don't like the current ones", "should_trigger": true, "language": "en"},
+  {"query": "responde las preguntas del formulario de la J0007", "should_trigger": true, "language": "es"},
+  {"query": "dame otra alternativa de respuestas para el formulario de la J0012", "should_trigger": true, "language": "es"},
+  {"query": "qué pongo en el formulario de la J0009? ayúdame con las respuestas", "should_trigger": true, "language": "es"},
+  {"query": "fill in and submit the application on the company site for me", "should_trigger": false, "language": "en"},
+  {"query": "prepare everything that is pending: resumes, letters, all of it", "should_trigger": false, "language": "en"},
+  {"query": "how should I usually answer 'why do you want to work here'?", "should_trigger": false, "language": "en"},
+  {"query": "busca vacantes nuevas de analista", "should_trigger": false, "language": "es"},
+  {"query": "qué es una pregunta eliminatoria en un formulario de postulación?", "should_trigger": false, "language": "es"},
+  {"query": "hazme la carta de presentación de la J0007", "should_trigger": false, "language": "es"}
+]

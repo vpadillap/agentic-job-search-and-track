@@ -1,0 +1,14 @@
+[
+  {"query": "complete the missing documents for application J0007", "should_trigger": true, "language": "en"},
+  {"query": "I just tracked two new jobs, get their resumes and cover letters ready", "should_trigger": true, "language": "en"},
+  {"query": "tailor my resume for every application I haven't applied to yet", "should_trigger": true, "language": "en"},
+  {"query": "completa los documentos faltantes de la J0007", "should_trigger": true, "language": "es"},
+  {"query": "prepárame el CV y la carta para la postulación J0012", "should_trigger": true, "language": "es"},
+  {"query": "hazme todo lo pendiente de las postulaciones", "should_trigger": true, "language": "es"},
+  {"query": "what is a cover letter and do I really need one?", "should_trigger": false, "language": "en"},
+  {"query": "answer only the form questions for J0007, not the resume", "should_trigger": false, "language": "en"},
+  {"query": "search for new jobs and then I'll decide which to track", "should_trigger": false, "language": "en"},
+  {"query": "qué diferencia hay entre un CV y una hoja de vida?", "should_trigger": false, "language": "es"},
+  {"query": "cambia el estado de la J0007 a entrevista", "should_trigger": false, "language": "es"},
+  {"query": "quiero cambiar mi CV base por uno nuevo en mi perfil", "should_trigger": false, "language": "es"}
+]

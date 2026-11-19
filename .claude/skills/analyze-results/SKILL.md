@@ -1,6 +1,6 @@
 ---
 name: analyze-results
-description: Optional deeper review of the user's job-search results. Reads the complete history (applications and outcomes, tracked and dismissed postings, corrected readings), checks what the numbers can and cannot support, proposes lessons with their evidence for the user to apply or ignore, and suggests experiments when the learning level allows. Never changes anything by itself and never applies to jobs.
+description: "Deeper review of the user's job-search results: reads the whole history of applications and outcomes and proposes lessons, with their evidence, for the user to apply or ignore. Use when the user asks how their search is going, why they get no replies, or what to change, such as “how am I doing?”, “analyze my results”, “review my applications and tell me what to change” (also in Spanish: “cómo me está yendo?”, “analiza mis resultados”, “por qué no me llaman?”). Never changes anything by itself and never applies to jobs."
 ---
 
 # Analyze results
@@ -34,6 +34,15 @@ the user's data anywhere outside the private home.
   lesson is a profile suggestion (`title_state`), applied only by the user.
 - Talk to the user in the panel language from `jt context`; lessons are
   written in that language too.
+
+## When the request is in plain words
+
+The user may ask without the command ("how am I doing?", "por qué no me
+llaman?", "review my applications and tell me what to change"). There are no
+arguments to gather. Say in one line that you will read the whole history and
+propose lessons for them to decide on, then start. A narrow question that one
+command answers ("how many applications are open?") is not an analysis:
+answer it with `jt` directly and offer the deeper review.
 
 ## 1. Load everything
 

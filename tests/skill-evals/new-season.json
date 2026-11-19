@@ -1,0 +1,14 @@
+[
+  {"query": "I'm back after six months, I want to start a new job search campaign", "should_trigger": true, "language": "en"},
+  {"query": "I'm switching from accounting to data analysis, start fresh with a new profile", "should_trigger": true, "language": "en"},
+  {"query": "start a new season but reset what it learned", "should_trigger": true, "language": "en"},
+  {"query": "quiero empezar una nueva temporada de búsqueda", "should_trigger": true, "language": "es"},
+  {"query": "volví a buscar trabajo después de un año, empecemos de nuevo", "should_trigger": true, "language": "es"},
+  {"query": "cambio de rubro, quiero reiniciar todo con un perfil nuevo", "should_trigger": true, "language": "es"},
+  {"query": "add 'Business Analyst' to my target titles", "should_trigger": false, "language": "en"},
+  {"query": "export my data to a file", "should_trigger": false, "language": "en"},
+  {"query": "set up the tracker for the first time", "should_trigger": false, "language": "en"},
+  {"query": "cambia mi sueldo mínimo en el perfil", "should_trigger": false, "language": "es"},
+  {"query": "muéstrame las postulaciones de la temporada anterior", "should_trigger": false, "language": "es"},
+  {"query": "analiza mis resultados de esta temporada", "should_trigger": false, "language": "es"}
+]

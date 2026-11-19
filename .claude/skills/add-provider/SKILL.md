@@ -1,6 +1,6 @@
 ---
 name: add-provider
-description: Adds a job site the project does not cover yet, for this user first. Studies the site with the user (which way of reading it works), writes a private provider file (and a reader when the site needs one) in the user's private folder, validates it, proves it with a real search in each country it claims, and turns it on. Once proved, offers to contribute it to the project as a pull request, only with the user's yes and without any personal data. Never signs in for the user or applies to anything.
+description: "Adds a job site the project does not cover yet, for this user first: studies the site with the user, writes a private provider file (and a reader when needed), proves it with a real search, and turns it on; then offers to contribute it as a pull request, only with the user's yes and without personal data. Use when the user asks to add, support, or search on a new job site or board, such as “add Computrabajo as a job site”, “I want to search on a local board you don't support” (also in Spanish: “agrega un portal de empleo nuevo”, “suma Computrabajo como proveedor”). Not for turning on a site the project already has (that is setup). Never signs in for the user or applies to anything."
 ---
 
 # Add a job site
@@ -23,6 +23,16 @@ Talk to the user in the panel language (`jt context` → `language`).
 - Read-only on every site: never apply, submit or save a form, send a
   message, follow, save jobs, or set alerts.
 - Never put personal data in anything that could leave the machine (step 7).
+
+## When the request is in plain words
+
+The user may ask without the command ("can you add Computrabajo as a job
+site?", "quiero buscar también en un portal de mi país"). There are no
+arguments. Take the site from the request when it names one; otherwise ask
+which site in step 1. Turning on a site the project already has is not this
+skill: that is the job-sites step of `/setup` (or the switches in the panel's
+Search tab); say so and offer it. Adding a site takes a study and a real
+search: say so in one line and ask to continue before step 2.
 
 ## 1. The site
 

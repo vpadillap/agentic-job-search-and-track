@@ -1,6 +1,6 @@
 ---
 name: analizar-resultados
-description: "Analiza los resultados de tus postulaciones y propone ajustes (lecciones) con su evidencia. (Alias en español de /analyze-results.)"
+description: "Revisión a fondo de los resultados de la búsqueda: lee todo el historial de postulaciones y respuestas y propone lecciones con su evidencia para que el usuario las aplique o no. Úsalo cuando el usuario pregunta cómo le va, por qué no lo llaman o qué cambiar, por ejemplo “cómo me está yendo?”, “analiza mis resultados”, “por qué no me llaman?”. Nunca cambia nada por sí solo. (Alias en español de /analyze-results.)"
 ---
 
 # /analizar-resultados
