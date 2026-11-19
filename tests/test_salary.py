@@ -52,7 +52,8 @@ def add(run_json, posting_id: int, *records: dict) -> list[int]:
 
 def suggest(run_json, posting_id: int, ids: list[int], **criteria):
     return run_json("salary", "set", str(posting_id),
-                    data={"evidence_ids": ids, "criteria": {"currency": "PEN", **criteria}})
+                    data={"evidence_ids": ids, "criteria": {"currency": "PEN", **criteria},
+                          "note": "Market reports for this role and level."})
 
 
 def test_one_source_is_rejected_and_shows_no_data(searchable, postings, run_json):
@@ -153,11 +154,11 @@ def test_second_posting_at_the_same_company_reuses_evidence(searchable, postings
     _, imported, _ = cli("postings", "import", str(run["run_id"]), str(path))
     second = imported["postings"][0]["posting_id"]
     code, found, _ = cli("salary", "lookup", str(second))
-    assert code == 0 and found["reusable"] is True
+    assert code == 0 and sorted(e["id"] for e in found["evidence"]["market"]) == sorted(ids)
     assert sorted(found["comparable_evidence_ids"]) == sorted(ids)
     _, out, _ = run_json("salary", "set", str(second), data={
         "evidence_ids": found["comparable_evidence_ids"], "criteria": {"currency": "PEN"},
-        "reused": True})
+        "reused": True, "note": "Reused the reports found for the same job."})
     assert out["salary"]["amount"] == 15000
     with db.session(searchable) as conn:
         outcomes = [r[0] for r in conn.execute(

@@ -1,55 +1,74 @@
 # Salary research guide
 
-A salary suggestion is a monthly figure backed by at least two comparable,
-linked sources. Without them the answer is "no reliable data". Never
-extrapolate across countries, levels, currencies, or gross/net, and never
-estimate from your own knowledge.
+The salary of a posting is **your analysis**, not a count: you get everything
+available, search only what is missing, and propose a monthly range to ask for
+with a short note that justifies it. Every figure rests on cited sources (the
+user's own data or linked reports). Never estimate from your own knowledge, and
+never convert across countries, currencies, or gross/net.
 
-## Where to look, in order
+## 1. Gather: `jt salary lookup <posting_id>`
 
-1. The posting itself: a published salary counts as one source (record it
-   with `"from_posting": true`, the posting URL, and the posting date).
-2. Reports for the same company and role.
-3. Reports for the same role and level in comparable companies (same country,
-   similar industry and size).
+It searches nothing and returns:
+
+- `offered`: what the posting itself publishes, as monthly figures (shown to
+  the user as "Offered"). It is not a suggestion.
+- `posting.profile`: the company's profile (industry, size band, type), or
+  null when nobody recorded it yet.
+- `history`: the user's own data, the same company first: salaries **offered
+  to the user** (`kind: offer`, recorded on applications) and salaries
+  **published** in stored postings (`kind: published`), each with its company,
+  `profile`, title, level, country, work mode, date, and whether it is the same
+  company (`same_company`) and the same role family (`same_family`).
+- `evidence.company`: stored reports for this company and role family in this
+  country (fresh for 60 days); `evidence.market`: stored reports for this role
+  family, level, and country at any company (fresh for 30 days);
+  `evidence.earlier`: older evidence for the same job.
+- `checked`: which sources were already searched for these keys, found or
+  not. Do not search them again.
+- `current`: the suggestion stored now, if any.
+
+## 2. Company profiles
+
+To compare companies you need their profiles. When a posting's company has no
+profile, record what you can **from the posting's text** (`source: "posting"`)
+or from a linked page (for example its company page on a job site):
+
+`jt companies profile "<company>" -` with
+`{"industry": "Banking", "size_band": "1,001-5,000 employees", "kind": "bank",
+"source": "Example Jobs company page", "source_url": "https://…"}`.
+
+Anything you cannot support stays out (or `"unknown"`). Never fill a profile
+from what you believe about a company. Do the same for the companies of the
+history items you will rely on when their `profile` is null.
+
+## 3. Search only what is missing
+
+In this order, skipping every source listed in `checked`:
+
+1. **References for the same company** (for example Glassdoor's reports for
+   that company and role). Store them with `"scope": "company"`. When a source
+   shows several reports, decide what is normal; you may set aside reports far
+   from the rest and record why (step 5).
+2. **The market**: the same role family and level in the same country, at
+   comparable companies. Store with `"scope": "market"` (the default).
 
 Use only the salary sources the enabled provider files describe (`kind:
-salary` or `both`), following their instructions.
+salary` or `both`). Some have a **salary reader** (for example
+`jt providers salary glassdoor --title "<title>"`): it returns an `evidence`
+draft from the site's own data. Add only what you decide (`basis`, `level`,
+`scope`, `posting_id` or `research`, context fields), check that it is
+comparable, and store it with `jt salary evidence add -`. Never change its
+figures. `"data": false` → record it as checked with `found: false`.
+`"throttled": true` → the site was not checked: do not record it, do not call
+it again before `resume_after`, and tell the user.
 
-Some providers have a **salary reader** (their file says so, for example
-`jt providers salary glassdoor --title "<title>"`). It returns an `evidence`
-draft taken from the site's own data: source, URL, range, currency, period,
-sample size, date, country. It is **one** source. Add only what you decide
-(`basis`, `level`, `posting_id` or `research`, and the context fields below),
-check that it is comparable, and store it with `jt salary evidence add -`.
-Never change its figures. When it answers `"data": false`, list that site in
-`--checked` if you end with `jt salary none`. When it answers
-`"throttled": true`, the site was not checked: do not list it, do not call
-it again before `resume_after`, and tell the user when it can be tried.
-A reader may take title variants (Glassdoor: `--title` up to three times,
-such as the posting's Spanish title and its usual English equivalent); its
-provider file says how.
-
-## What makes a source comparable
-
-The CLI counts a source only when all of these hold, and tells you which ones
-failed:
-
-- same **country** as the posting;
-- same **level** (seniority) as the posting;
-- same **currency** and the same **basis** (gross or net);
-- reported in the **last 18 months**.
-
-Also record `work_mode`, `industry`, and `company_size` for every report: they
-do not gate the suggestion but they set its confidence and the user sees them.
-
-## Recording evidence
-
-`jt salary evidence add -` with a list of reports:
+Record what you searched, found or not, in `checked` of `salary set` or
+`salary none` (`{"source": "Glassdoor", "scope": "company", "found": false}`),
+so the next posting with the same key does not search it again.
 
 ```json
 [{
-  "posting_id": 12,
+  "posting_id": 12, "scope": "company",
   "source": "Site name", "url": "https://…",
   "summary": "Senior Data Engineer · same company · 4 reports",
   "amount_min": 14000, "amount_max": 16500, "currency": "PEN", "basis": "gross",
@@ -59,19 +78,57 @@ do not gate the suggestion but they set its confidence and the user sees them.
 }]
 ```
 
-- `period` is `month` or `year` (yearly figures are divided by 12). Other
-  periods are not converted: skip that report.
-- A single figure can be sent as `"amount"`.
-- `observed_on` is the date of the report, not today.
+`period` is `month` or `year` (yearly is divided by 12); skip other periods.
+`observed_on` is the date of the report, not today.
 
-## Suggesting or recording the absence
+## 4. Analyse
 
-- Two or more comparable sources: `jt salary set <posting_id> -` with
-  `{"evidence_ids": [...], "criteria": {"currency": "PEN", "basis": "gross",
-  "industry": "Retail", "company_size": "1,000+"}}`. Country and level come
-  from the posting. The CLI computes the median, range, and confidence.
-- Fewer: `jt salary none <posting_id> --checked "Site A: no reports for this
-  company" --checked "Site B: one report, different level"`.
+Weigh what you have:
 
-Evidence is reused for 60 days for the same company, role, and location; see
-`jt salary lookup` in the skill.
+- **The same company weighs most**: its references, what it offered the user,
+  what it published.
+- Otherwise, which is the usual case, **extrapolate from similar companies**:
+  the same industry, a similar size band and type, the same level, country,
+  currency, basis, and work mode. Say which attributes make them similar, and
+  say when the comparison rests on few known attributes.
+- Offers the user received are strong evidence of what similar companies pay
+  them; published salaries show what companies offer for the role.
+- The market fills what the user's own data does not cover.
+
+A source counts only with the same country, level, currency, and basis, and
+no older than 18 months; the CLI says which ones fail and why.
+
+## 5. Record
+
+**A suggestion**: `jt salary set <posting_id> -`
+
+```json
+{
+  "criteria": {"currency": "PEN", "basis": "gross", "industry": "Banking",
+               "company_size": "1,001-5,000"},
+  "range_min": 13000, "range_max": 15500,
+  "inputs": [
+    {"kind": "offer", "application": "J0007", "weight": "main"},
+    {"kind": "published", "posting_id": 31, "weight": "supporting"},
+    {"evidence_id": 54, "weight": "main"}
+  ],
+  "set_aside": [{"source": "Glassdoor", "value": "45,000 PEN",
+                 "reason": "three times the other six reports"}],
+  "note": "Close to what two similar large banks offered you (2026) and to Glassdoor's 7 reports for this company; one far above the rest set aside.",
+  "checked": [{"source": "Glassdoor", "scope": "company", "found": true}]
+}
+```
+
+- **The evidence rule**: at least one input. One is enough when it is a
+  reference for the same company (`scope: company`) or from the user's
+  history (`offer`, `published`). When every input is market evidence, at
+  least two comparable ones are needed. The CLI refuses otherwise.
+- `note`: one or two sentences, at most 300 characters, in the panel
+  language: what the range rests on, how many sources of which kind, what was
+  set aside. The user sees it next to the range.
+- `weight`: `main` or `supporting`. Without `amount`, the CLI takes the median
+  of the main inputs within your range.
+
+**No reliable data**: `jt salary none <posting_id> --checked "Glassdoor: no
+reports for this company" --checked "Example Salaries: one report, other
+level"`.

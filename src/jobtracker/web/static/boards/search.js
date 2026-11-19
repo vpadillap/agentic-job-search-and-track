@@ -318,21 +318,61 @@ function DuplicateMark({ row, run }) {
   return html`<span class="tag dup" title=${text}>${Icon.Duplicate()}<span>${text}</span></span>`;
 }
 
-function SalaryCell({ salary }) {
+// The salary a posting publishes, as a monthly range (other periods are not converted).
+function offeredMonthly(published) {
+  if (!published) return null;
+  const divide = { month: 1, year: 12 }[published.period || 'month'];
+  if (!divide) return null;
+  return { min: Math.round(published.min / divide), max: Math.round(published.max / divide), currency: published.currency };
+}
+
+// "1 company, 2 your history": how many sources of each kind support a suggestion.
+function sourceKinds(t, salary) {
+  const counts = salary.counts || { market: salary.source_count };
+  return ['company', 'history', 'market'].filter((kind) => counts[kind])
+    .map((kind) => t('salary.kind.' + kind, { count: counts[kind] })).join(', ');
+}
+
+function SalaryCell({ salary, published }) {
   const { t, fmt } = useUi();
+  const offered = offeredMonthly(published);
+  const offeredLine = offered && html`<span class="small offered-posting">${t('row.offeredPosting', {
+    range: offered.min === offered.max ? fmt.money(offered.min, offered.currency)
+      : `${fmt.money(offered.min, offered.currency)}–${fmt.number(offered.max)}` })}</span>`;
   if (salary && salary.status === 'suggested') {
-    return html`<div class="stack">
+    return html`<div class="stack" title=${salary.note || null}>
+      ${offeredLine}
       <span class="money">${fmt.money(salary.amount, salary.currency)}</span>
-      <span class="small">${t('row.salaryNote', { min: fmt.number(salary.range_min), max: fmt.number(salary.range_max), count: salary.source_count })}</span>
+      <span class="small">${t('row.salaryNote', { min: fmt.number(salary.range_min), max: fmt.number(salary.range_max), sources: sourceKinds(t, salary) })}</span>
     </div>`;
   }
   if (salary && salary.status === 'no_data') {
     return html`<div class="stack">
+      ${offeredLine}
       <span class="muted" style=${{ fontWeight: 500 }}>${t('row.noSalary')}</span>
       <span class="small">${t('row.noSalaryNote')}</span>
     </div>`;
   }
-  return html`<span class="small">${t('row.notResearched')}</span>`;
+  return html`<div class="stack">${offeredLine}<span class="small">${t('row.notResearched')}</span></div>`;
+}
+
+function SalaryInputs({ salary }) {
+  const { t, fmt } = useUi();
+  const inputs = salary.inputs || [];
+  const range = (i) => (i.amount_min === i.amount_max ? fmt.money(i.amount_min, i.currency)
+    : `${fmt.money(i.amount_min, i.currency)}–${fmt.number(i.amount_max)}`);
+  return html`
+    ${salary.note && html`<p class="salary-note"><strong>${t('detail.salaryWhy')}</strong> ${salary.note}</p>`}
+    ${inputs.some((i) => i.kind === 'offer' || i.kind === 'published') && html`
+      <span class="small">${t('detail.fromHistory')}</span>
+      <ul class="checked">${inputs.filter((i) => i.kind === 'offer' || i.kind === 'published').map((i) => html`
+        <li>${i.kind === 'offer' ? t('detail.offerInput', { company: i.company, job: i.application })
+          : t('detail.publishedInput', { company: i.company, title: i.title })}
+          · ${range(i)} · ${t('detail.weight.' + i.weight)}</li>`)}</ul>`}
+    ${(salary.set_aside || []).length > 0 && html`
+      <span class="small">${t('detail.setAside')}</span>
+      <ul class="checked">${salary.set_aside.map((item) => html`
+        <li>${[item.source, item.value].filter(Boolean).join(' · ')}: ${item.reason}</li>`)}</ul>`}`;
 }
 
 function TrackedLink({ application }) {
@@ -443,6 +483,7 @@ function SalaryDetail({ salary }) {
       </div>
       <span class=${'confidence ' + salary.confidence}>
         ${t('detail.sources', { level: t('confidence.' + salary.confidence), count: salary.source_count })}</span>
+      <${SalaryInputs} salary=${salary} />
       <div class="tags">${chips.map((chip) => html`<span class="criteria">${chip}</span>`)}</div>
       <div class="stack" style=${{ gap: '8px' }}>
         ${salary.evidence.map((e) => html`
@@ -610,7 +651,7 @@ export function SearchBoard({ data, runId, onRunChange, commands, setupRequired,
             ? (fmt.country(r.country) || r.location) : r.location}</span>`}
         </div>` },
     { key: 'salary', label: t('column.salary'), sortable: true, className: 'col-full col-labelled',
-      render: (r) => html`<${SalaryCell} salary=${r.salary} />` },
+      render: (r) => html`<${SalaryCell} salary=${r.salary} published=${r.published_salary} />` },
     { key: 'published', label: t('column.published'), sortable: true, width: '96px', priority: 2,
       render: (r) => (r.posted_at ? html`<div class="stack">
         <span>${fmt.ago(r.posted_at)}</span><span class="small">${fmt.dayMonth(r.posted_at)}</span></div>`

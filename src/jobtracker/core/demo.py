@@ -188,6 +188,7 @@ def _suggest(conn: sqlite3.Connection, posting_id: int, currency: str, amounts: 
         "evidence_ids": ids,
         "criteria": {"currency": currency, "basis": "gross", "industry": "Retail",
                      "company_size": "1,000+"},
+        "note": "Demo: market reports for this role and level in the same country.",
     }, today)
 
 

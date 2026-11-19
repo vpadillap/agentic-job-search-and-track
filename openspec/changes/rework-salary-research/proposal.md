@@ -85,6 +85,25 @@ says whether it gives company-level data (for a) or market data (for b).
 Sources can keep being added later the same way, including through
 `/add-provider`.
 
+#### Study results (2026-11-19; Peru, "data engineer", logged out, plain HTTP)
+
+| Source | Answer | What it gives | Scope | Notes |
+|---|---|---|---|---|
+| Indeed salaries (`pe.indeed.com/career/<title>/salaries`) | 200, data in the HTML and in structured data | average and typical range, sample ("50 salaries taken from Indeed postings"), country | market (role, country; no level) | The Spanish text says "S/ 61,698 por mes" while its structured data says per **year**: the reader must take the period from the structured data. Cheapest to read |
+| Computrabajo (`pe.computrabajo.com/salarios/<title>`) | 200, page without the figure | median per month and the number of salaries it is based on, filled in by JavaScript | market | Needs the browser (Scrapling, as Bumeran) |
+| Bumeran (`/salarios`) | 200, application shell | — | — | Needs the browser; not studied further |
+| Glassdoor | 403 by plain HTTP | company and role reports (already a salary reader with Scrapling) | company and market | Already integrated |
+| SalaryExpert | 403 (bot wall) | estimates by job and country | market (modelled, not reported) | Modelled figures; weak evidence |
+| Levels.fyi | 405 (bot wall) | tech compensation by company and level | company | Little coverage for Peru |
+| Payscale | 404 for Peru | — | — | No Peru page at the usual address |
+| Talent.com | 404 for this query | — | — | Address format to be found |
+| Ponte en Carrera (MTPE, official) | 200, JavaScript redirect | salaries by occupation | market (occupation, not title or level) | Needs the browser to study |
+
+Recommendation: add **Indeed salaries** first (plain HTTP, sample size, a
+reader is simple; period from the structured data) and **Computrabajo** second
+(Scrapling). Leave SalaryExpert, Levels.fyi, Payscale, and Talent.com out for
+Peru; study the official data later with the browser. The owner chooses.
+
 ## Capabilities
 
 ### New Capabilities

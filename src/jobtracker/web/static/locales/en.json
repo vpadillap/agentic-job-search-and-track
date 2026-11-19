@@ -116,7 +116,7 @@
   "column.score": "Score",
   "column.job": "Job · company",
   "column.conditions": "Conditions",
-  "column.salary": "Suggested salary / month",
+  "column.salary": "Salary / month",
   "column.published": "Published",
   "column.source": "Source",
   "column.actions": "Actions",
@@ -143,12 +143,12 @@
   "row.duplicateTracked": "{site} (tracked as {job})",
   "row.duplicateHere": "{site} in this search",
   "row.noSalary": "No reliable data",
-  "row.noSalaryNote": "fewer than 2 comparable sources",
+  "row.noSalaryNote": "no comparable source found",
   "row.notResearched": "Not researched yet",
-  "row.salaryNote": {
-    "one": "range {min}–{max} · {count} source",
-    "other": "range {min}–{max} · {count} sources"
-  },
+  "row.salaryNote": "ask {min}–{max} · {sources}",
+  "salary.kind.company": "{count} company",
+  "salary.kind.history": "{count} your history",
+  "salary.kind.market": "{count} market",
   "row.openSource": "Open the posting on {site} (new tab)",
   "row.sourceSite": "Where the web search found this posting",
   "row.dateUnknown": "Date unknown",
@@ -177,6 +177,7 @@
     "other": "Form found: {count} questions"
   },
   "detail.why": "Why {score}",
+  "detail.salaryWhy": "Why this range:",
   "detail.notScored": "Not scored yet",
   "detail.weights": "Weights version {version}",
   "detail.changed": "Was {previous} before the resume changed",
@@ -308,6 +309,7 @@
   "row.suggestedNone": "no reliable data",
   "row.diff": "{diff} vs suggested",
   "row.offered": "offered {amount}",
+  "row.offeredPosting": "Offered {range}",
   "next.prepare_documents": "Prepare documents",
   "next.prepare_documentsSub": "Command in “Need something”",
   "next.apply": "Apply",
@@ -765,5 +767,11 @@
   "access.playwright": "Playwright",
   "access.scrapling": "Scrapling",
   "access.http": "HTTP",
-  "access.web-search": "Web search"
+  "access.web-search": "Web search",
+  "detail.fromHistory": "From your history",
+  "detail.offerInput": "Offered to you by {company} ({job})",
+  "detail.publishedInput": "Published by {company} for {title}",
+  "detail.weight.main": "main",
+  "detail.weight.supporting": "supporting",
+  "detail.setAside": "Set aside"
 }

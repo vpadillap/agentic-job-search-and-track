@@ -140,8 +140,11 @@ data. The rules are in [`providers/CONTRIBUTING.md`](providers/CONTRIBUTING.md).
 
 - It never applies to a job, sends a message, or changes anything in your
   accounts on job sites. It prepares; you apply.
-- It never invents facts. A salary is suggested only when at least two
-  comparable, linked sources support it; otherwise you see "no reliable data".
+- It never invents facts. A suggested salary is the agent's analysis of what
+  similar companies offered you, what they publish, and linked salary reports,
+  with a short note saying what it rests on; one source is enough only for the
+  same company or your own history, and the market alone needs two. Otherwise
+  you see "no reliable data".
   Resumes and form answers never claim experience you do not have.
 - It does not change your resume's layout without your consent.
 - It writes documents in the language of each job posting, whatever language
@@ -333,8 +336,11 @@ reglas están en [`providers/CONTRIBUTING.md`](providers/CONTRIBUTING.md).
 
 - Nunca postula por ti, ni envía mensajes, ni cambia nada en tus cuentas de los
   portales. Él prepara; tú postulas.
-- Nunca inventa datos. Solo sugiere un salario cuando hay al menos dos fuentes
-  comparables con enlace; si no, verás "sin datos confiables". Los CV y las
+- Nunca inventa datos. El salario sugerido es el análisis del agente sobre lo
+  que empresas similares te ofrecieron, lo que publican y reportes salariales
+  con enlace, con una nota corta que dice en qué se basa; una fuente basta solo
+  si es de la misma empresa o de tu historial; si solo hay datos de mercado,
+  hacen falta dos. Si no, verás "sin datos confiables". Los CV y las
   respuestas nunca afirman experiencia que no tienes.
 - No cambia el diseño de tu CV sin tu consentimiento.
 - Escribe los documentos en el idioma de cada aviso, sin importar el idioma del

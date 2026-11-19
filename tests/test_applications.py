@@ -39,7 +39,8 @@ def jobs(searchable, cli, tmp_path) -> dict:
             {**report(), "posting_id": ids["A-100"]},
             {**report(url="https://example.test/s/2"), "posting_id": ids["A-100"]}])
         salary.set_suggestion(conn, ids["A-100"], {
-            "evidence_ids": [e["id"] for e in evidence], "criteria": {"currency": "PEN"}})
+            "evidence_ids": [e["id"] for e in evidence], "criteria": {"currency": "PEN"},
+            "note": "Two market reports for this role."})
         tracked = tracking.track(conn, [ids["A-100"], ids["A-101"]])
     return {"altamar": tracked[0]["job_id"], "finlima": tracked[1]["job_id"],
             "home": searchable, "postings": ids}
@@ -288,7 +289,8 @@ def test_facts_at_application_time_come_from_history_and_current_data(jobs, cli,
             {**report(url="https://example.test/s/3"), "posting_id": posting_id},
             {**report(url="https://example.test/s/4"), "posting_id": posting_id}])
         salary.set_suggestion(conn, posting_id, {
-            "evidence_ids": [e["id"] for e in evidence], "criteria": {"currency": "PEN"}})
+            "evidence_ids": [e["id"] for e in evidence], "criteria": {"currency": "PEN"},
+            "note": "Two market reports for this role."})
         conn.execute("UPDATE salary_suggestions SET amount = 99000 WHERE is_current = 1"
                      " AND posting_id = ?", (posting_id,))
     path.write_text(json.dumps({"channel": "Email", "applied_on": "2026-11-01",

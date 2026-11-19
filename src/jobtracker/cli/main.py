@@ -526,6 +526,12 @@ def cmd_salary_set(args: argparse.Namespace) -> dict:
         return {"salary": salary.set_suggestion(conn, args.id, submission)}
 
 
+def cmd_companies_profile(args: argparse.Namespace) -> dict:
+    data = _read_json(args.file)
+    with db.session(get_paths()) as conn:
+        return {"profile": salary.set_profile(conn, args.company, data)}
+
+
 def cmd_salary_none(args: argparse.Namespace) -> dict:
     with db.session(get_paths()) as conn:
         return {"salary": salary.mark_no_data(conn, args.id, args.checked)}
@@ -1077,6 +1083,12 @@ def build_parser() -> argparse.ArgumentParser:
     companies_include = companies_sub.add_parser("include", help="explore it again")
     companies_include.add_argument("company", help="its id or careers page")
     companies_include.set_defaults(run=cmd_companies_include)
+    companies_profile = companies_sub.add_parser(
+        "profile", help="record a company's industry, size, and type, with their source")
+    companies_profile.add_argument("company", help="the company's name")
+    companies_profile.add_argument(
+        "file", help="JSON {industry, size_band, kind, source, source_url}, or - for stdin")
+    companies_profile.set_defaults(run=cmd_companies_profile)
 
     salary_parser = sub.add_parser("salary", help="salary evidence and suggestions")
     salary_sub = salary_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)
@@ -1086,16 +1098,20 @@ def build_parser() -> argparse.ArgumentParser:
     evidence_add = evidence_sub.add_parser("add", help="store salary reports with links")
     evidence_add.add_argument("file", help="JSON list of evidence, or - for stdin")
     evidence_add.set_defaults(run=cmd_salary_evidence_add)
-    salary_set = salary_sub.add_parser("set", help="suggest a salary from 2+ comparable sources")
+    salary_set = salary_sub.add_parser(
+        "set", help="store the agent's suggested range with its inputs and a short note")
     salary_set.add_argument("id", type=int, help="posting id")
-    salary_set.add_argument("file", help="JSON {evidence_ids, criteria}, or - for stdin")
+    salary_set.add_argument(
+        "file", help="JSON {criteria, range_min, range_max, inputs, set_aside, note, checked},"
+                     " or - for stdin")
     salary_set.set_defaults(run=cmd_salary_set)
     salary_none = salary_sub.add_parser("none", help="record that there is no reliable data")
     salary_none.add_argument("id", type=int, help="posting id")
     salary_none.add_argument("--checked", action="append", required=True,
                              help="a source or search that was tried (repeat)")
     salary_none.set_defaults(run=cmd_salary_none)
-    salary_lookup = salary_sub.add_parser("lookup", help="recent evidence for the same job")
+    salary_lookup = salary_sub.add_parser(
+        "lookup", help="everything available for the analysis: offered, history, evidence")
     salary_lookup.add_argument("id", type=int, help="posting id")
     salary_lookup.set_defaults(run=cmd_salary_lookup)
     salary_show = salary_sub.add_parser("show")
