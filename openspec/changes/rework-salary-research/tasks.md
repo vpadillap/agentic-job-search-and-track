@@ -1,14 +1,17 @@
-## 1. Three figures and the research order
+## 1. Data for the analysis
 
-- [ ] 1.1 Migration: evidence `scope` (company/market), title family and level on evidence, `set_aside` reasons; suggestion `kind` (D1)
-- [ ] 1.2 `core/salary.py`: company history from stored postings and offers recorded on applications; market evidence from the user's own offers and stored postings of similar companies under the same conditions, before web sources; company suggestion (one source allowed, labelled) and market suggestion (two or more); set-aside reports recorded (D1, D2)
-- [ ] 1.3 Keys and reuse: title family, market key (30 days), company key (60 days), "no data" per key and source (D3); `jt salary lookup` returns the three parts and what was already checked
-- [ ] 1.4 Tests: offered, company history (published and offered to the user), an offer from a similar company counted as market evidence (and one from different conditions not counted), company suggestion with one source, market needs two, outlier recorded, market evidence reused at another company, "no data" not searched again, existing suggestions still shown
+- [ ] 1.1 Migration: `company_profiles`; evidence scope, role family, and level; set-aside reasons; the suggestion's note, inputs with weights, and counts by kind (D1, D2, D2b)
+- [ ] 1.2 `jt companies profile`: record or update a company's profile with its source (D2)
+- [ ] 1.3 `jt salary lookup`: offered, history (offers and published salaries with profiles), fresh evidence for the company and market keys, what was checked (D1, D3)
+- [ ] 1.4 `jt salary set`: the note, inputs with weights, set-aside reports; the evidence rule per kind of source (D2b)
+- [ ] 1.5 Keys and reuse: title family, market key (30 days), company key (60 days), "no data" per key and source (D3)
+- [ ] 1.6 Tests: lookup gathers everything; one history source accepted; one market source rejected; two market accepted; outlier recorded; market evidence reused at another company; "no data" not searched again; profiles stored with their source; existing suggestions still shown
 
-## 2. Skill and panel
+## 2. Skill, rules, and panel
 
-- [ ] 2.1 Salary guide and `job-search` skill: group a run's postings by key, research each key once, company references before the market, outliers with reasons (D2, D3)
-- [ ] 2.2 Search board: three-line salary cell, detail with sources, set-aside reports, and dates; en/es (D4); browser test
+- [ ] 2.1 Salary guide and `job-search` skill: gather with lookup, group a run's postings by key, search only what is missing, analyse (same company first, else similar companies), write the note; company profiles from the posting or a linked source
+- [ ] 2.2 `AGENTS.md` rule 3 reworded (D2b)
+- [ ] 2.3 Search board: offered and suggested ranges with counts by kind, the note as tooltip and in the detail, every input with its reference; en/es (D4); browser test
 
 ## 3. More salary sources (study, then the owner chooses)
 
@@ -18,5 +21,5 @@
 
 ## 4. Wrap-up
 
-- [ ] 4.1 Real check in a temporary home: a run with two postings of the same role at different companies (market researched once), one company with earlier postings
+- [ ] 4.1 Real check in a temporary home: a run with two postings of the same role at different companies (market researched once), offers in the history from similar companies, the note in the panel
 - [ ] 4.2 `ruff check .`, full `pytest`, privacy guard, `openspec validate rework-salary-research --strict`

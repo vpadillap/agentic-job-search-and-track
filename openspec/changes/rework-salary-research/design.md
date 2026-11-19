@@ -10,7 +10,7 @@ data". Glassdoor has a salary reader (`jt providers salary glassdoor`).
 
 ## Goals / Non-Goals
 
-**Goals:** the three figures a job seeker needs; research done once per key
+**Goals:** a suggestion the agent justifies from all available data; research done once per key
 and reused; company data before market data; every figure traceable.
 
 **Non-Goals:** figures from the model's own knowledge; converting currencies;
@@ -18,41 +18,44 @@ paid sources or sources that need the user's account.
 
 ## Decisions
 
-### D1. Three parts, three kinds of record
+### D1. One command gathers, the agent analyses
 
-- **Offered** — the posting's `published_salary`, shown as monthly (yearly ÷
-  12, as today). No new storage.
-- **Company history** — computed on demand from the user's own data for the
-  same company (normalized name), same title family (D3), level within one
-  step, same country and currency: published salaries of earlier stored
-  postings, and salaries offered to the user (`applications.offered_salary_*`,
-  monthly, with currency and basis) on applications to that company; shown as
-  a range with how many of each kind and the latest date, an offer marked
-  "offered to you". No new storage.
-- **Suggested range** — a `salary_suggestions` row with `kind`:
-  `company` (from company references; one source allowed, shown as "1
-  source" or "N sources") or `market` (two or more comparable sources, as
-  today). Evidence rows gain `scope` (`company` or `market`).
+`jt salary lookup <posting>` returns, without searching anything:
 
-### D2. Order and the agent's judgment
+- `offered`: the posting's published salary as monthly figures;
+- `history`: every salary offered to the user (`applications.offered_salary_*`)
+  and every published salary of the user's stored postings, each with its
+  company and company profile (D2), title, title family, level, country,
+  currency, basis, work mode, date, and reference (application id or posting
+  id, and the posting's link), the same company first;
+- `evidence`: stored, fresh evidence for the posting's company key and market
+  key (D3), with what each source found or did not find;
+- `checked`: which sources were already searched for these keys and when.
 
-For a posting without a reusable suggestion: (a) company references, from the
-salary sources that give company-level data (Glassdoor's company salaries
-first); the agent reads all reports of the source, decides the normal range,
-and may set reports aside as outliers, recording each with its reason
-(`set_aside: [{value, reason}]` on the evidence); (b) only if (a) finds
-nothing, market evidence, at least two comparable sources. Both are stored;
-the suggestion records its kind and the evidence used.
+The agent reads it all, decides what is comparable and how much each item
+weighs (the same company more; otherwise companies of similar industry, size,
+and type, the same level, country, currency, basis, and work mode), searches
+only what is missing, and records the suggestion with `jt salary set`:
+range, currency, basis, the items it used (history references and evidence
+ids, each with its weight: `main`, `supporting`), the reports it set aside
+with reasons, and a **note** of at most 300 characters in the panel language.
 
-**Internal evidence first in (b).** Before any web source, `jt salary lookup`
-lists the user's own comparable data from **other** companies: salaries
-offered to the user on applications, and published salaries of stored
-postings, for the same title family and level, under the same conditions
-(same country, currency, basis, and work mode; industry and company size
-recorded for confidence, as for any evidence). Each is one piece of evidence
-with `scope: market`, `source: "offered to you"` or `"published in posting"`,
-and its reference (application `J0007` or posting id) with the posting's link.
-Web sources are searched only for what is still missing to reach two.
+### D2. Company profiles
+
+Table `company_profiles (company_key, name, industry, size_band, kind,
+source, source_url, updated_at)`, keyed by the normalized company name.
+`jt companies profile <company> -` records or updates it; any field may be
+"unknown". The values come from the posting's text or a linked source, never
+from the model's own knowledge; the source is stored. `lookup` attaches the
+profile to every history item and to the posting.
+
+### D2b. The evidence rule
+
+`jt salary set` refuses a suggestion with no source. It accepts one source
+when that source is a company reference (same company) or the user's own
+history (an offer or a published salary); it requires two or more when every
+source is market evidence. The suggestion stores the count of sources by kind,
+shown next to the note. `AGENTS.md` rule 3 is reworded to say this.
 
 ### D3. Keys and reuse
 
@@ -63,19 +66,19 @@ Web sources are searched only for what is still missing to reach two.
 - Company key: (company, title family, country); reused 60 days.
 - "No data" is logged per key and source; a key with a recent "no data" for a
   source is not searched again in that period.
-- `jt salary lookup <posting>` returns: offered, company history, a reusable
-  company suggestion or market evidence for the posting's keys, and which
-  sources were already checked for each key.
+- `jt salary lookup <posting>` returns the fresh evidence for the posting's
+  keys and which sources were already checked for each (D1).
 - The skill groups a run's postings by key before researching, so one key is
   researched once per run.
 
 ### D4. Board
 
-The salary cell shows up to three short lines: "Offered 4,000–6,000 PEN",
-"This company: 4,500–5,500 PEN (3 postings)", "Ask: 5,000–6,500 PEN (company,
-1 source)" or "(market, 3 sources)". The detail lists every source with its
-link, what was set aside and why, and the dates. When none exists: "No
-salary data" with what was checked.
+The salary cell shows the offered salary when there is one ("Offered
+4,000–6,000 PEN") and the suggested range with the count of sources by kind
+("Ask 5,000–6,500 PEN · 1 company, 2 your history"); the note is shown in the
+detail and as the cell's tooltip. The detail lists every input with its link
+or reference, its weight, what was set aside and why, and the dates. When
+there is no suggestion: "No salary data" with what was checked.
 
 ### D5. Study of new sources (before implementing them)
 
@@ -84,14 +87,15 @@ gives (company-level or market), how it is read, sample size, recency, level,
 currency, terms. The owner chooses which become provider files; each is added
 like a job site (provider file, reader when mechanical, tests on fictional
 pages, real check). The rework of the column and the cache (D1–D4) does not
-wait for new sources: it works with the posting, the company history, and
+wait for new sources: it works with the posting, the user's history, and
 Glassdoor.
 
 ## Risks / Trade-offs
 
-- [A single company source can be unrepresentative] → It is labelled "1
-  source", its sample size is shown, and the market range can be shown next to
-  it when known.
+- [A single source can be unrepresentative] → The note and the counts say
+  how many and of what kind; its sample size is shown in the detail.
+- [Company profiles are incomplete] → "unknown" is allowed; the note says
+  when the comparison rests on few known attributes.
 - [Title families merge different roles] → The family is shown in the detail;
   the agent can record that a source does not fit.
 - [Reused market data ages] → 30-day reuse, 18-month evidence limit as today.
