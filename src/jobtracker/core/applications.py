@@ -360,6 +360,35 @@ def tags(conn: sqlite3.Connection, application_id: int) -> list[str]:
         (application_id,))]
 
 
+# The usual currency of a country, used only to prefill the salary form; the user can
+# type any ISO code (a foreign employer may pay in USD, for example).
+COUNTRY_CURRENCY = {
+    "PE": "PEN", "MX": "MXN", "CO": "COP", "CL": "CLP", "AR": "ARS", "EC": "USD",
+    "UY": "UYU", "PY": "PYG", "BO": "BOB", "VE": "VES", "CR": "CRC", "PA": "USD",
+    "GT": "GTQ", "DO": "DOP", "SV": "USD", "HN": "HNL", "NI": "NIO", "PR": "USD",
+    "BR": "BRL", "US": "USD", "CA": "CAD", "GB": "GBP", "IE": "EUR", "ES": "EUR",
+    "PT": "EUR", "FR": "EUR", "DE": "EUR", "IT": "EUR", "NL": "EUR", "BE": "EUR",
+    "AT": "EUR", "CH": "CHF", "PL": "PLN", "SE": "SEK", "NO": "NOK", "DK": "DKK",
+    "IN": "INR", "AU": "AUD", "NZ": "NZD", "SG": "SGD", "JP": "JPY",
+}
+
+
+def currency_hint(conn: sqlite3.Connection, posting: dict) -> str | None:
+    """The most likely currency for this application's salary form: the one the posting
+    publishes, else the one of the user's minimum salary, else the posting country's."""
+    published = posting.get("published_salary") if isinstance(posting, dict) else None
+    if isinstance(published, dict) and published.get("currency"):
+        return str(published["currency"])
+    from . import profile as profile_service
+
+    active = profile_service.get_active(conn) or {}
+    minimum = active.get("minimum_salary") or {}
+    if isinstance(minimum, dict) and minimum.get("currency"):
+        return str(minimum["currency"])
+    country = str((posting or {}).get("country") or "").upper()
+    return COUNTRY_CURRENCY.get(country)
+
+
 def _salary(row: sqlite3.Row, field: str) -> dict | None:
     """A monthly salary the user recorded: `asked_salary` or `offered_salary`."""
     if row[f"{field}_amount"] is None:
@@ -636,6 +665,7 @@ def application(conn: sqlite3.Connection, job_id: str, language: str = "en",
         "posting": posting,
         "score": scoring.current(conn, row["posting_id"]),
         "salary": salary.current(conn, row["posting_id"]),
+        "currency_hint": currency_hint(conn, posting),
         "at_application": at_application(conn, row["job_id"]),
         "documents": {kind: docs[kind] for kind in ("resume_proposed", "resume_sent",
                                                     "cover_letter")},

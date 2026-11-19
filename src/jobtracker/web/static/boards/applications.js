@@ -431,10 +431,11 @@ function YourApplication({ app, detail, onSaved, statusName }) {
   const { t, fmt } = useUi();
   const initial = () => ({
     applied_on: app.applied_on || '', asked: app.asked_salary ? String(app.asked_salary.amount) : '',
-    currency: (app.asked_salary && app.asked_salary.currency) || (app.salary && app.salary.currency) || 'PEN',
+    currency: (app.asked_salary && app.asked_salary.currency) || (app.salary && app.salary.currency) || app.currency_hint || '',
     offered: app.offered_salary ? String(app.offered_salary.amount) : '',
     offeredCurrency: (app.offered_salary && app.offered_salary.currency)
-      || (app.asked_salary && app.asked_salary.currency) || (app.salary && app.salary.currency) || 'PEN',
+      || (app.asked_salary && app.asked_salary.currency) || (app.salary && app.salary.currency)
+      || app.currency_hint || '',
     channel: app.channel || '', contact: app.contact || '', notes: app.notes || '',
     next_step_on: app.next_step_on || '', next_step_note: app.next_step_note || '',
   });

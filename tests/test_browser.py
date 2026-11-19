@@ -5,6 +5,7 @@ when it is not installed.
 """
 from __future__ import annotations
 
+import json
 import re
 import socket
 import threading
@@ -13,7 +14,7 @@ from datetime import datetime
 
 import pytest
 
-from jobtracker.core import db, demo, search
+from jobtracker.core import db, demo, salary, search
 
 playwright_api = pytest.importorskip("playwright.sync_api")
 uvicorn = pytest.importorskip("uvicorn")
@@ -841,3 +842,32 @@ def test_compact_actions_have_names_and_are_reachable_by_keyboard(seeded, page):
     expect(applied).to_be_focused()
     page.keyboard.press("Tab")
     expect(target.get_by_role("button", name="Dismiss with a reason")).to_be_focused()
+
+
+# ── salary as the agent's analysis (rework-salary-research) ──────────────
+
+def test_salary_cell_shows_offered_and_the_suggestion_with_its_note(seeded, page):
+    with db.session(seeded) as conn:
+        posting = conn.execute("SELECT id FROM postings WHERE company = 'Mistral Pagos'"
+                               " AND is_demo = 1").fetchone()["id"]
+        offer = conn.execute(
+            "SELECT a.job_id FROM applications a JOIN postings p ON p.id = a.posting_id"
+            " WHERE a.offered_salary_amount IS NOT NULL").fetchone()["job_id"]
+        currency = conn.execute("SELECT offered_salary_currency FROM applications"
+                                " WHERE job_id = ?", (offer,)).fetchone()[0]
+        conn.execute("UPDATE postings SET published_salary = ? WHERE id = ?",
+                     (json.dumps({"min": 9000, "max": 11000, "currency": currency,
+                                  "period": "month"}), posting))
+        salary.set_suggestion(conn, posting, {
+            "criteria": {"currency": currency}, "range_min": 10000, "range_max": 12000,
+            "inputs": [{"kind": "offer", "application": offer}],
+            "note": "Close to what a similar company offered you."})
+    open_board(page)
+    cell = row(page, "Mistral Pagos").locator("td.col-labelled")
+    expect(cell).to_contain_text("Offered")
+    expect(cell).to_contain_text("1 your history")
+    expect(cell.locator("[title='Close to what a similar company offered you.']")).to_have_count(1)
+    row(page, "Mistral Pagos").get_by_role("button", name=re.compile("Show details")).click()
+    detail = page.locator(".detail")
+    expect(detail.locator(".salary-note")).to_contain_text("Close to what a similar company")
+    expect(detail).to_contain_text(f"({offer})")

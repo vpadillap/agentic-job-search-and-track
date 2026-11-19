@@ -83,8 +83,9 @@ private providers. Today:
 
 ### Job boards without a provider file
 
-A national or professional job board with no provider file (for example
-Computrabajo) may be used to find the company behind a posting: look for
+A national or professional job board with no provider file, or whose file
+is a salary source only (`kind: salary`, for example Computrabajo today), may
+be used to find the company behind a posting: look for
 the same posting on the company's own page or applicant-tracking board first.
 Pass a board's posting page to the reader only when no original exists; when
 the board refuses the reader (the summary lists it under `suggest_provider`),

@@ -142,6 +142,8 @@ button { cursor: pointer; }
 .small { font-size: 12px; color: var(--muted); }
 .source { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; text-decoration: none; }
 .row-actions { display: flex; gap: 6px; align-items: center; }
+.small.offered-posting { color: var(--text-2); font-weight: 500; }
+.salary-note { margin: 0; font-size: 14px; }
 .row-actions .btn-icon.outlined { border-color: var(--line-strong); color: var(--text-2); }
 
 /* Narrow screens: secondary columns move into the row's detail; on a phone each row

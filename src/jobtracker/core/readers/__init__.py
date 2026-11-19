@@ -24,7 +24,11 @@ READERS = {"linkedin": "jobtracker.core.readers.linkedin",
            "greenhouse": "jobtracker.core.readers.greenhouse",
            "getonbrd": "jobtracker.core.readers.getonbrd",
            "agentic-search": "jobtracker.core.readers.agentic_search"}
-SALARY_READERS = {"glassdoor": "jobtracker.core.readers.glassdoor"}
+SALARY_READERS = {"glassdoor": "jobtracker.core.readers.glassdoor:salary",
+                  "indeed": "jobtracker.core.readers.salary_sources:indeed",
+                  "computrabajo": "jobtracker.core.readers.salary_sources:computrabajo",
+                  "payscale": "jobtracker.core.readers.salary_sources:payscale",
+                  "talent": "jobtracker.core.readers.salary_sources:talent"}
 # Options a reader takes besides the title and location: CLI flag -> keyword argument.
 OPTIONS = {"glassdoor": {"search_url": "search_url_given"},
            "greenhouse": {"found": "found", "place_words": "place_words"},
@@ -82,4 +86,6 @@ def salary(provider_id: str, paths: Paths, title: str | list[str],
         raise JobTrackerError(
             "no_reader", f"'{provider_id}' has no salary reader; follow "
             f"providers/{provider_id}.md")
-    return import_module(module).salary(paths, title, search_url_given=search_url)
+    module_name, _, function = module.partition(":")
+    return getattr(import_module(module_name), function)(paths, title,
+                                                        search_url_given=search_url)

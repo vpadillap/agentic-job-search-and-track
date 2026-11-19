@@ -63,11 +63,15 @@ command covers it, otherwise say what the closest command is.
 2. **One write path.** Structured data changes go through the `jobtracker` CLI
    (or the panel API). Never hand-edit the database. Start every task with
    `jobtracker context`; get every private path from `jobtracker paths`.
-3. **No invented facts.** Salary suggestions require at least two comparable
-   sources with links (same country, level, work mode, and similar
-   industry/company size). Otherwise record "no reliable data". The same
-   applies to resumes and form answers: never claim experience the user's
-   resume and profile do not support.
+3. **No invented facts.** A salary suggestion is the agent's analysis and
+   always cites its sources: one is enough when it is a reference for the same
+   company or the user's own history (offers received, salaries published in
+   stored postings); a suggestion resting only on the market needs at least
+   two comparable sources with links (same country, level, currency, and
+   basis). A short note says what it rests on. Nothing comes from the model's
+   own knowledge; otherwise record "no reliable data". The same applies to
+   resumes and form answers: never claim experience the user's resume and
+   profile do not support.
 4. **Consent for heavy changes.** Do not change a resume's layout or structure
    without the user's explicit consent; content edits only by default.
 5. **The agent never submits applications.** It prepares; the user applies.

@@ -116,7 +116,7 @@
   "column.score": "Score",
   "column.job": "Puesto · empresa",
   "column.conditions": "Condiciones",
-  "column.salary": "Salario sugerido / mes",
+  "column.salary": "Salario / mes",
   "column.published": "Publicado",
   "column.source": "Fuente",
   "column.actions": "Acciones",
@@ -143,12 +143,12 @@
   "row.duplicateTracked": "{site} (en seguimiento como {job})",
   "row.duplicateHere": "{site} en esta búsqueda",
   "row.noSalary": "Sin datos confiables",
-  "row.noSalaryNote": "menos de 2 fuentes comparables",
+  "row.noSalaryNote": "ninguna fuente comparable",
   "row.notResearched": "Aún sin investigar",
-  "row.salaryNote": {
-    "one": "rango {min}–{max} · {count} fuente",
-    "other": "rango {min}–{max} · {count} fuentes"
-  },
+  "row.salaryNote": "pedir {min}–{max} · {sources}",
+  "salary.kind.company": "{count} de la empresa",
+  "salary.kind.history": "{count} de tu historial",
+  "salary.kind.market": "{count} de mercado",
   "row.openSource": "Abrir el aviso en {site} (pestaña nueva)",
   "row.sourceSite": "Dónde encontró este aviso la búsqueda en la web",
   "row.dateUnknown": "Fecha desconocida",
@@ -177,6 +177,7 @@
     "other": "Formulario detectado: {count} preguntas"
   },
   "detail.why": "Por qué {score}",
+  "detail.salaryWhy": "Por qué este rango:",
   "detail.notScored": "Aún sin puntuar",
   "detail.weights": "Versión de pesos {version}",
   "detail.changed": "Era {previous} antes del cambio de CV",
@@ -308,6 +309,7 @@
   "row.suggestedNone": "sin dato confiable",
   "row.diff": "{diff} vs sugerido",
   "row.offered": "ofrecido {amount}",
+  "row.offeredPosting": "Ofrecido {range}",
   "next.prepare_documents": "Preparar documentos",
   "next.prepare_documentsSub": "Comando de “Necesitan algo”",
   "next.apply": "Postular",
@@ -765,5 +767,11 @@
   "access.playwright": "Playwright",
   "access.scrapling": "Scrapling",
   "access.http": "HTTP",
-  "access.web-search": "Búsqueda web"
+  "access.web-search": "Búsqueda web",
+  "detail.fromHistory": "De tu historial",
+  "detail.offerInput": "Te ofreció {company} ({job})",
+  "detail.publishedInput": "Publicado por {company} para {title}",
+  "detail.weight.main": "principal",
+  "detail.weight.supporting": "de apoyo",
+  "detail.setAside": "Descartados"
 }

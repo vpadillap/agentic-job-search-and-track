@@ -65,6 +65,17 @@ UNDO: dict[int, list[str]] = {
         "ALTER TABLE search_runs DROP COLUMN group_id",
         "DROP TABLE search_groups",
     ],
+    18: [
+        "ALTER TABLE salary_suggestions DROP COLUMN counts",
+        "ALTER TABLE salary_suggestions DROP COLUMN set_aside",
+        "ALTER TABLE salary_suggestions DROP COLUMN inputs",
+        "ALTER TABLE salary_suggestions DROP COLUMN note",
+        "DROP INDEX salary_checks_key",
+        "DROP TABLE salary_checks",
+        "ALTER TABLE salary_evidence DROP COLUMN role_family",
+        "ALTER TABLE salary_evidence DROP COLUMN scope",
+        "DROP TABLE company_profiles",
+    ],
 }
 # 0008 adds `is_main` and 0009 drops it again, so undoing 9 then 8 leaves no
 # `is_main` column: that matches a version-7 database.

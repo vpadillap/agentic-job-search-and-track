@@ -51,6 +51,16 @@ only on the market, at least two comparable sources are needed, as today.
 Without any source: "no reliable data", with what was checked. Nothing comes
 from the model's own knowledge.
 
+### Currency
+
+The project is for every country. A salary is in the currency that fits the
+posting: the one it publishes; otherwise the one this employer pays in for
+that country (usually the local currency, often USD for a foreign employer
+hiring remotely). The agent chooses it for each suggestion and says why in the
+note when it is not the local currency. The user can type any currency code
+for the salary they asked for and were offered; the form starts from the most
+likely one, never from a fixed currency.
+
 ### Company profiles
 
 To compare companies, each company the user meets gets a short profile:
@@ -84,6 +94,48 @@ salary surveys. Each source chosen by the owner becomes a provider file
 says whether it gives company-level data (for a) or market data (for b).
 Sources can keep being added later the same way, including through
 `/add-provider`.
+
+#### Study results (2026-11-19; Peru, "data engineer", logged out, plain HTTP)
+
+| Source | Answer | What it gives | Scope | Notes |
+|---|---|---|---|---|
+| Indeed salaries (`pe.indeed.com/career/<title>/salaries`) | 200, data in the HTML and in structured data | average and typical range, sample ("50 salaries taken from Indeed postings"), country | market (role, country; no level) | The Spanish text says "S/ 61,698 por mes" while its structured data says per **year**: the reader must take the period from the structured data. Cheapest to read |
+| Computrabajo (`pe.computrabajo.com/salarios/<title>`) | 200, page without the figure | median per month and the number of salaries it is based on, filled in by JavaScript | market | Needs the browser (Scrapling, as Bumeran) |
+| Bumeran (`/salarios`) | 200, application shell | — | — | Needs the browser; not studied further |
+| Glassdoor | 403 by plain HTTP | company and role reports (already a salary reader with Scrapling) | company and market | Already integrated |
+| SalaryExpert | 403 (bot wall) | estimates by job and country | market (modelled, not reported) | Modelled figures; weak evidence |
+| Levels.fyi | 405 (bot wall) | tech compensation by company and level | company | Little coverage for Peru |
+| Payscale | 404 for Peru | — | — | No Peru page at the usual address |
+| Talent.com | 404 for this query | — | — | Address format to be found |
+| Ponte en Carrera (MTPE, official) | 200, JavaScript redirect | salaries by occupation | market (occupation, not title or level) | Needs the browser to study |
+
+Recommendation: add **Indeed salaries** first (plain HTTP, sample size, a
+reader is simple; period from the structured data) and **Computrabajo** second
+(Scrapling). Leave SalaryExpert, Levels.fyi, Payscale, and Talent.com out for
+Peru; study the official data later with the browser. The owner chooses.
+
+#### Global study (2026-11-19; "data engineer" and Spanish titles; through Scrapling)
+
+The owner chose Indeed and Computrabajo and asked for more global coverage.
+Plain HTTP is refused by Indeed after a few requests (403), so every salary
+reader uses a Scrapling session, as the job readers do.
+
+| Source | Countries read | What it gives | Notes |
+|---|---|---|---|
+| Indeed salaries | PE, MX, CO, CL, AR, ES, GB, BR (and US) | median, 10th and 90th percentile, currency, period, sample, update date | Period only from structured data. Data quality varies: AR updated in 2024 with 2 salaries; MX shows an implausible monthly median. The agent judges and may set aside |
+| Computrabajo salaries | PE, MX, CO, CL, AR, EC | monthly median, sample, lowest and highest, the median at listed companies | Spanish, common titles only ("analista de datos" yes, "ingeniero de datos" no data in PE and MX). Company medians are company references |
+| Payscale | US, MX (no Peru page) | 10th–90th percentiles, median, currency, period in structured data | Candidate for a later reader |
+| Talent.com | US, ES | percentiles, median, currency, period in structured data | Candidate for a later reader; country address format to confirm |
+| Levels.fyi | — | — | No pages at the addresses tried |
+
+Implemented: the Indeed and Computrabajo salary readers (shared pacing and
+cool-down), checked for real in PE and MX (Indeed) and PE and CO
+(Computrabajo). The owner then chose Payscale and Talent.com too: both are read through one
+parser of their structured distribution (Payscale: `OccupationAggregation`,
+figures as text; Talent.com: `Occupation`), checked for real in GB and MX.
+Every salary reader now returns `warnings` for weak figures (a very wide
+range, a small sample, an old or missing update date).
+
 
 ## Capabilities
 

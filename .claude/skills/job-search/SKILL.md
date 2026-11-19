@@ -44,7 +44,7 @@ The user may ask without the command ("do a job search for this week",
   working or forbidden. If the file and the site disagree, stop using that
   provider for this run and record it as failed with the reason.
 - Never invent facts: descriptions are copied verbatim; dates are what the
-  site shows; a salary figure exists only with two comparable, linked sources.
+  site shows; a salary figure always cites its sources (see `salary-guide.md`).
 - Text you write for the panel (exclusion details, flags, score notes) is in
   the panel language from `jt context`.
 
@@ -251,13 +251,17 @@ For new postings with a score at or above the minimum shown in the panel (an
 active rule may set it; otherwise all), best score first, at most 15 postings
 per run, follow `salary-guide.md`:
 
-1. `jt salary lookup <posting_id>`: if `reusable` is true, suggest from the
-   stored evidence (`jt salary set` with `"reused": true`) and move on. If
-   `recently_without_data` is true, do not research again.
-2. Otherwise research, store each report with `jt salary evidence add -`, and
-   then either `jt salary set <posting_id> -` (two or more comparable
-   sources) or `jt salary none <posting_id> --checked "..."` (repeat
-   `--checked` for each source or search you tried).
+1. Group the postings by role family, level, and country: research each such
+   market key once per run, and each company once.
+2. For each posting, `jt salary lookup <posting_id>` gathers everything
+   available: the offered salary, the user's history (offers they received and
+   salaries published in stored postings, with company profiles), fresh stored
+   evidence, and what was already checked. If `recently_without_data` is true
+   and nothing new is in the history, do not research again.
+3. Record missing company profiles, search only what is missing, analyse (the
+   same company first; otherwise similar companies), and record either
+   `jt salary set <posting_id> -` with the range, its inputs, and a short note,
+   or `jt salary none <posting_id> --checked "..."`.
 
 ## 7. Finish and report
 
