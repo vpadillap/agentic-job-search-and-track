@@ -1,6 +1,6 @@
 ## 0. Approval
 
-- [ ] 0.1 Owner approves the proposal and design (in particular D3: one retry per title; D4: title problems never stop the provider) before section 1
+- [x] 0.1 Owner approves the proposal and design (in particular D3: one retry per title; D4: title problems never stop the provider) before section 1 (2026-11-19)
 - [ ] 0.2 Rebase on `main` after `retry-soft-blocks-and-browser-choice` is merged (it lands first and touches the same readers)
 
 ## 1. Shared rule
