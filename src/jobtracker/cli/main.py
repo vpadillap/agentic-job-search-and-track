@@ -374,7 +374,8 @@ def _language() -> str:
 def cmd_run_start(args: argparse.Namespace) -> dict:
     paths = get_paths()
     with db.session(paths) as conn:
-        return search.start_run(conn, paths, args.days)
+        return search.start_run(conn, paths, args.days, group=args.group,
+                                 new_group=args.new_group)
 
 
 def cmd_run_provider(args: argparse.Namespace) -> dict:
@@ -985,6 +986,11 @@ def build_parser() -> argparse.ArgumentParser:
     run_sub = run_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)
     run_start = run_sub.add_parser("start", help="open a run: titles, providers, capture folder")
     run_start.add_argument("--days", type=int, help="posting age window (default: profile)")
+    joining = run_start.add_mutually_exclusive_group()
+    joining.add_argument("--group", type=int,
+                         help="show this run on the page of that earlier group")
+    joining.add_argument("--new-group", action="store_true",
+                         help="start a page of its own even if today already has one")
     run_start.set_defaults(run=cmd_run_start)
     run_provider = run_sub.add_parser("provider", help="record how a provider went")
     run_provider.add_argument("run_id", type=int, metavar="run")

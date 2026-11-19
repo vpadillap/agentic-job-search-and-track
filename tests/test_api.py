@@ -213,7 +213,8 @@ def test_dismissed_posting_is_not_new_in_a_later_search(searchable, client, cli,
     cli("run", "finish", str(run["run_id"]))
     target = row(latest(client), "Finlima S.A.")["id"]
     client.post("/api/actions/dismiss", json={"posting_ids": [target], "reason": "location"})
-    _, run2, _ = cli("run", "start")
+    # A later search on a page of its own (the same day would join the first page).
+    _, run2, _ = cli("run", "start", "--new-group")
     _, report, _ = cli("postings", "import", str(run2["run_id"]), str(path))
     assert report["new"] == 0
     assert all(r["company"] != "Finlima S.A." for r in latest(client)["results"])

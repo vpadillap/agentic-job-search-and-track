@@ -16,7 +16,7 @@ duplicates are decided.
 
 ### D1. Groups
 
-Table `search_groups (id, season_id, started_at, label)`; `search_runs.group_id`
+Table `search_groups (id, season_id, started_at, is_demo)` (the page title is derived from its runs' days, so no label is stored); `search_runs.group_id`
 (not null after the migration: each existing run gets its own group, so the
 panel is unchanged until the user accepts the offer). The "day" is the local
 date of `started_at`.
@@ -47,7 +47,7 @@ Selector: groups by date or date range, with the number of searches.
 
 Offer id `group-searches-by-day`: applies when two or more runs share a local
 day in different groups. Accepting regroups runs by local day within each
-season (demo runs kept apart) and deletes groups left empty.
+season (demo runs kept apart) and deletes groups left empty. It only joins pages, never splits one the user joined across days.
 
 ## Risks / Trade-offs
 

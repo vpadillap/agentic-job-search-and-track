@@ -24,7 +24,25 @@ class Offer:
     apply: Callable[[sqlite3.Connection, Paths], dict]
 
 
-REGISTRY: list[Offer] = []
+def _search():
+    from . import search  # imported on use: search depends on much of the core
+
+    return search
+
+
+REGISTRY: list[Offer] = [
+    Offer(
+        id="group-searches-by-day",
+        text={
+            "en": "Searches made on the same day are now shown on one page. Do you want your "
+                  "earlier searches grouped the same way? Nothing else changes.",
+            "es": "Las búsquedas del mismo día ahora se muestran en una sola página. ¿Quieres "
+                  "agrupar así también tus búsquedas anteriores? No cambia nada más.",
+        },
+        applies=lambda conn, paths: _search().ungrouped_days(conn) > 0,
+        apply=lambda conn, paths: _search().group_past_by_day(conn),
+    ),
+]
 
 
 def _answered(conn: sqlite3.Connection) -> dict[str, str]:

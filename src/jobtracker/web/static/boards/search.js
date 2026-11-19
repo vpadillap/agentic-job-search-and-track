@@ -101,21 +101,36 @@ function ProviderChips({ run, onOpenProviders }) {
     </div>`;
 }
 
+// A page holds the searches of one day (or the days the user joined): "14 Nov", or
+// "14 Nov – 15 Nov".
+function pageDate(fmt, page) {
+  const first = fmt.localDayMonth(page.started_at);
+  const last = fmt.localDayMonth(page.last_started_at || page.started_at);
+  return first === last ? first : `${first} – ${last}`;
+}
+
 function RunSummary({ data, runId, onRunChange, showFiltered, onToggleFiltered, commands, onOpenProviders }) {
   const { t, fmt } = useUi();
   const run = data.run;
   const isLatest = !runId || runId === data.runs[0].id;
   const counts = run.counts;
+  const several = (run.run_count || 1) > 1;
+  const multiDay = several && pageDate(fmt, run).includes('–');
   return html`
     <section class="card run" aria-labelledby="run-title">
       <div class="run-main">
         <div class="stack" style=${{ gap: '4px' }}>
-          <h1 id="run-title">${isLatest ? t('run.latest') : t('run.earlier', { date: fmt.dayMonth(run.started_at) })}</h1>
+          <h1 id="run-title">${isLatest ? t('run.latest') : t('run.earlier', { date: pageDate(fmt, run) })}</h1>
           <p class="run-meta">
             ${t('run.meta', { date: fmt.dateTime(run.started_at), days: run.posting_age_days,
               titles: t('run.titles', { count: run.title_count }) })}
             ${run.status === 'running' && html` · <strong>${t('run.running')}</strong>`}
           </p>
+          ${several && html`
+            <p class="run-meta" data-testid="page-searches">
+              ${t('run.searchTimes', { count: run.run_count, times: run.runs.map((r) => (multiDay
+                ? `${fmt.localDayMonth(r.started_at)} ${fmt.time(r.started_at)}` : fmt.time(r.started_at))).join(' · ') })}
+            </p>`}
         </div>
         <div class="run-counts">
           <span><strong>${counts.found}</strong> ${t('run.found')}</span>
@@ -135,7 +150,9 @@ function RunSummary({ data, runId, onRunChange, showFiltered, onToggleFiltered, 
             ${t('run.select')}
             <select value=${String(run.id)} onChange=${(e) => onRunChange(Number(e.currentTarget.value))}>
               ${data.runs.map((r) => html`
-                <option value=${String(r.id)}>${t('run.option', { date: fmt.shortDateTime(r.started_at), count: r.counts.new })}</option>`)}
+                <option value=${String(r.id)}>${(r.run_count || 1) > 1
+                  ? t('run.optionPage', { date: pageDate(fmt, r), searches: t('run.searches', { count: r.run_count }), count: r.counts.new })
+                  : t('run.option', { date: fmt.shortDateTime(r.started_at), count: r.counts.new })}</option>`)}
             </select>
           </label>`}
       </div>

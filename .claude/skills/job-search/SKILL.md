@@ -78,7 +78,16 @@ provider whose install failed is skipped later, with
 `jt run start` (add `--days N` when the user gave a window). Keep from the
 output: `run_id`, `published_since` (ignore postings published before this
 date), `titles` (the included titles: search only these), `capture_folder`
-(raw captures go here), and `providers`.
+(raw captures go here), `providers`, and `group` (the panel page the run is
+shown on).
+
+**One page per day.** A search on the same day as the latest one joins its
+page by itself. If you already ran a search **in this conversation** on an
+earlier day (remember each `group` you got here), ask once per conversation,
+before starting: "Add today's search to the one from <day>, or keep it on its
+own page?" Then start with `jt run start --group <that group's id>` or
+`jt run start --new-group`, and use the same answer for later searches in this
+conversation. Searches from earlier conversations are not asked about.
 
 If `to_search` is empty, finish the run with `jt run finish <run_id>` and
 stop. Tell the user why: if `providers` lists sites with status `disabled`,

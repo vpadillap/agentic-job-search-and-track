@@ -43,6 +43,15 @@
   "run.running": "Aún en curso",
   "run.select": "Búsqueda mostrada",
   "run.option": "{date} · {count} nuevas",
+  "run.optionPage": "{date} · {searches} · {count} nuevas",
+  "run.searches": {
+    "one": "{count} búsqueda",
+    "other": "{count} búsquedas"
+  },
+  "run.searchTimes": {
+    "one": "{count} búsqueda en esta página: {times}",
+    "other": "{count} búsquedas en esta página: {times}"
+  },
   "run.newSearch": "Nueva búsqueda desde Claude Code",
   "run.providers": "Activar o desactivar proveedores",
   "provider.found": "{name} · {count}",
