@@ -44,10 +44,17 @@ says yes. Updating their profile, resume, or titles is `/setup`, not this.
 
 ## 2. Say what is new and ask
 
-Summarize `new_commits` (`behind` changes) in a few plain lines, not a list
-of commit ids. Mention new job sites (`new_providers`: they arrive switched
-off) and a database upgrade when `schema_to` is greater than `schema_from`
-(it is backed up first). Ask whether to update now.
+Tell the user what the update brings from `changes`: the changelog entries
+this copy does not have yet, newest first. Say it in the user's language and
+in plain words, grouped as new things, changes, and fixes (`added`,
+`changed`, `fixed`); name new job and salary sites (`providers`: they arrive
+switched off) and anything the user must do (`action`). Mention a database
+upgrade when `schema_to` is greater than `schema_from` (it is backed up
+first). Only when `changes` is empty (an older remote without a changelog),
+summarize `new_commits` instead, without commit ids.
+
+If the user only asked whether an update is worth it, answer from this and
+stop; otherwise ask whether to update now.
 
 ## 3. Pull
 
@@ -71,7 +78,26 @@ enabled job sites, and runs the diagnostics. It is safe to run again.
   database step failed, the backup in `backup` (copy it over the database
   file shown by `jt paths`). Never run either without a yes.
 
-## 5. Offers
+## 5. New sites
+
+For each id in the `providers` of the entries just installed:
+
+1. `jt providers list`: skip it if it does not serve the user's country (a
+   local site of other countries) or is already on.
+2. A **job site** (`kind: jobs` or `both`): say what it is and its terms note
+   (its file, `## Limits and etiquette`), and ask whether to turn it on. With
+   a yes: `jt providers enable <id>`, then `jt providers install <id>` when it
+   has `dependencies`. Then ask: search only this site now, or run today's
+   full search including it? Search only it: `/job-search` with that site
+   alone (start the run, read only that provider, finish it). Full search:
+   `/job-search` as usual. If the user wants neither, it is used from the
+   next search.
+3. A **salary source** (`kind: salary`): ask whether to turn it on the same
+   way; it is used from the next salary research.
+
+Nothing is turned on or searched without the user's yes.
+
+## 6. Offers
 
 `offers` in the result of `finish` (also `jt offers list`) are one-time
 offers that came with the update, for example applying a new behavior to

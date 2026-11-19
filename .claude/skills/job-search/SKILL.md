@@ -31,6 +31,10 @@ The user may ask without the command ("do a job search for this week",
 - The search covers the profile's included titles only. If the user names a
   title that is not among them, say so and offer to add it with `/setup`
   (titles step) before searching; do not search it on the side.
+- "Only on <site>" / "solo en <portal>" (for example right after turning a
+  new site on): start the run as usual and search only that provider; the
+  run records the other enabled sites as not searched. The site must be on;
+  if it is not, ask before turning it on (`/setup`, job sites).
 - A search visits each enabled site in turn and takes a while. Before step 2
   (starting the run), say in one line the window you will use and that it
   will take a while, and ask to continue.

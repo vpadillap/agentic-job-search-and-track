@@ -91,6 +91,7 @@ command covers it, otherwise say what the closest command is.
 | `i18n/skill-aliases/` | Templates of the Spanish command names; installed by `jobtracker skills sync`, never edited in `.claude/skills/` |
 | `providers/` | One file per job site: how the agent must access and read it; `CONTRIBUTING.md` (rules for adding a site) and `change-template/` (the OpenSpec change a new-site pull request carries) |
 | `CONTRIBUTING.md` | How to set up, the change workflow, and the checks before a pull request |
+| `CHANGELOG.md` | What each change brings, in plain words; read by `/update` |
 | `tests/skill-evals/` | Plain-language requests each skill must (and must not) load for |
 | `openspec/` | Specs and change proposals (spec-driven development) |
 | `design/` | UX reference for the panel (four boards: Search, Applications, Learning, Profile & agent) |
@@ -107,6 +108,10 @@ command covers it, otherwise say what the closest command is.
 - One change at a time, in this order: implement with `/opsx:apply`, verify
   with `/opsx:verify`, archive with `/opsx:archive`, commit, then merge into
   `main`. Every change ends merged into `main` before the next one starts.
+- Every change merged into `main` adds its entry at the top of `CHANGELOG.md`
+  (plain words for the user, with the `Providers`, `Offers`, `Action` lines)
+  and updates the documentation it affects (README en/es, provider files,
+  skills, `docs/`), before archiving. CI checks the entry on pull requests.
 - Stay inside the change being applied. Do only its tasks. Do not make
   decisions that belong to another change, and do not edit other changes'
   proposals, designs, specs, or tasks. If something outside the scope seems

@@ -100,8 +100,11 @@ you, and with your yes pulls it and leaves everything working: packages,
 database (backed up before any upgrade), command names, and the tools of your
 job sites. Your `user-data/` folder is never touched. It never discards files
 you edited or forces anything; if a step fails, it tells you how to go back to
-the previous version. New job sites arrive switched off, and a change that
-can be applied to your earlier data is offered once.
+the previous version. New job sites arrive switched off: after the update the
+agent asks whether to turn each one on and whether to search it right away.
+A change that can be applied to your earlier data is offered once. To see
+what each update brought, read [`CHANGELOG.md`](CHANGELOG.md), or ask "is
+it worth updating?".
 
 ## Job sites
 
@@ -299,8 +302,11 @@ nuevo, te lo cuenta y, con tu sí, lo trae y deja todo funcionando: paquetes,
 base de datos (con respaldo antes de cualquier cambio), nombres de comandos y
 herramientas de tus portales. Tu carpeta `user-data/` no se toca nunca. Nunca
 descarta archivos que editaste ni fuerza nada; si un paso falla, te dice cómo
-volver a la versión anterior. Los portales nuevos llegan apagados, y un cambio
-que se puede aplicar a tus datos anteriores se te ofrece una sola vez.
+volver a la versión anterior. Los portales nuevos llegan apagados: después de
+actualizar, el agente te pregunta si quieres activar cada uno y si buscar en él
+de inmediato. Un cambio que se puede aplicar a tus datos anteriores se te
+ofrece una sola vez. Para ver qué trajo cada actualización, lee
+[`CHANGELOG.md`](CHANGELOG.md) o pregunta "¿vale la pena actualizar?".
 
 ## Portales de empleo
 
