@@ -43,6 +43,15 @@
   "run.running": "Still running",
   "run.select": "Search shown",
   "run.option": "{date} · {count} new",
+  "run.optionPage": "{date} · {searches} · {count} new",
+  "run.searches": {
+    "one": "{count} search",
+    "other": "{count} searches"
+  },
+  "run.searchTimes": {
+    "one": "{count} search on this page: {times}",
+    "other": "{count} searches on this page: {times}"
+  },
   "run.newSearch": "New search from Claude Code",
   "run.providers": "Turn job sites on or off",
   "provider.found": "{name} · {count}",

@@ -31,22 +31,37 @@ def _row(conn: sqlite3.Connection, posting_id: int, run_id: int) -> dict:
     return item
 
 
-def search_board(conn: sqlite3.Connection, run_id: int | None = None,
-                 season: int | None = None) -> dict:
-    """The Search board: a run's summary, its new postings, and what was filtered out.
-    Runs of the active season unless `season` names an earlier one."""
-    runs = search.list_runs(conn, season)
-    run_id = run_id or search.latest_run_id(conn, season)
-    if run_id is None:
-        return {"run": None, "runs": runs, "results": [], "filtered": [],
+def search_board(conn: sqlite3.Connection, group: int | None = None,
+                 season: int | None = None, run: int | None = None) -> dict:
+    """The Search board: one page per group of runs (the searches of one day, or the
+    days the user joined): the summary added up, its new postings once each, and what
+    was filtered out. Groups of the active season unless `season` names an earlier one;
+    `run` opens the page of that run."""
+    groups = search.list_groups(conn, season)
+    if group is None and run is not None:
+        group = search.group_of_run(conn, run)
+    group = group or search.latest_group_id(conn, season)
+    if group is None:
+        return {"run": None, "runs": groups, "results": [], "filtered": [],
                 "default_min_score": default_min_score(conn)}
-    results, filtered = [], []
+    run_ids = search.group_run_ids(conn, group)
+    if not run_ids:
+        raise search.JobTrackerError("not_found", f"There is no search page {group}")
+    newest = run_ids[-1]
+    marks = ",".join("?" * len(run_ids))
+    chosen: dict[int, sqlite3.Row] = {}
+    # Each posting once, with the newest run's outcome.
     for row in conn.execute(
-        "SELECT posting_id, outcome, reason, reason_detail, provider FROM run_results"
-        " WHERE run_id = ? AND outcome IN ('new', 'filtered') ORDER BY id", (run_id,),
+        "SELECT r.id, r.posting_id, r.outcome, r.reason, r.reason_detail FROM run_results r"
+        f" JOIN search_runs s ON s.id = r.run_id WHERE r.run_id IN ({marks})"
+        " AND r.outcome IN ('new', 'filtered') ORDER BY s.started_at DESC, s.id DESC, r.id",
+        run_ids,
     ):
+        chosen.setdefault(row["posting_id"], row)
+    results, filtered = [], []
+    for row in sorted(chosen.values(), key=lambda r: r["id"]):
         if row["outcome"] == "new":
-            results.append(_row(conn, row["posting_id"], run_id))
+            results.append(_row(conn, row["posting_id"], newest))
         else:
             item = search.posting(conn, row["posting_id"], detail=False)
             item.update(reason=row["reason"], reason_detail=row["reason_detail"])
@@ -58,8 +73,8 @@ def search_board(conn: sqlite3.Connection, run_id: int | None = None,
         item["estimate"] = estimates[item["id"]]["interview"]
         item["fit"] = estimates[item["id"]]["fit"]
     return {
-        "run": search.summary(conn, run_id),
-        "runs": runs,
+        "run": search.group_summary(conn, group),
+        "runs": groups,
         "results": results,
         "filtered": filtered,
         "default_min_score": default_min_score(conn),
@@ -69,14 +84,15 @@ def search_board(conn: sqlite3.Connection, run_id: int | None = None,
 def counts(conn: sqlite3.Connection) -> dict:
     """Tab counters: untriaged new results of the latest run, tracked applications, and
     lessons waiting for the user's decision."""
-    run_id = search.latest_run_id(conn)
+    group = search.latest_group_id(conn)
     new = 0
-    if run_id is not None:
+    if group is not None:
         new = conn.execute(
-            "SELECT COUNT(*) FROM run_results r WHERE r.run_id = ? AND r.outcome = 'new'"
+            "SELECT COUNT(DISTINCT r.posting_id) FROM run_results r"
+            " JOIN search_runs s ON s.id = r.run_id WHERE s.group_id = ? AND r.outcome = 'new'"
             " AND NOT EXISTS (SELECT 1 FROM dismissals d WHERE d.posting_id = r.posting_id)"
             " AND NOT EXISTS (SELECT 1 FROM applications a WHERE a.posting_id = r.posting_id)",
-            (run_id,),
+            (group,),
         ).fetchone()[0]
     active = conn.execute(
         "SELECT COUNT(*) FROM applications a JOIN statuses s ON s.id = a.status_id"
@@ -96,7 +112,7 @@ def pending(conn: sqlite3.Connection) -> list[dict]:
     # records `rescore_since`) needs a new score for every open posting.
     base = conn.execute("SELECT 1 FROM base_resumes WHERE is_current = 1").fetchone()
     if resume.rescore_since(conn) and base is not None:
-        run_id = search.latest_run_id(conn)
+        group = search.latest_group_id(conn)
         for row in conn.execute(
             "SELECT s.posting_id, p.title, p.company, a.job_id FROM scores s"
             " JOIN postings p ON p.id = s.posting_id"
@@ -110,8 +126,9 @@ def pending(conn: sqlite3.Connection) -> list[dict]:
             " AND NOT EXISTS (SELECT 1 FROM dismissals d WHERE d.posting_id = s.posting_id)"
             " AND (a.season_id = (SELECT id FROM seasons WHERE is_active = 1)"
             "      OR (a.id IS NULL AND EXISTS (SELECT 1 FROM run_results r"
-            "      WHERE r.posting_id = s.posting_id AND r.run_id = ? AND r.outcome = 'new')))"
-            " ORDER BY s.posting_id", (run_id,),
+            "      JOIN search_runs sr ON sr.id = r.run_id"
+            "      WHERE r.posting_id = s.posting_id AND sr.group_id = ? AND r.outcome = 'new')))"
+            " ORDER BY s.posting_id", (group,),
         ):
             items.append({"kind": "rescore", "posting_id": row["posting_id"],
                           "job_id": row["job_id"], "title": row["title"],
@@ -151,7 +168,7 @@ def pending(conn: sqlite3.Connection) -> list[dict]:
                           "reason": "a tailored resume was registered"})
     # A weights lesson the user applied: open postings scored with older weights.
     active = conn.execute("SELECT version FROM score_weights WHERE is_active = 1").fetchone()
-    run_id = search.latest_run_id(conn)
+    group = search.latest_group_id(conn)
     for row in conn.execute(
         "SELECT sc.posting_id, sc.resume_kind, sc.resume_ref, p.title, p.company, a.job_id"
         " FROM scores sc JOIN postings p ON p.id = sc.posting_id"
@@ -161,8 +178,9 @@ def pending(conn: sqlite3.Connection) -> list[dict]:
         " AND NOT EXISTS (SELECT 1 FROM dismissals d WHERE d.posting_id = sc.posting_id)"
         " AND ((st.ends = 0 AND a.season_id = (SELECT id FROM seasons WHERE is_active = 1))"
         "      OR (a.id IS NULL AND EXISTS (SELECT 1 FROM run_results r"
-        "          WHERE r.posting_id = sc.posting_id AND r.run_id = ? AND r.outcome = 'new')))"
-        " ORDER BY sc.posting_id", (active["version"] if active else 0, run_id),
+        "          JOIN search_runs sr ON sr.id = r.run_id"
+        "          WHERE r.posting_id = sc.posting_id AND sr.group_id = ? AND r.outcome = 'new')))"
+        " ORDER BY sc.posting_id", (active["version"] if active else 0, group),
     ):
         items.append({"kind": "rescore", "posting_id": row["posting_id"],
                       "job_id": row["job_id"], "title": row["title"], "company": row["company"],

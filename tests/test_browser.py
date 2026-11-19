@@ -170,6 +170,26 @@ def test_new_results_appear_without_reloading(seeded, page):
     expect(page.locator(".job-company", has_text="Ondina Analytics")).to_be_visible(timeout=10000)
 
 
+def test_two_searches_of_one_day_on_one_page(seeded, page):
+    with db.session(seeded) as conn:
+        for number, company in ((1, "Ondina Analytics"), (2, "Pradera Datos")):
+            run = search.start_run(conn, seeded, 7, demo=True, new_group=number == 1,
+                                   demo_providers=[{"id": "linkedin", "name": "LinkedIn"}],
+                                   demo_titles=["Data Engineer"])
+            search.import_postings(conn, run["run_id"], [{
+                "provider": "linkedin", "external_id": f"same-day-{number}",
+                "url": f"https://example.com/demo/same-day-{number}",
+                "title": "Staff Data Engineer", "company": company, "location": "Lima",
+                "country": "PE", "work_mode": "remote", "contract_type": "full-time",
+                "posted_at": datetime.now().date().isoformat(), "description": "Fictional."}])
+            search.finish_run(conn, run["run_id"])
+    open_board(page)
+    expect(page.locator("tbody tr")).to_have_count(2)
+    expect(page.locator(".job-company", has_text="Ondina Analytics")).to_be_visible()
+    expect(page.locator(".job-company", has_text="Pradera Datos")).to_be_visible()
+    expect(page.get_by_test_id("page-searches")).to_contain_text("2 searches on this page")
+
+
 def test_change_while_typing_keeps_input_and_offers_to_load(seeded, page):
     open_board(page)
     box = page.get_by_role("searchbox", name="Search results")

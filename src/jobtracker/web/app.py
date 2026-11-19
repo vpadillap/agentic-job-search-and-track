@@ -187,9 +187,10 @@ def create_app() -> FastAPI:
             }
 
     @app.get("/api/search")
-    def search_board(run: int | None = None, season: int | None = None) -> dict:
+    def search_board(group: int | None = None, season: int | None = None,
+                     run: int | None = None) -> dict:
         with db.session(get_paths()) as conn:
-            return {"ok": True, **board.search_board(conn, run, season)}
+            return {"ok": True, **board.search_board(conn, group, season, run)}
 
     @app.get("/api/profile-board")
     def profile_board() -> dict:

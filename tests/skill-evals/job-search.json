@@ -10,5 +10,7 @@
   {"query": "how do I turn on Bumeran as a job site?", "should_trigger": false, "language": "en"},
   {"query": "qué significa que una vacante esté descartada?", "should_trigger": false, "language": "es"},
   {"query": "ábreme el panel para ver las vacantes", "should_trigger": false, "language": "es"},
-  {"query": "cómo me está yendo con mis postulaciones? quiero un análisis", "should_trigger": false, "language": "es"}
+  {"query": "cómo me está yendo con mis postulaciones? quiero un análisis", "should_trigger": false, "language": "es"},
+  {"query": "search again today and put it with yesterday's results", "should_trigger": true, "language": "en"},
+  {"query": "busca otra vez y júntalo con la búsqueda de ayer", "should_trigger": true, "language": "es"}
 ]

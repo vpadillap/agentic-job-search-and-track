@@ -25,6 +25,16 @@ export function makeFormat(lang) {
       if (!iso) return '';
       return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
     },
+    /** "14 Nov" for the local day of a timestamp. */
+    localDayMonth(iso) {
+      if (!iso) return '';
+      return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(new Date(iso));
+    },
+    /** "09:12" in local time. */
+    time(iso) {
+      if (!iso) return '';
+      return new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
+    },
     /** "14 Nov" from a calendar date. */
     dayMonth(isoDate) {
       if (!isoDate) return '';

@@ -39,7 +39,7 @@ function query(params) {
 export const api = {
   state: () => request('GET', '/api/state'),
   changes: () => request('GET', '/api/changes'),
-  search: (run, season) => request('GET', '/api/search' + query({ run, season })),
+  search: (group, season) => request('GET', '/api/search' + query({ group, season })),
   providers: () => request('GET', '/api/providers'),
   setWorkMode: (postingId, workMode, detail) => request('POST', `/api/postings/${encodeURIComponent(postingId)}/work-mode`,
     { work_mode: workMode, detail }),

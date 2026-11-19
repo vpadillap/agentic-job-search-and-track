@@ -64,6 +64,7 @@ def start_run(
     conn: sqlite3.Connection, paths: Paths, days: int | None = None, *,
     demo: bool = False, started_at: str | None = None,
     demo_providers: list[dict] | None = None, demo_titles: list[str] | None = None,
+    group: int | None = None, new_group: bool = False,
 ) -> dict:
     """Open a run: the titles and providers to search and where raw captures go.
 
@@ -129,11 +130,14 @@ def start_run(
         target.mkdir(parents=True)
         folder = target.relative_to(paths.home).as_posix()
     season = conn.execute("SELECT id FROM seasons WHERE is_active = 1").fetchone()
+    season_id = season["id"] if season else None
+    group_id = _choose_group(conn, season_id, demo, started, group, new_group)
     cursor = conn.execute(
         "INSERT INTO search_runs (season_id, started_at, status, posting_age_days, titles,"
-        " providers, capture_folder, is_demo) VALUES (?, ?, 'running', ?, ?, ?, ?, ?)",
-        (season["id"] if season else None, started, days, json.dumps(titles, ensure_ascii=False),
-         json.dumps(run_providers, ensure_ascii=False), folder, int(demo)),
+        " providers, capture_folder, is_demo, group_id)"
+        " VALUES (?, ?, 'running', ?, ?, ?, ?, ?, ?)",
+        (season_id, started, days, json.dumps(titles, ensure_ascii=False),
+         json.dumps(run_providers, ensure_ascii=False), folder, int(demo), group_id),
     )
     run_id = int(cursor.lastrowid)  # type: ignore[arg-type]
     bump_changes(conn)
@@ -147,7 +151,187 @@ def start_run(
         "capture_folder": str(paths.home / folder) if folder else None,
         "providers": run_providers,
         "to_search": [p["id"] for p in run_providers if p["status"] == "pending"],
+        "group": group_info(conn, group_id),
     }
+
+
+# ── groups: the searches shown on one page ────────────────────────────────
+
+def local_day(iso: str) -> date:
+    """The user's local calendar date of a stored timestamp."""
+    moment = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    return (moment.astimezone() if moment.tzinfo else moment).date()
+
+
+def _choose_group(conn: sqlite3.Connection, season_id: int | None, demo: bool, started: str,
+                  group: int | None, new_group: bool) -> int:
+    """`group` joins that group; `new_group` starts one; otherwise the run joins the
+    season's latest group when that group has a run on the same local day."""
+    if group is not None and new_group:
+        raise JobTrackerError("usage", "give --group or --new-group, not both")
+    if group is not None:
+        row = conn.execute("SELECT * FROM search_groups WHERE id = ?", (group,)).fetchone()
+        if row is None:
+            raise JobTrackerError("not_found", f"There is no search group {group}")
+        if row["season_id"] != season_id or bool(row["is_demo"]) != demo:
+            raise JobTrackerError("invalid_group",
+                                  f"Search group {group} belongs to another season or the demo")
+        return int(row["id"])
+    if not new_group:
+        latest = conn.execute(
+            "SELECT g.id FROM search_groups g JOIN search_runs r ON r.group_id = g.id"
+            " WHERE g.season_id IS ? AND g.is_demo = ? ORDER BY r.started_at DESC, r.id DESC"
+            " LIMIT 1", (season_id, int(demo))).fetchone()
+        if latest is not None:
+            day = local_day(started)
+            if any(local_day(r["started_at"]) == day for r in conn.execute(
+                    "SELECT started_at FROM search_runs WHERE group_id = ?", (latest["id"],))):
+                return int(latest["id"])
+    cursor = conn.execute(
+        "INSERT INTO search_groups (season_id, started_at, is_demo) VALUES (?, ?, ?)",
+        (season_id, started, int(demo)))
+    return int(cursor.lastrowid)  # type: ignore[arg-type]
+
+
+def group_run_ids(conn: sqlite3.Connection, group_id: int) -> list[int]:
+    """The group's runs, oldest first."""
+    return [int(r["id"]) for r in conn.execute(
+        "SELECT id FROM search_runs WHERE group_id = ? ORDER BY started_at, id", (group_id,))]
+
+
+def group_info(conn: sqlite3.Connection, group_id: int) -> dict:
+    rows = conn.execute("SELECT id, started_at FROM search_runs WHERE group_id = ?"
+                        " ORDER BY started_at, id", (group_id,)).fetchall()
+    days = [local_day(r["started_at"]).isoformat() for r in rows]
+    return {"id": group_id, "runs": [int(r["id"]) for r in rows],
+            "first_day": days[0] if days else None, "last_day": days[-1] if days else None}
+
+
+def group_of_run(conn: sqlite3.Connection, run_id: int) -> int:
+    return int(_run_row(conn, run_id)["group_id"])
+
+
+def latest_group_id(conn: sqlite3.Connection, season: int | None = None) -> int | None:
+    run_id = latest_run_id(conn, season)
+    return group_of_run(conn, run_id) if run_id is not None else None
+
+
+# Worst first: a provider's status on a page is the worst of its runs.
+_STATUS_RANK = {"failed": 4, "pending": 3, "skipped": 2, "ok": 1, "disabled": 0}
+
+
+def group_summary(conn: sqlite3.Connection, group_id: int, top: int = 5) -> dict:
+    """The page of a group: its runs' summaries added up, each posting once in the top."""
+    run_ids = group_run_ids(conn, group_id)
+    if not run_ids:
+        raise JobTrackerError("not_found", f"There is no search group {group_id}")
+    runs = [summary(conn, run_id, top=10_000) for run_id in run_ids]
+    counts = {key: sum(r["counts"][key] for r in runs) for key in runs[0]["counts"]}
+    merged: dict[str, dict] = {}
+    for run in runs:
+        for item in run["providers"]:
+            held = merged.get(item["id"])
+            if held is None:
+                merged[item["id"]] = dict(item)
+                continue
+            found = held["found"] + item["found"]
+            if _STATUS_RANK.get(item["status"], 0) > _STATUS_RANK.get(held["status"], 0):
+                held.update(item)
+            held["found"] = found
+    titles: list[str] = []
+    for run in runs:
+        titles.extend(t for t in run["titles"] if t not in titles)
+    best: dict[int, dict] = {}
+    for run in runs:
+        for item in run["top"]:
+            best.setdefault(item["posting_id"], item)
+    top_rows = sorted(best.values(), key=lambda r: (r["score"] is None, -(r["score"] or 0),
+                                                    r["posting_id"]))
+    items = list(merged.values())
+    running = any(r["status"] == "running" for r in runs)
+    last = runs[-1]
+    return {
+        "id": group_id,
+        "group_id": group_id,
+        "started_at": runs[0]["started_at"],
+        "last_started_at": last["started_at"],
+        "finished_at": None if running else last["finished_at"],
+        "status": "running" if running else "finished",
+        "posting_age_days": max(r["posting_age_days"] for r in runs),
+        "titles": titles,
+        "title_count": len(titles),
+        "counts": counts,
+        "providers": items,
+        "skipped": [i for i in items if i["status"] in ("skipped", "failed")],
+        "top": top_rows[:top],
+        "is_demo": last["is_demo"],
+        "run_count": len(runs),
+        "runs": [{"id": r["id"], "started_at": r["started_at"], "status": r["status"],
+                  "titles": r["titles"], "counts": r["counts"]} for r in runs],
+    }
+
+
+def _day_buckets(conn: sqlite3.Connection) -> list[list[sqlite3.Row]]:
+    """Runs of the same season, demo or not, and local day, oldest first."""
+    buckets: dict[tuple, list[sqlite3.Row]] = {}
+    for row in conn.execute("SELECT id, season_id, is_demo, started_at, group_id"
+                            " FROM search_runs ORDER BY started_at, id"):
+        key = (row["season_id"], row["is_demo"], local_day(row["started_at"]))
+        buckets.setdefault(key, []).append(row)
+    return list(buckets.values())
+
+
+def ungrouped_days(conn: sqlite3.Connection) -> int:
+    """How many days have searches shown on more than one page."""
+    return sum(1 for bucket in _day_buckets(conn) if len({r["group_id"] for r in bucket}) > 1)
+
+
+def group_past_by_day(conn: sqlite3.Connection) -> dict:
+    """Put the searches of each day on one page. Only joins pages, never splits one the
+    user joined across days; pages left without runs are removed."""
+    merged_days = 0
+    for bucket in _day_buckets(conn):
+        ids = [int(r["id"]) for r in bucket]
+        marks = ",".join("?" * len(ids))
+        current = [int(r["group_id"]) for r in conn.execute(
+            f"SELECT group_id FROM search_runs WHERE id IN ({marks}) ORDER BY started_at, id",
+            ids)]
+        target = current[0]
+        others = sorted(set(current) - {target})
+        if not others:
+            continue
+        merged_days += 1
+        for group_id in others:
+            conn.execute("UPDATE search_runs SET group_id = ? WHERE group_id = ?",
+                         (target, group_id))
+    removed = conn.execute("DELETE FROM search_groups WHERE id NOT IN"
+                           " (SELECT DISTINCT group_id FROM search_runs)").rowcount
+    if merged_days:
+        bump_changes(conn)
+    return {"days_grouped": merged_days, "pages_removed": removed}
+
+
+def list_groups(conn: sqlite3.Connection, season: int | None = None) -> list[dict]:
+    """The pages to choose from, newest first."""
+    where, params = _season_clause(conn, season)
+    order: list[int] = []
+    for row in conn.execute(f"SELECT group_id FROM search_runs{where}"
+                            " ORDER BY started_at DESC, id DESC", params):
+        if row["group_id"] not in order:
+            order.append(row["group_id"])
+    result = []
+    for group_id in order:
+        rows = conn.execute("SELECT id, started_at FROM search_runs WHERE group_id = ?"
+                            " ORDER BY started_at, id", (group_id,)).fetchall()
+        totals = {"found": 0, "new": 0, "filtered": 0, "duplicate": 0, "seen": 0,
+                  "duplicate_or_seen": 0}
+        for row in rows:
+            for key, value in _counts(conn, row["id"]).items():
+                totals[key] += value
+        result.append({"id": group_id, "started_at": rows[0]["started_at"],
+                       "last_started_at": rows[-1]["started_at"], "run_count": len(rows),
+                       "counts": totals})
+    return result
 
 
 def record_provider(
@@ -794,7 +978,9 @@ def possible_duplicates(
     result = []
     for other in conn.execute(
         "SELECT p.id, p.provider, p.url, p.title, p.company, p.posted_at, a.job_id,"
-        " EXISTS (SELECT 1 FROM run_results r WHERE r.run_id = ? AND r.posting_id = p.id)"
+        " EXISTS (SELECT 1 FROM run_results r JOIN search_runs sr ON sr.id = r.run_id"
+        "         WHERE sr.group_id = (SELECT group_id FROM search_runs WHERE id = ?)"
+        "         AND r.posting_id = p.id)"
         " AS in_run FROM postings p LEFT JOIN applications a ON a.posting_id = p.id"
         " WHERE p.match_key = ? AND p.id != ? ORDER BY p.id",
         (run_id, row["match_key"], posting_id),
