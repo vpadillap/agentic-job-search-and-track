@@ -56,6 +56,16 @@ def test_install_includes_the_salary_sources_of_the_country(workspace, cli):
     assert {"payscale", "talent", "computrabajo"} <= covered      # none of them turned on
 
 
+def test_without_a_country_no_salary_source_is_required(workspace, cli, monkeypatch):
+    from jobtracker.core import doctor
+
+    # What CI found: a profile without a country required every salary source's tools.
+    monkeypatch.setattr(doctor, "_tool_available", lambda name: name != "scrapling")
+    _, out, _ = cli("doctor")
+    assert not [c for c in out["checks"] if c["id"].startswith("provider:")]
+    assert installer.install(workspace, enabled=True, runner=lambda c: (0, ""))["providers"] == []
+
+
 def test_doctor_checks_the_salary_sources(workspace, cli, monkeypatch):
     from jobtracker.core import doctor
 
@@ -64,3 +74,5 @@ def test_doctor_checks_the_salary_sources(workspace, cli, monkeypatch):
     _, out, _ = cli("doctor")
     ids = {c["id"] for c in out["checks"]}
     assert {"provider:payscale", "provider:talent", "provider:computrabajo"} <= ids
+    payscale = next(c for c in out["checks"] if c["id"] == "provider:payscale")
+    assert "skips it" in payscale["fix"] and "disable" not in payscale["fix"]
