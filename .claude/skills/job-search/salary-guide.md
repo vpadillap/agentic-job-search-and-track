@@ -23,7 +23,12 @@ sample size, date, country. It is **one** source. Add only what you decide
 (`basis`, `level`, `posting_id` or `research`, and the context fields below),
 check that it is comparable, and store it with `jt salary evidence add -`.
 Never change its figures. When it answers `"data": false`, list that site in
-`--checked` if you end with `jt salary none`.
+`--checked` if you end with `jt salary none`. When it answers
+`"throttled": true`, the site was not checked: do not list it, do not call
+it again before `resume_after`, and tell the user when it can be tried.
+A reader may take title variants (Glassdoor: `--title` up to three times,
+such as the posting's Spanish title and its usual English equivalent); its
+provider file says how.
 
 ## What makes a source comparable
 

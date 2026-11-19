@@ -31,7 +31,7 @@ user-data/                                  private home (gitignored)
 │   ├── <provider-id>.study.md              the study and the proving runs (never copied into a pull request)
 │   └── tests/                              tests of private readers (fictional pages only)
 ├── provider-settings/
-│   └── <provider-id>.json                  what a reader keeps for this user (e.g. Glassdoor country ids from a pasted search URL)
+│   └── <provider-id>.json                  what a reader keeps for this user (e.g. Glassdoor country ids from a pasted search URL, and its salary pacing and cool-down)
 ├── profile/
 │   ├── resume-base-<lang>.<ext>            the user's resume in one language, exactly as provided (pdf/docx)
 │   ├── resume-base-<lang>.md               extracted text of that base resume

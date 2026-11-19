@@ -10,7 +10,7 @@ dependencies: [scrapling]
 domains: [glassdoor.com, glassdoor.*]
 max_results_per_query: 150
 min_seconds_between_requests: 5
-last_verified: 2026-11-18
+last_verified: 2026-11-19
 ---
 
 # Glassdoor
@@ -24,7 +24,7 @@ you:
 
 ```
 jt providers read glassdoor <run_id> --title "<title>"
-jt providers salary glassdoor --title "<title>"
+jt providers salary glassdoor --title "<title>" [--title "<variant>" …]
 ```
 
 Glassdoor is protected by Cloudflare. A study on 2026-11-18 found that plain
@@ -79,9 +79,22 @@ second call while one is running: `reader_busy`).
 2. Read the summary (`read`): `site_total` (results Glassdoor reports),
    `listed` (cards loaded), `new`, `already_seen`, `outside_window`,
    `duplicate_in_run`, `unreadable` (postings skipped because their page had
-   no readable description), and `stopped`. When `listed` is less than
+   no readable description), `source` (where the results were read from),
+   `no_results`, `title_problem`, `site_may_have_changed`, `retries`, and
+   `stopped`. When `listed` is less than
    `site_total`, say so in the run report (the site stopped offering more, or
    the cap of 150 was reached).
+   - `no_results: true`: Glassdoor found nothing for this title. Go on with
+     the next title. Its page title may still say "1 job" (see "Known
+     pitfalls").
+   - `title_problem` (`{kind, detail}`): this title ended early, after the
+     reader loaded the search page a second time (`no_results_read`) or
+     after two postings in a row without a description (`no_description`).
+     Import what it wrote, go on with the next title, and name it in the run
+     report. Glassdoor is not stopped: every title is tried.
+   - `site_may_have_changed: true`: every title so far ended with the same
+     problem. Go on with the remaining titles, and tell the user Glassdoor's
+     pages may have changed (the project needs a fix).
 3. If `drafts_path` is set, read that file, decide each draft's reading (see
    "Fields to extract"), write all readings into one JSON list in the capture
    folder (for example `<capture_folder>/glassdoor-readings-1.json`), and
@@ -100,7 +113,8 @@ second call while one is running: `reader_busy`).
      the next provider.
 
 When every title is done and Glassdoor did not stop, record
-`jt run provider <run_id> glassdoor --status ok`.
+`jt run provider <run_id> glassdoor --status ok`, adding
+`--detail "<titles with a title_problem>"` when there were any.
 
 ### What the reader does
 
@@ -112,6 +126,11 @@ When every title is done and Glassdoor did not stop, record
   gone, no new postings arrive, or 150 postings are listed. Glassdoor's
   sign-up prompt ("Never Miss an Opportunity") is closed with Escape or its
   close button; no sign-in option is ever chosen.
+- The results come from the page's own data (its Next.js data,
+  `searchResultsData.jobListings`, which also gives each posting's age),
+  otherwise from a JSON-LD list of postings, the cards
+  (`li[data-jobid]`), or links to posting pages (`/job-listing/…?jl=`), in
+  that order. Postings under "Similar jobs" are never results.
 - Each new posting's own page is loaded, 5 seconds apart; its fields come
   from the page's structured data (`JobPosting`).
 - Pages are saved as `glassdoor-<n>.html` and the "Show more" responses as
@@ -173,7 +192,13 @@ figure).
 1. `jt providers salary glassdoor --title "<title>"` (the profile's country;
    `--search-url` as in "Countries"). Use the title closest to the posting's
    level: Glassdoor has separate pages such as "Data Engineer" and "Senior
-   Data Engineer".
+   Data Engineer". Give up to three titles, repeating `--title`; they are
+   tried in that order until one page has data. In a Spanish-speaking
+   country, give the posting's own title first and then its usual English
+   equivalent (for example `--title "Jefe de Marca" --title "Brand
+   Manager"`): salary pages are keyed by the title's words, and many Peruvian
+   reports sit under the English title. Choose the variants yourself; keep
+   the same level. The answer's `tried` lists every page opened.
 2. With `"data": true`, the result holds an `evidence` draft: `source`,
    `url`, `amount_min`/`amount_max` (the 25th–75th percentile, Glassdoor's
    "most likely range"), `currency`, `period`, `sample_size` (reports shown),
@@ -185,8 +210,25 @@ figure).
    `level` (the seniority of the page's title), and `posting_id` or
    `research`; check comparability (same country and level, similar work mode
    and industry); then store it with `jt salary evidence add -`.
-4. With `"data": false`, record that Glassdoor had no data for that title
-   among the sources you checked (`jt salary none … --checked`).
+4. With `"data": false` and no `throttled`, record that Glassdoor had no
+   data for those titles among the sources you checked
+   (`jt salary none … --checked`).
+5. With `"throttled": true`, Glassdoor refused salary pages and is cooling
+   down until `resume_after` (`minutes_left`). No page is opened before then,
+   so do not call it again for other postings in the meantime. Glassdoor was
+   **not checked**: do not list it in `--checked` as "no data". Tell the user
+   when it can be tried again.
+
+Salary pages are paced: at least 20 seconds between them, also from one
+call to the next (each call is a new browser session that passes
+Cloudflare's check again). A 429, a security page, or a 403 on a salary
+page starts a salary cool-down: what the site's `Retry-After` asks, and at
+least 15 minutes the first time, 30 the second, 60 from the third on; a page
+that loads resets it. The pacing and the cool-down are kept in the user's
+`provider-settings/glassdoor.json`. Before a cool-down starts, a throttle is
+waited out within the call as for searches (see "Limits and etiquette");
+waiting is the only answer to a refusal (no proxy, no changed browser, no
+account).
 
 ## Limits and etiquette
 
@@ -221,9 +263,10 @@ figure).
 - a page answers HTTP 429, or its title is a security check ("Security |
   Glassdoor", "Un momento…", "Just a moment…") that Scrapling did not pass.
 
-A salary page that stays throttled answers `{"data": false, "throttled":
-true, "resume_after": …}`: record no Glassdoor evidence for that title and
-do not ask for that salary page again before `resume_after`.
+A salary page that stays throttled after those waits answers
+`{"data": false, "throttled": true, "resume_after": …}` and starts the
+salary cool-down (see "Salary data"): record no Glassdoor evidence for that
+title, and ask for no Glassdoor salary page before `resume_after`.
 
 The reader waits and retries as stated in "Limits and etiquette". When the
 throttle does not clear, it ends the call with `stopped.reason: throttled`
@@ -241,13 +284,19 @@ for the run, and refuses later calls in that run (`provider_stopped`) when:
 - a page answers 403, or its title is a Cloudflare block page ("Attention
   Required!", "Access denied"), or a sign-in prompt does not close: reason
   `blocked`;
-- a search page has no postings and does not say 0 results, a "Show more"
-  response does not parse, or three postings in a row have no readable
-  description: reason `error`, with what is missing;
 - the browser itself fails: reason `error`.
 
+Nothing else stops Glassdoor. Problems with one title end only that title
+(see "Search recipe"), however many titles have them.
+
 A single posting without a readable description is skipped and listed in
-`unreadable`; the reader goes on.
+`unreadable`; two in a row end that title (`title_problem`). A search page
+that cannot be read is loaded once more, then ends that title
+(`title_problem`). A search with no results ends that title (`no_results`)
+and is never a problem. A "Show more jobs" response that does not parse is
+counted (`show_more_unreadable`) and its cards are still read. Salary pages
+never stop the run's search: they have their own cool-down (see "Salary
+data").
 
 ## Known pitfalls
 
@@ -264,3 +313,10 @@ A single posting without a readable description is skipped and listed in
   structured data is used.
 - "Show more jobs" stopped offering more at 127 of 152 results in the study:
   `listed` can be smaller than `site_total`.
+- A search with few or no results shows "had limited or no results, but
+  similar jobs are listed below": the page's title can still say "1 … Job",
+  while its data lists none and every card is under "Similar jobs" (seen on
+  2026-11-18 with the installed Chrome; the markup was the usual one). The
+  reader treats it as no results.
+- Salary pages answered 429 ("Security | Glassdoor") when several were asked
+  for back to back (2026-11-18); hence the salary pacing and cool-down.

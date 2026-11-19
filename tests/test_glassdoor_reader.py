@@ -70,6 +70,8 @@ class FakeFetcher:
     def __init__(self) -> None:
         self.search_result = search_page()
         self.pages: dict[str, tuple] = {}
+        self.headers: dict[str, dict] = {}            # response headers by URL
+        self.last_headers: dict = {}
         self.actions: list[str] = []
         self.times: list[float] = []
         self.max_cards: list[int] = []
@@ -91,6 +93,7 @@ class FakeFetcher:
         self.actions.append(url)
         self.times.append(self.now)
         job_id = url.rsplit("jl=", 1)[-1]
+        self.last_headers = self.headers.get(url, {})
         return self._next(self.pages.get(url, posting_page(job_id)))
 
     @staticmethod
@@ -290,10 +293,42 @@ def test_no_results(workspace, run, fake):
     assert (summary["listed"], summary["new"], summary["stopped"]) == (0, 0, None)
 
 
-def test_a_changed_page_stops_with_an_error(workspace, run, fake):
+def test_an_unreadable_search_page_is_loaded_again_then_ends_only_that_title(
+        workspace, run, fake):
     fake.search_result = search_page(title="Glassdoor")    # no cards, no total
     summary = read(workspace, run, fake)
-    assert summary["stopped"]["reason"] == "error"
+    assert summary["stopped"] is None and summary["retries"] == 1
+    assert summary["title_problem"]["kind"] == "no_results_read"
+    assert "glassdoor-2.html" in summary["title_problem"]["detail"]
+    assert fake.actions == [SEARCH, SEARCH] and fake.times[1] - fake.times[0] >= 5
+    fake.search_result = search_page("931")
+    summary = read(workspace, run, fake, title="Analytics Engineer")     # not refused
+    assert summary["new"] == 1 and summary["title_problem"] is None
+
+
+def test_a_search_page_that_reads_on_the_second_load_goes_on(workspace, run, fake):
+    fake.search_result = [search_page(title="Glassdoor"), search_page("932")]
+    summary = read(workspace, run, fake)
+    assert (summary["retries"], summary["new"], summary["title_problem"]) == (1, 1, None)
+
+
+def test_every_title_is_tried_and_a_likely_site_change_is_reported(workspace, run, fake):
+    fake.search_result = search_page(title="Glassdoor")
+    first = read(workspace, run, fake)
+    assert first["site_may_have_changed"] is False      # one title is not evidence
+    fake.search_result = search_page(total=0)            # no results: neither for nor against
+    assert read(workspace, run, fake, title="Data Analyst")["no_results"] is True
+    fake.search_result = search_page(title="Glassdoor")
+    third = read(workspace, run, fake, title="Analytics Engineer")
+    assert third["stopped"] is None and third["site_may_have_changed"] is True
+    fake.search_result = search_page("941")
+    fourth = read(workspace, run, fake, title="BI Engineer")        # still tried
+    assert fourth["new"] == 1 and fourth["site_may_have_changed"] is False
+    with db.session(workspace) as conn:
+        row = conn.execute("SELECT providers FROM search_runs WHERE id = ?",
+                           (run["run_id"],)).fetchone()
+    item = next(p for p in json.loads(row["providers"]) if p["id"] == "glassdoor")
+    assert item["status"] != "failed"
 
 
 # ── stored, duplicates, unreadable, pacing ───────────────────────────────
@@ -321,12 +356,16 @@ def test_an_unreadable_posting_is_skipped(workspace, run, fake):
     assert summary["stopped"] is None
 
 
-def test_three_unreadable_postings_in_a_row_stop(workspace, run, fake):
-    fake.search_result = search_page("701", "702", "703", "704")
-    for job_id in ("701", "702", "703"):
+def test_two_unreadable_postings_in_a_row_end_only_that_title(workspace, run, fake):
+    fake.search_result = search_page("700", "701", "702", "703")
+    for job_id in ("701", "702"):
         fake.pages[posting_url(job_id)] = (200, "x", "<html><title>x</title></html>")
     summary = read(workspace, run, fake)
-    assert summary["stopped"]["reason"] == "error" and fake.opened() == ["701", "702", "703"]
+    assert summary["stopped"] is None and summary["new"] == 1       # 700 is kept
+    assert summary["title_problem"]["kind"] == "no_description"
+    assert fake.opened() == ["700", "701", "702"]
+    fake.search_result = search_page("704")
+    assert read(workspace, run, fake, title="Analytics Engineer")["new"] == 1
 
 
 def test_pacing_within_and_across_calls(workspace, run, fake):
@@ -411,10 +450,11 @@ def test_throttled_salary_page(workspace, cli, fake):
     assert len(fake.actions) == 3
 
 
-def test_show_more_that_does_not_parse_is_an_error(workspace, run, fake):
+def test_show_more_that_does_not_parse_keeps_the_cards(workspace, run, fake):
     fake.search_result = search_page("921", more=["<html>not json</html>"])
     summary = read(workspace, run, fake)
-    assert summary["stopped"]["reason"] == "error"
+    assert summary["stopped"] is None and summary["show_more_unreadable"] == 1
+    assert summary["new"] == 1
 
 
 # ── salary ────────────────────────────────────────────────────────────────
@@ -507,3 +547,162 @@ def test_provider_file():
     for required in ("jt providers read glassdoor <run_id> --title", "--readings",
                      "jt providers salary glassdoor", "--search-url", "Terms of use"):
         assert required in text
+
+
+# ── saved pages: where the results come from ─────────────────────────────
+
+FIXTURES = Path(__file__).parent / "fixtures" / "glassdoor"
+SALARY = "https://www.glassdoor.com/Salaries/peru-data-engineer-salary-SRCH_IL.0,4_IN189_KO5,18.htm"
+
+
+def saved(name: str, status: int = 200) -> glassdoor.SearchPage:
+    html = (FIXTURES / name).read_text(encoding="utf-8")
+    return glassdoor.SearchPage(status, glassdoor._title(html), html)
+
+
+def test_results_from_the_page_data_with_ages_and_show_more_cards():
+    results = glassdoor.parse_results(saved("search-results.html").html)
+    assert results.source == "page-data" and not results.empty
+    assert [c["external_id"] for c in results.cards] == ["701", "702", "703"]
+    assert results.cards[0]["url"].endswith("-JV_IC2.htm?jl=701")     # no tracking
+    assert results.ages == {"701": 1, "702": 25}
+
+
+def test_renamed_cards_are_read_from_the_page_data(workspace, run, fake):
+    fake.search_result = saved("search-renamed-cards.html")
+    summary = read(workspace, run, fake)
+    assert (summary["source"], summary["listed"], summary["new"]) == ("page-data", 3, 3)
+    assert fake.opened() == ["711", "712", "713"]
+
+
+def test_json_ld_list_when_there_is_no_page_data():
+    results = glassdoor.parse_results(saved("search-json-ld.html").html)
+    assert results.source == "json-ld"
+    assert [c["external_id"] for c in results.cards] == ["721", "722"]   # 796 is similar
+
+
+def test_links_when_nothing_else_answers():
+    html = ('<html><body><div><a href="/job-listing/analista-JV_IC2.htm?jl=731">x</a></div>'
+            '<section data-test="related-jobs-list"><a href="/job-listing/o-JV.htm?jl=732">y'
+            "</a></section></body></html>")
+    results = glassdoor.parse_results(html)
+    assert results.source == "links" and [c["external_id"] for c in results.cards] == ["731"]
+    assert results.cards[0]["url"] == ("https://www.glassdoor.com/job-listing/"
+                                       "analista-JV_IC2.htm?jl=731")
+
+
+def test_only_similar_jobs_is_no_results(workspace, run, fake):
+    """Glassdoor's "limited or no results" page: the title says 1, the page lists none."""
+    fake.search_result = saved("search-only-similar.html")
+    summary = read(workspace, run, fake)
+    assert summary["site_total"] == 1 and summary["no_results"] is True
+    assert (summary["listed"], summary["stopped"]) == (0, None) and fake.opened() == []
+    fake.search_result = search_page("741")
+    assert read(workspace, run, fake, title="Analytics Engineer")["new"] == 1
+
+
+def test_no_results_notice_without_page_data():
+    html = saved("search-only-similar.html").html.split("<script>self.__next_f")[0]
+    results = glassdoor.parse_results(html)
+    assert results.cards == [] and results.empty is True
+
+
+def test_saved_unreadable_page_is_a_title_problem(workspace, run, fake):
+    fake.search_result = saved("search-unreadable.html")
+    summary = read(workspace, run, fake)
+    assert summary["stopped"] is None and summary["title_problem"]["kind"] == "no_results_read"
+
+
+# ── salary: variants, pacing, refusals ───────────────────────────────────
+
+def salary_call(workspace, fake, titles, **kwargs):
+    return glassdoor.salary(workspace, titles, fetcher=fake, today=date(2026, 11, 18),
+                            clock=fake.clock, sleep=fake.sleep, **kwargs)
+
+
+def refused(retry_after: str | None = None):
+    html = (FIXTURES / "salary-429.html").read_text(encoding="utf-8")
+    return (429, glassdoor._title(html), html), ({"Retry-After": retry_after}
+                                                  if retry_after else {})
+
+
+def test_salary_variants_tried_in_order_until_one_has_data(workspace, cli, fake):
+    set_profile(workspace, cli)
+    spanish = glassdoor.salary_url("peru", 189, "Jefe de Marca")
+    english = glassdoor.salary_url("peru", 189, "Brand Manager")
+    fake.pages[spanish] = salary_page(with_data=False)
+    fake.pages[english] = salary_page()
+    result = salary_call(workspace, fake, ["Jefe de Marca", "Brand Manager", "Marketing"])
+    assert result["data"] is True and result["evidence"]["url"] == english
+    assert fake.actions == [spanish, english]                # the third is not needed
+    assert [t["title"] for t in result["tried"]] == ["Jefe de Marca", "Brand Manager"]
+    assert fake.times[1] - fake.times[0] >= glassdoor.SALARY_MIN_SECONDS
+
+
+def test_salary_titles_are_limited(workspace, cli, fake):
+    set_profile(workspace, cli)
+    with pytest.raises(JobTrackerError):
+        salary_call(workspace, fake, ["a", "b", "c", "d"])
+
+
+def test_salary_pages_are_paced_across_calls(workspace, cli, fake):
+    set_profile(workspace, cli)
+    fake.pages[SALARY] = salary_page()
+    salary_call(workspace, fake, TITLE)
+    salary_call(workspace, fake, TITLE)
+    assert fake.times[1] - fake.times[0] >= glassdoor.SALARY_MIN_SECONDS
+
+
+def test_a_429_with_retry_after_starts_a_cool_down(workspace, cli, fake):
+    set_profile(workspace, cli)
+    fake.pages[SALARY], fake.headers[SALARY] = refused("1800")
+    result = salary_call(workspace, fake, [TITLE, "Analytics Engineer"])
+    assert result["data"] is False and result["throttled"] is True
+    assert result["minutes_left"] == 30 and "Security | Glassdoor" in result["reason"]
+    assert fake.actions == [SALARY]                          # no further title tried
+    before = len(fake.actions)
+    fake.now += 29 * 60
+    again = salary_call(workspace, fake, TITLE)              # still cooling: no page
+    assert again["throttled"] is True and again["minutes_left"] == 1
+    assert len(fake.actions) == before and again["tried"] == []
+    fake.now += 61
+    fake.pages[SALARY], fake.headers[SALARY] = salary_page(), {}
+    assert salary_call(workspace, fake, TITLE)["data"] is True
+
+
+def test_cool_downs_grow_and_reset_after_a_page_that_loads(workspace, cli, fake):
+    set_profile(workspace, cli)
+    fake.pages[SALARY], _ = refused()
+    assert salary_call(workspace, fake, TITLE)["minutes_left"] == 15
+    fake.now += 15 * 60
+    assert salary_call(workspace, fake, TITLE)["minutes_left"] == 30
+    fake.now += 30 * 60
+    assert salary_call(workspace, fake, TITLE)["minutes_left"] == 60
+    fake.now += 60 * 60
+    assert salary_call(workspace, fake, TITLE)["minutes_left"] == 60     # capped
+    fake.now += 60 * 60
+    fake.pages[SALARY] = salary_page()
+    assert salary_call(workspace, fake, TITLE)["data"] is True
+    fake.pages[SALARY], _ = refused()
+    fake.now += 60
+    assert salary_call(workspace, fake, TITLE)["minutes_left"] == 15
+
+
+def test_retry_after_longer_than_the_step_is_honoured(workspace, cli, fake):
+    set_profile(workspace, cli)
+    fake.pages[SALARY], fake.headers[SALARY] = refused("7200")
+    assert salary_call(workspace, fake, TITLE)["minutes_left"] == 120
+
+
+def test_salary_cli_takes_repeated_titles(workspace, cli, monkeypatch):
+    set_profile(workspace, cli)
+    seen = {}
+
+    def fake_salary(paths, titles, **kwargs):
+        seen["titles"] = titles
+        return {"data": False, "tried": []}
+
+    monkeypatch.setattr(glassdoor, "salary", fake_salary)
+    code, out, _ = cli("providers", "salary", "glassdoor", "--title", "Jefe de Marca",
+                       "--title", "Brand Manager")
+    assert code == 0 and seen["titles"] == ["Jefe de Marca", "Brand Manager"], out

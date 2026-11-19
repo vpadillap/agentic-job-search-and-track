@@ -927,7 +927,10 @@ def build_parser() -> argparse.ArgumentParser:
     providers_salary = providers_sub.add_parser(
         "salary", help="read a provider's salary page for one title: an evidence draft")
     providers_salary.add_argument("provider")
-    providers_salary.add_argument("--title", required=True, help="the job title")
+    providers_salary.add_argument(
+        "--title", required=True, action="append",
+        help="the job title; repeat (up to 3) for variants tried in order, such as the "
+        "posting's own title and its usual English equivalent")
     providers_salary.add_argument(
         "--search-url", help="a search address the user pasted, when the provider file says so")
     providers_salary.set_defaults(run=cmd_providers_salary)

@@ -75,7 +75,8 @@ def read(provider_id: str, paths: Paths, run_id: int, title: str,
         paths, run_id, title, location, **{allowed[name]: value for name, value in given.items()})
 
 
-def salary(provider_id: str, paths: Paths, title: str, search_url: str | None = None) -> dict:
+def salary(provider_id: str, paths: Paths, title: str | list[str],
+           search_url: str | None = None) -> dict:
     module = SALARY_READERS.get(provider_id)
     if module is None:
         raise JobTrackerError(
