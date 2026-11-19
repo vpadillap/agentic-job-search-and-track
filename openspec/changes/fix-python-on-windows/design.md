@@ -19,8 +19,10 @@ checks.
 
 ### D1. Study first
 
-The install route and the hook's fallbacks are decided from the study's table
-(proposal). D2 and D3 are the expected shape.
+The install route and the hook's fallbacks are confirmed from a short study
+(proposal): documented behavior and simulated cases, since the owner's
+development machine already has a working global Python. D2 and D3 are the
+expected shape.
 
 ### D2. Interpreter order in the hook (expected)
 
