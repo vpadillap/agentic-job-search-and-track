@@ -75,6 +75,14 @@ COMMANDS: tuple[dict, ...] = (
         },
     },
     {
+        "id": "update", "example": "",
+        "aliases": {"es": "actualizar"}, "alias_examples": {"es": ""},
+        "description": {
+            "en": "Updates the project to the latest version; your data stays as it is",
+            "es": "Actualiza el proyecto a la última versión; tus datos no se tocan",
+        },
+    },
+    {
         "id": "panel", "example": "",
         "aliases": {}, "alias_examples": {},
         "description": {

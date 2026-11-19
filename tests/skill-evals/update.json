@@ -1,0 +1,13 @@
+[
+  {"query": "update the job tracker to the latest version", "should_trigger": true, "language": "en"},
+  {"query": "is there a new version of this project?", "should_trigger": true, "language": "en"},
+  {"query": "pull the latest changes from the repo and make sure everything still works", "should_trigger": true, "language": "en"},
+  {"query": "actualiza el proyecto", "should_trigger": true, "language": "es"},
+  {"query": "hay una versión nueva del job tracker?", "should_trigger": true, "language": "es"},
+  {"query": "update my resume with my new job", "should_trigger": false, "language": "en"},
+  {"query": "update the status of J0007 to interview", "should_trigger": false, "language": "en"},
+  {"query": "search for jobs posted since the last update", "should_trigger": false, "language": "en"},
+  {"query": "actualiza mis títulos objetivo", "should_trigger": false, "language": "es"},
+  {"query": "actualiza el panel con las vacantes nuevas", "should_trigger": false, "language": "es"},
+  {"query": "qué cambió en la última versión de mi CV?", "should_trigger": false, "language": "es"}
+]

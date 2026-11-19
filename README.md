@@ -85,12 +85,23 @@ loads the right command and asks only for what is missing.
 | `/analyze-results` | Reviews your results and proposes lessons | "how am I doing?", "why does nobody call me?" |
 | `/new-season` | Starts over with a new or updated profile; the previous campaign stays viewable | "I'm back after six months, let's start fresh" |
 | `/add-provider` | Adds a job site the project does not cover yet | "add Computrabajo as a job site" |
+| `/update` | Updates the project to the latest version and leaves it working; your data is not touched | "is there a new version?", "update the project" |
 | `/panel` | Starts or stops the local panel | "open the panel" |
 
 Spanish users also get Spanish command names (see the Spanish section). You
 can also tell the agent standing rules in plain words, such as "don't show me
 outsourcing consultancies" or "never change my resume layout". It stores them
 and follows them from then on.
+
+### Updating
+
+Ask "update the project" (or `/update`). The agent checks what is new, tells
+you, and with your yes pulls it and leaves everything working: packages,
+database (backed up before any upgrade), command names, and the tools of your
+job sites. Your `user-data/` folder is never touched. It never discards files
+you edited or forces anything; if a step fails, it tells you how to go back to
+the previous version. New job sites arrive switched off, and a change that
+can be applied to your earlier data is offered once.
 
 ## Job sites
 
@@ -268,11 +279,22 @@ el agente carga el comando correcto y solo te pregunta lo que falte.
 | `/analizar-resultados` | `/analyze-results` | Revisa tus resultados y propone lecciones | "¿cómo me está yendo?", "¿por qué no me llaman?" |
 | `/nueva-temporada` | `/new-season` | Empieza de nuevo con un perfil nuevo o actualizado; lo anterior queda consultable | "volví a buscar trabajo, empecemos de nuevo" |
 | `/agregar-proveedor` | `/add-provider` | Agrega un portal que el proyecto aún no cubre | "agrega Computrabajo como portal" |
+| `/actualizar` | `/update` | Actualiza el proyecto a la última versión y lo deja funcionando; tus datos no se tocan | "¿hay una versión nueva?", "actualiza el proyecto" |
 | `/panel` | `/panel` | Inicia o detiene el panel local | "abre el panel" |
 
 Los nombres en inglés funcionan siempre. También puedes darle reglas con tus
 palabras, como "no me muestres consultoras de outsourcing" o "nunca cambies el
 diseño de mi CV": las guarda y las respeta desde entonces.
+
+### Actualizar
+
+Pide "actualiza el proyecto" (o `/actualizar`). El agente revisa qué hay de
+nuevo, te lo cuenta y, con tu sí, lo trae y deja todo funcionando: paquetes,
+base de datos (con respaldo antes de cualquier cambio), nombres de comandos y
+herramientas de tus portales. Tu carpeta `user-data/` no se toca nunca. Nunca
+descarta archivos que editaste ni fuerza nada; si un paso falla, te dice cómo
+volver a la versión anterior. Los portales nuevos llegan apagados, y un cambio
+que se puede aplicar a tus datos anteriores se te ofrece una sola vez.
 
 ## Portales de empleo
 

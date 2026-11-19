@@ -34,6 +34,9 @@ Below, `jt` means `python scripts/jt.py`.
   complete, the user wants to revise something: ask what, run `jt setup redo
   <step>`, and do that step again. Completed steps are not repeated unless the
   user asks.
+- When the workspace exists, also run `jt offers list`: present each pending
+  one-time offer once, in its `text`, and record the answer with `jt offers
+  accept <id>` or `jt offers decline <id>` (see `/update`, step 5).
 
 ## When the request is in plain words
 

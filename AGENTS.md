@@ -16,7 +16,8 @@ shows and edits the results; every outcome feeds back into future advice.
 > tracking; document preparation (`/prepare-documents`, `/form-answers`); the
 > learning loop (`/analyze-results`); seasons (`/new-season`, export, full
 > reset); the panel with its four boards (`/panel`); private providers and
-> their contribution (`/add-provider`); and plain-language requests routed to
+> their contribution (`/add-provider`); self-update with one-time offers
+> (`/update`); and plain-language requests routed to
 > the skills (table below). `jobtracker context` lists which commands are
 > available.
 
@@ -49,6 +50,7 @@ command covers it, otherwise say what the closest command is.
 | to start over after a pause or in a new field ("empezar una nueva temporada") | `/new-season` |
 | to add a job site the project does not have yet ("agrega Computrabajo como portal") | `/add-provider` |
 | to open or close the panel ("abre el panel") | `/panel` |
+| to update the project to the latest version ("actualiza el proyecto") | `/update` |
 | to change a status, tag, or detail of an application ("pasa la J0007 a entrevista") | no skill: `jt applications …` |
 
 ## Non-negotiable rules
