@@ -7,6 +7,7 @@ access: http
 requires_login: false
 live_walk: false
 dependencies: []
+domains: [linkedin.com]
 max_results_per_query: 30
 min_seconds_between_requests: 5
 last_verified: 2026-11-17

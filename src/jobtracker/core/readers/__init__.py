@@ -22,11 +22,13 @@ READERS = {"linkedin": "jobtracker.core.readers.linkedin",
            "indeed": "jobtracker.core.readers.indeed",
            "glassdoor": "jobtracker.core.readers.glassdoor",
            "greenhouse": "jobtracker.core.readers.greenhouse",
-           "getonbrd": "jobtracker.core.readers.getonbrd"}
+           "getonbrd": "jobtracker.core.readers.getonbrd",
+           "agentic-search": "jobtracker.core.readers.agentic_search"}
 SALARY_READERS = {"glassdoor": "jobtracker.core.readers.glassdoor"}
 # Options a reader takes besides the title and location: CLI flag -> keyword argument.
 OPTIONS = {"glassdoor": {"search_url": "search_url_given"},
-           "greenhouse": {"found": "found", "place_words": "place_words"}}
+           "greenhouse": {"found": "found", "place_words": "place_words"},
+           "agentic-search": {"found": "found"}}
 
 
 def _private_reader(provider_id: str, paths: Paths) -> ModuleType | None:

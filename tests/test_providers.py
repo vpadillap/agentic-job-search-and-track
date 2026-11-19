@@ -278,3 +278,60 @@ def test_indeed_is_read_logged_out_in_headless_sessions():
     assert "posting pages" in access and "the user's Indeed account" in access  # forbidden
     assert "One page per search, so several searches per title" in access
     assert "blocks requests from the user's IP address" in " ".join(text.split())
+
+
+# ── domains ───────────────────────────────────────────────────────────────
+
+def test_domains_must_be_a_list_of_hosts(tmp_path, cli):
+    base = provider_text("delta")
+    with_domains = base.replace("dependencies: []", "dependencies: []\ndomains: {}")
+    for value in ('"delta.example"', "[not a host]", "[*.example]", "[https://delta.example]"):
+        problems = _problems(tmp_path, cli, "delta", with_domains.format(value))
+        assert any(p.startswith("field 'domains' has the wrong type") for p in problems), value
+    for value in ("[delta.example]", "[delta.example, delta.*]"):
+        assert _problems(tmp_path, cli, "delta", with_domains.format(value)) == [], value
+
+
+def test_a_provider_without_domains_is_valid_with_a_warning(tmp_path, cli):
+    path = tmp_path / "delta.md"
+    path.write_text(provider_text("delta"), encoding="utf-8")
+    _, out, _ = cli("providers", "validate", str(path))
+    assert out["valid"] is True
+    assert out["files"][0]["warnings"] and "domains" in out["files"][0]["warnings"][0]
+
+
+def test_hosts_match_domains_subdomains_and_country_domains():
+    from jobtracker.core.providers import host_matches
+
+    assert host_matches("delta.example", "delta.example")
+    assert host_matches("pe.delta.example", "delta.example")
+    assert not host_matches("notdelta.example", "delta.example")
+    assert host_matches("www.bolsa.com.pe", "bolsa.*")
+    assert host_matches("bolsa.cl", "bolsa.*")
+    assert not host_matches("bolsa.example.org", "bolsa.*")
+    assert not host_matches("mybolsa.com", "bolsa.*")
+
+
+def test_private_providers_domains_are_listed_and_owned(workspace, cli, providers_dir):
+    from jobtracker.core import providers
+
+    text = provider_text("bolsa").replace("dependencies: []",
+                                          "dependencies: []\ndomains: [bolsa.example]")
+    private = workspace.home / "providers"
+    private.mkdir(exist_ok=True)
+    (private / "bolsa.md").write_text(text, encoding="utf-8")
+    _, out, _ = cli("providers", "list")
+    listed = {p["id"]: p for p in out["providers"]}
+    assert listed["bolsa"]["domains"] == ["bolsa.example"]
+    assert listed["alpha"]["domains"] == []
+    assert providers.owner_of("pe.bolsa.example") == "bolsa"
+    assert providers.owner_of("pe.bolsa.example", besides="bolsa") is None
+
+
+def test_every_site_provider_in_the_repository_names_its_domains():
+    from jobtracker.core import providers
+
+    for item in providers.list_providers(TEMPLATE.parent):
+        if item["access"] != "web-search":
+            assert item["domains"], item["id"]
+            assert item["warnings"] == [], item["id"]

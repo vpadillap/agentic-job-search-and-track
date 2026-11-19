@@ -60,6 +60,10 @@ site's terms of use.
   turns it on.
 - **Pacing.** At least 5 seconds between requests for a reader (the shared
   `common` module enforces it); one call at a time per run.
+- **Domains.** The front matter lists the site's hosts in `domains` (for
+  example `[computrabajo.com]`, or `[example.*]` for every country domain of
+  the site). The agentic web search then never reads that site; without it,
+  `jt providers validate` warns.
 
 ## 4. Proved means
 

@@ -7,6 +7,7 @@ access: scrapling
 requires_login: false
 live_walk: false
 dependencies: [scrapling]
+domains: [glassdoor.com, glassdoor.*]
 max_results_per_query: 150
 min_seconds_between_requests: 5
 last_verified: 2026-11-18

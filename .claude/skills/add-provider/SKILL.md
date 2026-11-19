@@ -72,7 +72,9 @@ source (an API or embedded data), plain HTTP, a browser.
    stop conditions, pitfalls. Write it in English, like the repository's
    files. Look at a similar repository provider for the level of detail
    (`providers/indeed.md` for a browser reader, `providers/greenhouse.md` for
-   an API, `providers/agentic-search.md` for a recipe without reader).
+   an API, `providers/agentic-search.md` for discovery by web search). Fill
+   `domains` with the site's hosts, so the agentic web search stops
+   reading the site.
 2. A local site with two or more countries gets the `## Countries` table
    (`providers/README.md`).
 3. `jt providers validate <private_providers>/<id>.md` until it is valid.

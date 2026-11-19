@@ -7,6 +7,7 @@ access: chrome-extension         # chrome-extension | playwright | scrapling | h
 requires_login: false            # decided by this provider's own study
 live_walk: false                 # true = the user must be present; skip in unattended runs
 dependencies: []                 # e.g. [scrapling]; the agent installs it (jt providers install <id>)
+domains: [example.com]              # hosts this provider reads (subdomains included); example.* = every country domain
 max_results_per_query: 50
 min_seconds_between_requests: 3
 last_verified: 2026-01-01

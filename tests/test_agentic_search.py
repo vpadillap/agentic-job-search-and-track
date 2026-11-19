@@ -123,11 +123,16 @@ def test_provider_file():
     item = {p["id"]: p for p in providers.list_providers()}["agentic-search"]
     assert item["valid"], item["problems"]
     assert (item["access"], item["coverage"], item["requires_login"], item["dependencies"],
-            item["max_results_per_query"]) == ("web-search", "global", False, [], 40)
+            item["max_results_per_query"]) == ("web-search", "global", False, ["playwright"],
+                                               40)
+    assert item["min_seconds_between_requests"] >= 5 and item["domains"] == []
     text = (REPO / "providers" / "agentic-search.md").read_text(encoding="utf-8")
     for required in ("jt companies list --all", "jt companies record -", "jt companies exclude",
                      "different companies", "15 companies", "source_site",
-                     "publication date not shown", "Never use", "aggregators"):
+                     "publication date not shown", "Never use", "aggregators",
+                     "jt providers read agentic-search", "--found", "robots.txt",
+                     "12 searches", "Sector employers", "suggest_provider", "/add-provider",
+                     "never type", "No stealth"):
         assert required in text, required
     # Every other provider file's site is named as one this provider never reads.
     sites = text.split("### Sites you never read here")[1].split("## Search recipe")[0]

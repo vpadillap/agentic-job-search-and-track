@@ -42,6 +42,12 @@ REQUIRED_SECTIONS = (
 SALARY_SECTION = "Salary data"
 COUNTRIES_SECTION = "Countries"
 COUNTRY_CODE = re.compile(r"[A-Z]{2}")
+# `domains`: hosts a provider reads (each covers its subdomains), or `name.*` for
+# every country domain of a site (bumeran.* covers bumeran.com.pe and bumeran.com.ar).
+DOMAIN = re.compile(r"(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:[a-z]{2,}|\*)")
+COUNTRY_SUFFIX = re.compile(r"[a-z]{2,3}(?:\.[a-z]{2})?")
+NO_DOMAINS_WARNING = ("no 'domains': other providers (the agentic web search) cannot tell "
+                      "this provider's site apart; add its hosts, e.g. domains: [example.com]")
 REGIONS_MESSAGE = ("field 'regions' must be [global] or a list of two-letter country codes"
                    " such as [PE]")
 
@@ -179,6 +185,12 @@ def validate_text(text: str, file_name: str) -> list[str]:
         value = meta.get(field)
         if isinstance(value, int) and not isinstance(value, bool) and value < 0:
             problems.append(f"field '{field}' must not be negative")
+    if "domains" in meta and not (
+            isinstance(meta["domains"], list)
+            and all(isinstance(d, str) and DOMAIN.fullmatch(d) and "*" not in d[:-1]
+                    for d in meta["domains"])):
+        problems.append("field 'domains' has the wrong type: a list of host names such as"
+                        " [example.com] or [example.*]")
     coverage = _coverage(meta.get("regions"))
     if "regions" in meta and isinstance(meta["regions"], list) and coverage is None:
         problems.append(REGIONS_MESSAGE)
@@ -215,8 +227,44 @@ def _read_folder(directory: Path, origin: str) -> list[dict[str, object]]:
         problems = validate_text(text, path.name)
         meta["valid"] = not problems
         meta["problems"] = problems
+        meta["warnings"] = warnings(meta)
+        if not isinstance(meta.get("domains"), list) or problems:
+            meta["domains"] = []
         found.append(meta)
     return found
+
+
+def warnings(meta: dict[str, object]) -> list[str]:
+    """What is allowed but worth fixing: a site provider that names no domains."""
+    if meta.get("access") == "web-search" or "domains" in meta:
+        return []
+    return [NO_DOMAINS_WARNING]
+
+
+def host_matches(host: str, domain: str) -> bool:
+    """`host` is `domain` or one of its subdomains; `name.*` matches any country domain."""
+    host = (host or "").lower().rstrip(".")
+    domain = domain.lower()
+    if domain.endswith(".*"):
+        base = domain[:-2]
+        for start in range(len(host)):
+            if start and host[start - 1] != ".":
+                continue
+            rest = host[start:]
+            if rest.startswith(base + ".") and COUNTRY_SUFFIX.fullmatch(rest[len(base) + 1:]):
+                return True
+        return False
+    return host == domain or host.endswith("." + domain)
+
+
+def owner_of(host: str, *, besides: str | None = None) -> str | None:
+    """The provider (other than `besides`) whose `domains` cover `host`, if any."""
+    for item in list_providers():
+        if item["id"] == besides:
+            continue
+        if any(host_matches(host, str(d)) for d in item.get("domains") or []):
+            return str(item["id"])
+    return None
 
 
 def list_providers(directory: Path | None = None) -> list[dict[str, object]]:
@@ -243,11 +291,14 @@ def validate(directory: Path | None = None, file: Path | None = None) -> dict:
     if file is not None:
         if not file.is_file():
             raise JobTrackerError("not_found", f"There is no file at '{file}'")
-        problems = validate_text(file.read_text(encoding="utf-8"), file.name)
-        results = [{"file": file.name, "valid": not problems, "problems": problems}]
+        text = file.read_text(encoding="utf-8")
+        problems = validate_text(text, file.name)
+        results = [{"file": file.name, "valid": not problems, "problems": problems,
+                    "warnings": warnings(parse_front_matter(text))}]
     else:
         results = [
-            {"file": p["file"], "valid": p["valid"], "problems": p["problems"]}
+            {"file": p["file"], "valid": p["valid"], "problems": p["problems"],
+             "warnings": p["warnings"]}
             for p in list_providers(directory)
         ]
     return {"valid": all(r["valid"] for r in results), "files": results}
