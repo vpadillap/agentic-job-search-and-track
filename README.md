@@ -187,6 +187,7 @@ results.
 | The resume "could not be read" | It is probably a scanned image. Provide a text-based PDF or a DOCX, or let the agent read it visually and confirm the text with you. |
 | Spanish commands do not appear | Restart Claude Code in the project folder; if they are still missing, run `python scripts/jt.py skills sync`. |
 | A commit is blocked by the privacy guard | The message names the file. Personal data belongs in `user-data/`; remove it from the commit. |
+| The privacy guard says "no working Python 3.11+ found" | On Windows, `python` may be only the Microsoft Store's alias. Run `/setup`: it installs Python (with winget, not the Store) and creates the project's `.venv`, which the guard uses first. `python scripts/jt.py doctor` shows the `privacy_guard_python` check. |
 | "schema … is newer than this code" | Update the project (`git pull`). |
 | You want to start completely fresh | `/new-season` for a new campaign, or `python scripts/jt.py reset --confirm RESET` to move everything to `user-data/archive/` and start empty. |
 
@@ -344,6 +345,7 @@ reglas están en [`providers/CONTRIBUTING.md`](providers/CONTRIBUTING.md).
 | El CV "no se pudo leer" | Probablemente es una imagen escaneada. Usa un PDF con texto o un DOCX, o deja que el agente lo lea visualmente y confirma el texto. |
 | No aparecen los comandos en español | Reinicia Claude Code en la carpeta del proyecto; si siguen sin aparecer, ejecuta `python scripts/jt.py skills sync`. |
 | La protección de privacidad bloquea un commit | El mensaje indica el archivo. Los datos personales van en `user-data/`; quítalos del commit. |
+| La protección de privacidad dice "no working Python 3.11+ found" | En Windows, `python` puede ser solo el alias de la Microsoft Store. Ejecuta `/configurar`: instala Python (con winget, no desde la Store) y crea el `.venv` del proyecto, que la protección usa primero. `python scripts/jt.py doctor` muestra la revisión `privacy_guard_python`. |
 | Quieres empezar de cero | `/nueva-temporada` para una campaña nueva, o `python scripts/jt.py reset --confirm RESET` para mover todo a `user-data/archive/` y empezar vacío. |
 
 ## Contribuir

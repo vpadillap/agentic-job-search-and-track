@@ -66,13 +66,31 @@ guess, and never ask twice.
 ## 1. Environment (`environment`)
 
 1. Run `jt doctor`. It changes nothing.
-2. If the `python` check fails, stop: tell the user which Python version is
-   required and how to get it.
+2. If there is no working Python 3.11+ (the `python` check fails, or `python`
+   is not found, or it opens the Microsoft Store or answers "Python was not
+   found": that is only the Store's alias, not Python), install it. Tell the
+   user first, then:
+   - **Windows**: `winget install --id Python.Python.3.13 -e --scope user
+     --accept-package-agreements --accept-source-agreements`. Never install
+     from the Microsoft Store, and do not rely on `python` afterwards: an open
+     shell does not see the new PATH. Use the interpreter by its full path,
+     `%LOCALAPPDATA%\Programs\Python\Python313\python.exe` (check it with
+     `--version`), for every command until `.venv` exists. If `winget` is
+     missing, ask the user to install Python 3.13 from python.org with "Add
+     python.exe to PATH" checked, then use its full path the same way.
+   - **macOS**: `brew install python@3.13` when Homebrew exists; otherwise
+     ask the user to install it from python.org.
+   - **Linux**: the distribution's package (`python3`, `python3-venv`), with
+     the user's permission for `sudo`.
+   Then create the project's environment with that interpreter (step 3) and
+   use `.venv` from then on: `scripts/jt.py` and the privacy guard both pick it
+   first, so no PATH change is needed.
 3. If any `package:*` check fails, tell the user what will be installed (the
    packages listed in `pyproject.toml`, into a `.venv` folder inside this
    project, nothing system-wide) and ask to proceed. Then:
    - if `uv --version` works: `uv sync`
-   - otherwise: `python -m venv .venv`, then
+   - otherwise: `<python> -m venv .venv` (the interpreter of step 2, by its
+     full path when it was just installed), then
      `.venv/Scripts/python -m pip install -e .` (Windows) or
      `.venv/bin/python -m pip install -e .` (macOS/Linux)
 4. If the `privacy_guard` check is not `pass`, run

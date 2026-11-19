@@ -7,6 +7,7 @@ import sqlite3
 import subprocess
 import sys
 from contextlib import closing
+from pathlib import Path
 
 from . import db, providers
 from .paths import Paths, cli_name, repo_root
@@ -29,6 +30,32 @@ def _check(check_id: str, status: str, detail: str, fix: str | None = None) -> d
     if fix:
         result["fix"] = fix
     return result
+
+
+HOOK_CHECK = "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)"
+
+
+def _runs_python(command: list[str]) -> bool:
+    try:
+        return subprocess.run([*command, "-c", HOOK_CHECK], capture_output=True,
+                              timeout=20).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def hook_python(root: Path | None = None) -> str | None:
+    """The interpreter `.githooks/pre-commit` would use, in its order: the project's own
+    environment, then `py`, `python3`, `python` (only if it really runs Python 3.11+;
+    a Microsoft Store alias does not). None when there is none."""
+    root = root or repo_root()
+    for candidate in (root / ".venv" / "Scripts" / "python.exe", root / ".venv" / "bin" / "python"):
+        if candidate.is_file() and _runs_python([str(candidate)]):
+            return str(candidate)
+    for name in ("py", "python3", "python"):
+        found = shutil.which(name)
+        if found and _runs_python([found]):
+            return found
+    return None
 
 
 def _where(provider: dict) -> str:
@@ -93,6 +120,18 @@ def run(paths: Paths) -> dict:
         checks.append(_check(
             "privacy_guard", "warn", "pre-commit privacy guard is not enabled",
             "Run `git config core.hooksPath .githooks`.",
+        ))
+    guard_python = hook_python()
+    if guard_python:
+        checks.append(_check("privacy_guard_python", "pass",
+                             f"the privacy guard runs with {guard_python}"))
+    else:
+        checks.append(_check(
+            "privacy_guard_python", "fail",
+            "the privacy guard finds no working Python 3.11+ (on Windows, `python` may be the "
+            "Microsoft Store's alias), so every commit is blocked",
+            "Create the project's environment (/setup does it), or install Python 3.11+ and "
+            "open a new terminal.",
         ))
 
     if is_initialized(paths):
