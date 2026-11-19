@@ -8,27 +8,38 @@ earlier run or published outside the run's window. It SHALL stop all Indeed
 work for the rest of the run, record Indeed as blocked, and refuse later calls
 when the first page of a title is a block page, a security check that does
 not clear, or a sign-in page. It SHALL stop with reason `error` when the
-browser fails, and when the same title problem occurs on two titles in a row.
-A title problem (the first page of a title has no job-card data, or two
-chosen postings in a row in a title show no description panel) SHALL end
-only that title: the postings already read for it are kept, the reader's
-summary states the problem, Indeed is not recorded as failed, and the next
-title is read normally. A single posting without a description panel SHALL be
-listed as unreadable and the title SHALL continue. A title that read at least
-one results page cleanly resets the count; a title with no results does not.
-Postings already read are kept.
+browser fails. A search page with no results SHALL mean no postings for that
+title and nothing else. When the first page of a title has no job-card data,
+the reader SHALL load it once more after the pacing wait; if it still has
+none, or if two chosen postings in a row in a title show no description
+panel, that is a title problem: it SHALL end only that title, the postings
+already read for it are kept, the reader's summary states the problem, Indeed
+is not recorded as failed, and the next title is read normally. A single
+posting without a description panel SHALL be listed as unreadable and the
+title SHALL continue. Title problems SHALL NOT stop the provider, however
+many titles have them; when the same problem has ended every title that read
+anything in the run (two at least), the summary SHALL say the site may have
+changed. Postings already read are kept.
 
 #### Scenario: Blocked mid-run
 - **WHEN** Indeed shows a block page while the second title is searched
 - **THEN** no further Indeed page is opened in that run, Indeed is recorded as blocked, and the first title's postings remain
 
-#### Scenario: One title without card data
-- **WHEN** the first page of the second title has no job-card data and the first title was read cleanly
-- **THEN** the second title ends, the summary states the problem, Indeed is not recorded as failed, and the third title is read normally
+#### Scenario: Titles with no results
+- **WHEN** three titles in a row have no results
+- **THEN** each is reported with no postings, nothing is retried, no title problem is recorded, and the next title is read normally
 
-#### Scenario: The same problem on two titles in a row
-- **WHEN** the first pages of two consecutive titles both have no job-card data
-- **THEN** Indeed stops for the run with reason `error`, the detail names both titles, and later calls are refused
+#### Scenario: Card data back on retry
+- **WHEN** the first page of a title has no job-card data and the same page loaded again after the pacing wait has it
+- **THEN** the title is read normally and the summary counts one retry
+
+#### Scenario: One title without card data
+- **WHEN** the first page of a title has no job-card data, also on the retry
+- **THEN** that title ends, the summary states the problem, Indeed is not recorded as failed, and the next title is read normally
+
+#### Scenario: The same problem on every title
+- **WHEN** the first page of every title read so far has no job-card data after its retry
+- **THEN** every title is still tried, Indeed is not stopped, and from the second such title on the summary says the site may have changed
 
 #### Scenario: One posting without a description panel
 - **WHEN** one chosen posting shows no description panel and the next one does

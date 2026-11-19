@@ -2,24 +2,34 @@
 
 ### Requirement: Stop conditions per title
 The reader SHALL stop Get on Board for the rest of the run, record it as
-failed, and refuse later calls when the API answers 403 or 429 (reason
-`blocked`), when three requests in a row fail without any answer (reason
-`error`), or when the same title problem occurs on two titles in a row
-(reason `error`, naming both titles). Three answers in a row that are not
-the expected JSON, when at least one of them was an answer, SHALL be a title
+failed, and refuse later calls only when the API answers 403 or 429 (reason
+`blocked`) or when three requests in a row fail without any answer (reason
+`error`). A search with no results SHALL mean no postings for that title and
+nothing else. An answer that is not the expected JSON SHALL be requested once
+more after the pacing wait before it counts as unreadable. Three unreadable
+answers in a row, when at least one of them was an answer, SHALL be a title
 problem: it ends only that title, keeps the postings already read for it,
 states the problem in the reader's summary, and leaves Get on Board open for
-the next title. A title that read at least one results page cleanly resets
-the count; a title with no results does not. A search with no results is not
-an error.
+the next title. Title problems SHALL NOT stop the provider, however many
+titles have them; when the same problem has ended every title that read
+anything in the run (two at least), the summary SHALL say the site may have
+changed.
+
+#### Scenario: Titles with no results
+- **WHEN** three titles in a row have no results
+- **THEN** each is reported with no postings, nothing is retried, no title problem is recorded, and the next title is read normally
+
+#### Scenario: Answer readable on retry
+- **WHEN** an answer is not the expected JSON and the same request sent again after the pacing wait is
+- **THEN** the title is read normally and the summary counts one retry
 
 #### Scenario: Unreadable answers for one title
-- **WHEN** three answers in a row for the second title are not the expected JSON and the first title was read cleanly
-- **THEN** the second title ends with its postings so far, the summary states the problem, Get on Board is not recorded as failed, and the third title is read normally
+- **WHEN** three answers in a row for a title stay unreadable after their retries
+- **THEN** that title ends with its postings so far, the summary states the problem, Get on Board is not recorded as failed, and the next title is read normally
 
-#### Scenario: The same problem on two titles in a row
-- **WHEN** two consecutive titles each end with three unreadable answers in a row
-- **THEN** Get on Board stops for the run with reason `error`, the detail names both titles, and later calls are refused
+#### Scenario: The same problem on every title
+- **WHEN** every title read so far ends with unreadable answers
+- **THEN** every title is still tried, Get on Board is not stopped, and from the second such title on the summary says the site may have changed
 
 #### Scenario: Network down
 - **WHEN** three requests in a row fail without any answer

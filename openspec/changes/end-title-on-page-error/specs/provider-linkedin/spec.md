@@ -8,17 +8,20 @@ once per job id per run, only for postings published inside the run's window
 and not already stored by an earlier run. It SHALL stop all LinkedIn requests
 for the rest of the run on the first throttling response or redirect to a
 login or sign-up page, and record the provider as blocked with what happened.
-It SHALL also stop, with reason `error`, when the network fails, and when the
-same title problem occurs on two titles in a row. A title problem (a search
-page with job ids but no readable cards, or two postings in a row in a title
-whose page has no description) SHALL end only that title: the postings
-already read for it are kept, the reader's summary states the problem, the
-provider is not recorded as failed, and the next title is read normally. A
-title that read at least one results page cleanly resets the count; a title
-with no results does not. Postings already imported in that run are kept,
-and any later call of the reader in a run where LinkedIn stopped SHALL be
-refused. A call of the reader SHALL also be refused, without sending any
-request, while another call for the same run is still running.
+It SHALL also stop, with reason `error`, when the network fails. A search
+page with no results SHALL mean no postings for that title and nothing else.
+A search page with job ids but no readable cards SHALL be loaded once more
+after the pacing wait; if it is still unreadable, or if two postings in a row
+in a title have no description, that is a title problem: it SHALL end only
+that title, the postings already read for it are kept, the reader's summary
+states the problem, the provider is not recorded as failed, and the next
+title is read normally. Title problems SHALL NOT stop the provider, however
+many titles have them; when the same problem has ended every title that read
+anything in the run (two at least), the summary SHALL say the site may have
+changed. Postings already imported in that run are kept, and any later call
+of the reader in a run where LinkedIn stopped SHALL be refused. A call of the
+reader SHALL also be refused, without sending any request, while another call
+for the same run is still running.
 
 #### Scenario: Throttled mid-run
 - **WHEN** LinkedIn answers HTTP 429 while the second title is being searched
@@ -32,13 +35,21 @@ request, while another call for the same run is still running.
 - **WHEN** the reader is called for another title in a run where LinkedIn was blocked
 - **THEN** it sends no request and answers that LinkedIn is stopped for this run
 
-#### Scenario: One title's results page changed
-- **WHEN** the search page of the second title has job ids but no readable cards, and the first title was read cleanly
-- **THEN** the second title ends with its postings so far, the summary states the problem, LinkedIn is not recorded as failed, and the third title is read normally
+#### Scenario: Titles with no results
+- **WHEN** three titles in a row have no results
+- **THEN** each is reported with no postings, nothing is retried, no title problem is recorded, and the next title is read normally
 
-#### Scenario: The same problem on two titles in a row
-- **WHEN** the search pages of two consecutive titles both have job ids but no readable cards
-- **THEN** LinkedIn stops for the run with reason `error`, the detail names both titles, and later calls are refused
+#### Scenario: Unreadable results page read on retry
+- **WHEN** a title's search page has job ids but no readable cards, and the same page loaded again after the pacing wait has them
+- **THEN** the title is read normally and the summary counts one retry
+
+#### Scenario: One title's results page stays unreadable
+- **WHEN** a title's search page has job ids but no readable cards, also on the retry
+- **THEN** that title ends with its postings so far, the summary states the problem, LinkedIn is not recorded as failed, and the next title is read normally
+
+#### Scenario: The same problem on every title
+- **WHEN** the search pages of every title read so far stay unreadable after their retry
+- **THEN** every title is still tried, LinkedIn is not stopped, and from the second such title on the summary says the site may have changed
 
 #### Scenario: Network failure
 - **WHEN** a LinkedIn request fails at the network level
