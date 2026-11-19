@@ -293,11 +293,13 @@ def _read(paths: Paths, ctx: common.Context, title: str, location: str | None,
     summary: dict = {"provider": PROVIDER, "title": title, "requests": 0, "pages": 0,
                      "site_total": None, "variants": [], "ended_early": None, "cards": 0,
                      "outside_window": 0, "duplicate_in_run": 0, "already_seen": 0, "new": 0,
-                     "capped": False, "unreadable": [], "drafts_path": None, "stopped": None}
+                     "capped": False, "unreadable": [], "drafts_path": None, "stopped": None,
+                     "title_problem": None, "title_retries": 0}
     drafts: list[dict] = []
     seen: list[dict] = []
     in_title: set[str] = set()          # every job key met for this title
     browser: Browser | None = None
+    missing = 0                         # chosen postings without a panel in a row
 
     def pace() -> None:
         wait = state["last_request_at"] + ctx.min_seconds - clock()
@@ -370,15 +372,24 @@ def _read(paths: Paths, ctx: common.Context, title: str, location: str | None,
                     raise common.Stop("blocked", f"{why} on {url}")
                 return page
 
-            page = common.attempt(once, state, min_seconds=ctx.min_seconds, clock=clock,
-                                  sleep=sleep, rand=rand)
+            def load(once: Callable[[], SearchPage] = once, url: str = url,
+                     first: bool = number == 0) -> SearchPage:
+                """The page; on the first variant, a page without job-card data is a
+                title problem (retried once)."""
+                page = common.attempt(once, state, min_seconds=ctx.min_seconds, clock=clock,
+                                      sleep=sleep, rand=rand)
+                if first and parse_cards(page.html) is None:
+                    raise common.TitleProblem(
+                        "no_card_data", f"no job-card data on {url}: the page may have "
+                        "changed")
+                return page
+
+            page = common.retry_title(load, summary)
             blocked = _blocked(page.status, page.title)
             if blocked:   # later variants only: not a block, the title ends here
                 summary["ended_early"] = f"{name}: {blocked[1]}"
                 break
-            if parse_cards(page.html) is None:
-                if number == 0:
-                    raise common.Stop("error", f"no job-card data on {url}: the page changed")
+            if parse_cards(page.html) is None:   # later variants only
                 summary["ended_early"] = f"{name}: no job-card data"
                 break
             if summary["site_total"] is None:
@@ -389,8 +400,14 @@ def _read(paths: Paths, ctx: common.Context, title: str, location: str | None,
                 text = page.panels.get(job_id)
                 if not text or not text.strip():
                     summary["unreadable"].append(job_id)
-                    raise common.Stop("error", f"no description panel for {job_id} on {url}: "
-                                      "the page changed")
+                    missing += 1
+                    if missing >= common.POSTING_PROBLEMS_IN_A_ROW:
+                        raise common.TitleProblem(
+                            "no_description", f"{missing} postings in a row without a "
+                            f"description panel (last {job_id} on {url}): the page may have "
+                            "changed")
+                    continue
+                missing = 0
                 description = plain_text(text)
                 (ctx.folder / f"{PROVIDER}-{state['requests']}-{job_id}.txt").write_text(
                     description, encoding="utf-8")
@@ -403,6 +420,8 @@ def _read(paths: Paths, ctx: common.Context, title: str, location: str | None,
             total = summary["site_total"]
             if total is not None and len(in_title) >= total:
                 break
+    except common.TitleProblem as problem:
+        common.title_problem(summary, problem)
     except common.Stop as stop:
         summary["stopped"] = common.stopped(stop)
     finally:

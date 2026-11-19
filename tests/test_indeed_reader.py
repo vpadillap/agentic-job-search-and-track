@@ -327,7 +327,6 @@ def test_a_security_check_that_stays_is_a_cool_down(workspace, run, fake):
     ((403, "<html></html>", "Blocked - Indeed.com"), "blocked"),
     ((200, "<html></html>", "Attention Required! | Cloudflare"), "blocked"),
     ((200, "<html></html>", "Iniciar sesión | Cuentas Indeed"), "blocked"),
-    ((200, "<html><body>nothing</body></html>", "Indeed"), "error"),
 ])
 def test_stops_on_the_first_page(workspace, run, fake, answer, reason):
     fake.pages["relevance"] = answer
@@ -343,13 +342,47 @@ def test_stops_on_the_first_page(workspace, run, fake, answer, reason):
     assert refused.value.code == "provider_stopped" and len(fake.actions) == before
 
 
-def test_a_missing_panel_keeps_what_was_read(workspace, run, fake):
+NO_CARD_DATA = (200, "<html><body>nothing</body></html>", "Indeed")
+
+
+def test_a_first_page_without_card_data_is_retried_once(workspace, run, fake):
+    fake.pages["relevance"] = [NO_CARD_DATA, page(card("r1"))]
+    summary = read(workspace, run, fake)
+    assert summary["title_retries"] == 1 and summary["title_problem"] is None
+    assert summary["new"] == 1
+
+
+def test_a_first_page_without_card_data_ends_only_the_title(workspace, run, fake):
+    fake.pages["relevance"] = NO_CARD_DATA
+    summary = read(workspace, run, fake)
+    assert summary["stopped"] is None and summary["title_retries"] == 1
+    assert summary["title_problem"]["kind"] == "no_card_data"
+    assert fake.searched() == ["relevance", "relevance"] and fake.closed == 1
+    with db.session(workspace) as conn:
+        provider = next(p for p in search.summary(conn, run["run_id"])["providers"]
+                        if p["id"] == "indeed")
+    assert provider["status"] == "pending"
+    second = read(workspace, run, fake, title="Analytics Engineer")   # still read
+    assert second["stopped"] is None and second["site_may_have_changed"] is True
+
+
+def test_one_missing_panel_is_unreadable(workspace, run, fake):
     fake.pages["relevance"] = page(card("e1"), card("e2"), card("e3"))
     fake.panels["e2"] = None
     summary = read(workspace, run, fake)
-    assert summary["stopped"]["reason"] == "error"
-    assert [d["external_id"] for d in drafts_of(summary)] == ["e1"]
+    assert summary["stopped"] is None and summary["title_problem"] is None
+    assert summary["unreadable"] == ["e2"]
+    assert [d["external_id"] for d in drafts_of(summary)] == ["e1", "e3"]
     assert fake.closed == 1
+
+
+def test_two_missing_panels_in_a_row_end_only_the_title(workspace, run, fake):
+    fake.pages["relevance"] = page(card("e1"), card("e2"), card("e3"), card("e4"))
+    fake.panels["e2"] = fake.panels["e3"] = None
+    summary = read(workspace, run, fake)
+    assert summary["stopped"] is None
+    assert summary["title_problem"]["kind"] == "no_description"
+    assert [d["external_id"] for d in drafts_of(summary)] == ["e1"]
 
 
 def test_a_browser_failure_is_an_error(workspace, run, fake):

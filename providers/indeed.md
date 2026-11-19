@@ -88,8 +88,20 @@ second call while one is running: `reader_busy`).
      recorded it as failed and refuses further calls in this run; go on with
      the next provider.
 
+If `title_problem` is set (`stopped` is empty), the reader ended only that
+title: a page was not what it expects, also when it loaded it once more.
+Import the drafts it wrote, go on with the next title, and remember the title
+and `title_problem.kind` for the report. Indeed is not stopped: every title
+is tried. When `site_may_have_changed` is true, the same problem ended every
+title that read anything in this run: say in the report that Indeed has
+probably changed, so the owner can fix its reader. A title with no results
+is never a problem.
+
 When every title is done and Indeed did not stop, record
-`jt run provider <run_id> indeed --status ok`.
+`jt run provider <run_id> indeed --status ok`, adding
+`--detail "<n> titles ended early: <title> (<kind>), …"` when titles ended
+with a title problem (and "the site may have changed" when the last summary
+said so).
 
 ### What the reader does
 
@@ -214,8 +226,6 @@ the run, and refuses later calls in that run (`provider_stopped`) when:
 - the **first** page of a title answers 403, or its title is a block page
   ("Blocked - Indeed.com", "Attention Required!"), or a sign-in page
   appears instead of results: reason `blocked`;
-- a search page has no job-card data, or a clicked posting shows no
-  description: reason `error`, with what is missing;
 - the browser itself fails: reason `error`.
 
 On a later variant of a title, a block, throttle, or sign-in page only ends
@@ -223,6 +233,19 @@ that title.
 
 A search page whose job-card data has no postings simply has no results for
 that title.
+
+**Title problems** end only that title, never the provider: the reader
+keeps what the title read, sets `title_problem` (`kind`, `detail`), and the
+next title is read normally. A search page that is not what the reader
+expects is loaded once more (after the usual wait) before it counts. They
+are:
+
+- the first page of a title has no job-card data: `no_card_data`;
+- two clicked postings in a row show no description: `no_description`.
+
+When the same kind has ended every title that read anything in the run (two
+at least), the summary sets `site_may_have_changed`. One posting that cannot
+be read is listed in `unreadable` and the title goes on.
 
 ## Known pitfalls
 

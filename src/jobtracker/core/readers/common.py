@@ -116,6 +116,55 @@ def stopped(stop: Stop) -> dict:
     return {"reason": stop.reason, "detail": stop.detail, "retry_after": stop.retry_after}
 
 
+# ── title problems: one title's page is not what the reader expects ──
+
+TITLE_RETRIES = 1                 # a title's page is loaded once more before giving up
+POSTING_PROBLEMS_IN_A_ROW = 2     # postings without data in a row that end the title
+
+
+class TitleProblem(Exception):
+    """A page of this title is not what the reader expects: the title ends, the provider
+    goes on with the next title. Never a reason to stop the provider."""
+
+    def __init__(self, kind: str, detail: str) -> None:
+        super().__init__(detail)
+        self.kind, self.detail = kind, detail
+
+
+def retry_title(step: Callable[[], T], summary: dict) -> T:
+    """Run a title's page step (load and check, paced by the reader), once more when it
+    raises TitleProblem. Stops and throttles pass through untouched."""
+    for number in range(TITLE_RETRIES + 1):
+        try:
+            return step()
+        except TitleProblem:
+            if number == TITLE_RETRIES:
+                raise
+            summary["title_retries"] = summary.get("title_retries", 0) + 1
+    raise AssertionError("unreachable")  # pragma: no cover
+
+
+def title_problem(summary: dict, problem: TitleProblem) -> None:
+    """The summary's `title_problem` entry: the title ended early, the provider is open."""
+    summary["title_problem"] = {"kind": problem.kind, "detail": problem.detail}
+
+
+def _note_title(state: dict, summary: dict) -> None:
+    """Remember how a finished title went, and say when the same problem ended every
+    title that read anything (two at least): the site may have changed. Titles with no
+    results are left out: they are evidence of nothing."""
+    outcomes = state.setdefault("title_outcomes", [])
+    problem = summary.get("title_problem")
+    if problem:
+        outcomes.append({"title": summary.get("title"), "problem": problem["kind"],
+                         "detail": problem["detail"]})
+    elif summary.get("cards"):
+        outcomes.append({"title": summary.get("title"), "problem": None})
+    kinds = {o["problem"] for o in outcomes}
+    summary["site_may_have_changed"] = bool(problem) and len(outcomes) >= 2 \
+        and kinds == {problem["kind"]}
+
+
 @dataclass
 class Context:
     provider: str
@@ -177,7 +226,7 @@ def context(conn, paths: Paths, run_id: int, provider: str, label: str,
 def load_state(ctx: Context) -> dict:
     path = ctx.folder / f"{ctx.provider}-state.json"
     state: dict = {"last_request_at": 0.0, "requests": 0, "job_ids": [], "drafts": [],
-                   "titles": {}, "retries": 0, "throttles": []}
+                   "titles": {}, "retries": 0, "throttles": [], "title_outcomes": []}
     if path.is_file():
         stored = json.loads(path.read_text(encoding="utf-8"))
         for old, new in (("last_page_at", "last_request_at"), ("pages", "requests"),
@@ -209,7 +258,8 @@ def already_done(ctx: Context, key: str) -> bool:
 def done_summary(provider: str, title: str) -> dict:
     """A title completed earlier in the run: nothing is requested again."""
     return {"provider": provider, "title": title, "already_done": True, "requests": 0,
-            "new": 0, "already_seen": 0, "drafts_path": None, "stopped": None}
+            "new": 0, "already_seen": 0, "drafts_path": None, "stopped": None,
+            "title_problem": None, "site_may_have_changed": False, "title_retries": 0}
 
 
 def lock(ctx: Context, label: str, now: float) -> Path:
@@ -260,9 +310,15 @@ def seen_records(conn, provider: str, cards: list[dict]) -> list[dict]:
 def finish(paths: Paths, ctx: Context, state: dict, summary: dict, drafts: list[dict],
            seen: list[dict], key: str | None = None, now: float | None = None) -> dict:
     """Write the drafts, record postings already stored as seen, mark the title done, and
-    record a stop: a cool-down for a throttle, a failure for anything else."""
-    if key is not None and not summary["stopped"]:
-        progress(state, key)["done"] = True
+    record a stop: a cool-down for a throttle, a failure for anything else. A title
+    problem is not a stop: the title is done and the provider stays open."""
+    summary.setdefault("title_problem", None)
+    summary.setdefault("title_retries", 0)
+    summary.setdefault("site_may_have_changed", False)
+    if not summary["stopped"]:
+        _note_title(state, summary)
+        if key is not None:
+            progress(state, key)["done"] = True
     if drafts:
         name = f"{ctx.provider}-drafts-{len(state['drafts']) + 1}.json"
         (ctx.folder / name).write_text(json.dumps(drafts, ensure_ascii=False, indent=1),

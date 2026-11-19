@@ -238,19 +238,36 @@ def _read(paths: Paths, ctx: common.Context, title: str, links: list[object],
                      "boards_gone": [], "ignored_links": ignored, "cards": 0,
                      "outside_window": 0, "other_country": 0, "other_title": 0,
                      "duplicate_in_run": 0, "already_seen": 0, "new": 0, "capped": False,
-                     "drafts_path": None, "stopped": None}
+                     "drafts_path": None, "stopped": None, "title_problem": None,
+                     "title_retries": 0}
     drafts: list[dict] = []
     seen: list[dict] = []
     today = date.today().isoformat()
-    failures = 0
+    failures: list[bool] = []   # unreadable answers in a row: whether each was an answer
 
     def fetch(url: str, capture: str) -> dict | None:
-        """One API request, paced, saved, and repeated after a throttle; None for a 404."""
-        return common.attempt(lambda: fetch_once(url, capture), state,
-                              min_seconds=ctx.min_seconds, clock=clock, sleep=sleep, rand=rand)
+        """One API request, paced, saved, repeated after a throttle, and once more when
+        its answer is unreadable; None for a 404 or an answer that stays unreadable.
+        Three in a row end the title, or stop Greenhouse when none of them was an answer
+        (the network)."""
+        try:
+            data = common.retry_title(
+                lambda: common.attempt(lambda: fetch_once(url, capture), state,
+                                       min_seconds=ctx.min_seconds, clock=clock, sleep=sleep,
+                                       rand=rand), summary)
+        except common.TitleProblem as problem:
+            failures.append(problem.kind == "unreadable_answer")
+            if len(failures) < FAILURES_IN_A_ROW:
+                return None
+            if not any(failures):
+                raise common.Stop("error", f"{FAILURES_IN_A_ROW} requests in a row got no "
+                                  f"answer (last: {problem.detail})") from None
+            raise common.TitleProblem("unreadable_answers", f"{FAILURES_IN_A_ROW} unreadable "
+                                      f"answers in a row (last: {problem.detail})") from None
+        failures.clear()
+        return data
 
     def fetch_once(url: str, capture: str) -> dict | None:
-        nonlocal failures
         wait = state["last_request_at"] + ctx.min_seconds - clock()
         if state["last_request_at"] and wait > 0:
             sleep(wait)
@@ -276,12 +293,8 @@ def _read(paths: Paths, ctx: common.Context, title: str, links: list[object],
             if status != 200 or not isinstance(data, dict):
                 raise ValueError(f"status {status}")
         except ValueError as error:
-            failures += 1
-            if failures >= FAILURES_IN_A_ROW:
-                raise common.Stop("error", f"{FAILURES_IN_A_ROW} unreadable answers in a row "
-                                  f"(last {url}: {error})") from error
-            return None
-        failures = 0
+            raise common.TitleProblem("unreadable_answer" if status is not None
+                                      else "no_answer", f"{url}: {error}") from error
         return data
 
     def remember(board: str, company: str | None, via: str, matched: bool = True) -> None:
@@ -372,6 +385,8 @@ def _read(paths: Paths, ctx: common.Context, title: str, links: list[object],
                                None)
                 remember(board, company, "web search" if board in found_boards else "remembered",
                          matched)
+    except common.TitleProblem as problem:
+        common.title_problem(summary, problem)
     except common.Stop as stop:
         summary["stopped"] = common.stopped(stop)
     finally:

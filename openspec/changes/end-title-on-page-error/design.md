@@ -82,7 +82,7 @@ When a results page (or API search answer) lacks the data the reader
 expects, the reader waits the provider's pacing (`min_seconds`, or the
 retry change's throttle once it exists) and loads the same page once more in
 the same call. If the retry reads cleanly the title continues as if nothing
-happened (the summary counts `retries`). If not, it raises
+happened (the summary counts `title_retries`). If not, it raises
 `common.TitleProblem(kind, detail)`, which `_read` catches next to `Stop`.
 
 One retry, not more: a page that is wrong twice in a row, 5+ seconds apart,
@@ -91,10 +91,11 @@ request on a site that may be watching volume.
 
 ### D4. Title problems never stop the provider
 
-`common.title_problem(ctx, state, summary, kind, detail)` records
-`{"title", "kind", "detail"}` in `state["title_problems"]` (the run's
-`<provider>-state.json`) and sets `summary["title_problem"]`. It never
-raises `Stop`. The next call reads the next title normally, whatever came
+`common.title_problem(summary, problem)` sets `summary["title_problem"]`;
+when the title finishes, `common.finish` records `{"title", "problem",
+"detail"}` in `state["title_outcomes"]` (the run's `<provider>-state.json`),
+with `problem: null` for a title that read results cleanly and nothing for a
+title with no results. Nothing here raises `Stop`. The next call reads the next title normally, whatever came
 before: three titles in a row with nothing are three titles with nothing.
 
 `site_may_have_changed` is set when this title and every earlier title of
@@ -152,10 +153,17 @@ the title's remaining boards and postings, and the board memory
 
 ### D8. Where the code goes
 
-- `common.py`: `TitleProblem(kind, detail)`, `title_problem(...)`, the
-  `title_problems` state default in `load_state`, and
-  `site_may_have_changed` computed from that list. `Stop` and the stop
-  recording in `finish` are unchanged.
+- `common.py`: `TitleProblem(kind, detail)`, `retry_title(step, summary)`
+  (runs a page step once more on a `TitleProblem`; stops and throttles pass
+  through, and the throttle policy's `attempt` runs inside the step),
+  `title_problem(...)`, the `title_outcomes` state default in `load_state`,
+  and `site_may_have_changed` computed from that list in `finish`. `Stop` and
+  the stop recording in `finish` are unchanged.
+- Get on Board and Greenhouse: an unreadable answer raises `TitleProblem`
+  inside the request (`unreadable_answer`, or `no_answer` without a status);
+  `fetch` retries it once, counts it, and at three in a row raises
+  `TitleProblem("unreadable_answers")`, or `Stop("error")` when none of the
+  three had an answer.
 - Bumeran: rebased on the retry change, which moves it onto `common`; it
   then uses the common state and `Stop`.
 - Each reader wraps its search-page load in a small "load, check, retry

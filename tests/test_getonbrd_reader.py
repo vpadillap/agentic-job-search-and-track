@@ -230,11 +230,44 @@ def test_a_completed_title_is_not_searched_again(workspace, run, fake):
     assert again["already_done"] is True and len(fake.urls) == before
 
 
+MAINTENANCE = (200, "<html>maintenance</html>")
+
+
+def test_an_unreadable_answer_is_retried_once(workspace, run, fake):
+    fake.overrides = [MAINTENANCE]
+    fake.country = [[job("g0")]]
+    summary = read(workspace, run, fake)
+    assert summary["title_retries"] == 1 and summary["title_problem"] is None
+    assert summary["new"] == 1
+
+
 def test_an_unreadable_answer_ends_that_search_only(workspace, run, fake):
-    fake.overrides = [(200, "<html>maintenance</html>")]
+    fake.overrides = [MAINTENANCE, MAINTENANCE]
     fake.remote = [[job("g1", remote="fully_remote", countries=["Remote"])]]
     summary = read(workspace, run, fake)            # the country search fails, remote works
     assert summary["stopped"] is None and summary["new"] == 1
+    assert summary["title_problem"] is None
+
+
+def test_three_unreadable_answers_end_only_the_title(workspace, run, fake, monkeypatch):
+    monkeypatch.setattr(getonbrd, "FAILURES_IN_A_ROW", 2)   # two searches per title
+    fake.overrides = [MAINTENANCE] * 4
+    summary = read(workspace, run, fake)
+    assert summary["stopped"] is None
+    assert summary["title_problem"]["kind"] == "unreadable_answers"
+    second = read(workspace, run, fake, title="Analytics Engineer")
+    assert second["stopped"] is None and second["title_problem"] is None
+
+
+def test_no_answer_stops(workspace, run, fake, monkeypatch):
+    monkeypatch.setattr(getonbrd, "FAILURES_IN_A_ROW", 2)
+
+    def down(url: str):
+        raise OSError("connection refused")
+
+    summary = getonbrd.read(workspace, run["run_id"], TITLE, get=down, clock=fake.clock,
+                            sleep=fake.sleep)
+    assert summary["stopped"]["reason"] == "error" and "no answer" in summary["stopped"]["detail"]
 
 
 def test_no_results(workspace, run, fake):

@@ -136,7 +136,11 @@ For each provider id in `to_search`, in order:
 6. If the site errors, blocks you, or stops matching its recipe, record
    `jt run provider <run_id> <id> --status failed --reason error|blocked
    --detail "<what happened>"` and continue with the next provider. One
-   provider failing never stops the run.
+   provider failing never stops the run. A reader that answers
+   `title_problem` (with `stopped` empty) has not failed: only that title
+   ended. Go on with its next title, and name the titles that ended early in
+   the report, saying the site has probably changed when the summary sets
+   `site_may_have_changed`. Titles with no results are not problems.
 7. A reader that answers `stopped.reason: throttled` (the site asked to slow
    down) has not failed: it is cooling down until `resume_after`, and any
    call before then is refused with `provider_cooling` without contacting

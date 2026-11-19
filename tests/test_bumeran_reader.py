@@ -223,12 +223,15 @@ def test_a_short_page_is_the_last(workspace, run, fake):
     assert [u for u in fake.opened if "busqueda" in u] == [SEARCH_7]
 
 
-def test_page_two_that_is_not_page_two_stops(workspace, run, fake):
+def test_page_two_that_is_not_page_two_ends_only_the_title(workspace, run, fake):
     fake.searches[SEARCH_7] = results(*[entry(940000 + i) for i in range(20)], total=60)
     fake.searches[SEARCH_7 + "?page=2"] = results(entry(950001), total=60, number=0)
     summary = read(workspace, run, fake)
-    assert summary["stopped"]["reason"] == "error"
-    assert run_status(workspace, run)["status"] == "failed"
+    assert summary["stopped"] is None and summary["title_retries"] == 1
+    assert summary["title_problem"]["kind"] == "paging"
+    assert summary["new"] == 20                          # page 1 is kept
+    assert fake.opened.count(SEARCH_7 + "?page=2") == 2
+    assert run_status(workspace, run)["status"] == "pending"
 
 
 def test_no_results(workspace, run, fake):
@@ -348,11 +351,48 @@ def test_a_block_mid_title_keeps_what_was_read(workspace, run, fake):
     assert [d["external_id"] for d in drafts_of(summary)] == ["990001"]
 
 
-def test_missing_site_data_stops_with_an_error(workspace, run, fake):
-    fake.overrides[SEARCH_7] = bumeran.Page(200, "Empleos | Bumeran Perú", SEARCH_7, [])
+NO_DATA = bumeran.Page(200, "Empleos | Bumeran Perú", SEARCH_7, [])
+
+
+def test_missing_site_data_is_retried_once(workspace, run, fake):
+    fake.searches[SEARCH_7] = results(entry(931001), total=1)
+    fake.overrides[SEARCH_7] = [NO_DATA, fake.open(SEARCH_7, ())]
+    fake.opened.clear()
     summary = read(workspace, run, fake)
-    assert summary["stopped"]["reason"] == "error"
-    assert "sent no readable data" in summary["stopped"]["detail"]
+    assert summary["title_retries"] == 1 and summary["title_problem"] is None
+    assert summary["new"] == 1
+
+
+def test_missing_site_data_ends_only_the_title(workspace, run, fake):
+    fake.overrides[SEARCH_7] = NO_DATA
+    summary = read(workspace, run, fake)
+    assert summary["stopped"] is None
+    assert summary["title_problem"]["kind"] == "no_search_data"
+    assert "sent no readable data" in summary["title_problem"]["detail"]
+    assert run_status(workspace, run)["status"] == "pending"
+    assert read(workspace, run, fake, title="Analytics Engineer")["stopped"] is None
+
+
+def test_results_without_an_id_are_skipped(workspace, run, fake):
+    broken = entry(932001)
+    del broken["id"]
+    fake.searches[SEARCH_7] = results(broken, entry(932002), total=2)
+    summary = read(workspace, run, fake)
+    assert summary["title_problem"] is None and summary["without_id"] == 1
+    assert summary["new"] == 1
+
+
+def test_postings_without_data(workspace, run, fake):
+    fake.searches[SEARCH_7] = results(entry(933001), entry(933002), entry(933003),
+                                      entry(933004), total=4)
+    for posting_id in ("933001", "933003", "933004"):
+        url = f"{bumeran.BASE_URL}/empleos/{posting_id}.html"
+        fake.overrides[url] = bumeran.Page(200, "Fictional posting | Bumeran Perú", url, [])
+    summary = read(workspace, run, fake)
+    assert summary["stopped"] is None
+    assert [u["external_id"] for u in summary["unreadable"]] == ["933001", "933003", "933004"]
+    assert summary["title_problem"]["kind"] == "no_posting_data"
+    assert summary["new"] == 1
 
 
 def test_a_closed_posting_is_listed_not_drafted(workspace, run, fake):

@@ -2,9 +2,9 @@
 
 ### Requirement: Stop conditions per title
 The reader SHALL stop Get on Board for the rest of the run, record it as
-failed, and refuse later calls only when the API answers 403 or 429 (reason
+failed, and refuse later calls only when the API answers 403 (reason
 `blocked`) or when three requests in a row fail without any answer (reason
-`error`). A search with no results SHALL mean no postings for that title and
+`error`); HTTP 429 SHALL follow the provider-throttling policy. A search with no results SHALL mean no postings for that title and
 nothing else. An answer that is not the expected JSON SHALL be requested once
 more after the pacing wait before it counts as unreadable. Three unreadable
 answers in a row, when at least one of them was an answer, SHALL be a title
@@ -36,5 +36,5 @@ changed.
 - **THEN** Get on Board stops for the run with reason `error`
 
 #### Scenario: API refuses requests
-- **WHEN** the API answers 403 or 429
+- **WHEN** the API answers 403
 - **THEN** Get on Board is recorded as blocked for the run and the postings already read are kept

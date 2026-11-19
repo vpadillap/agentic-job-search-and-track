@@ -107,7 +107,8 @@ a later variant only ends the title.
 ## Impact
 
 - Code: `src/jobtracker/core/readers/common.py` (a `TitleProblem` exception,
-  a `title_problem` helper, a `title_problems` state key), `linkedin.py`,
+  `retry_title` and `title_problem` helpers, a `title_outcomes` state key),
+  `linkedin.py`,
   `indeed.py`, `bumeran.py`, `getonbrd.py`, `greenhouse.py`. No database or
   CLI change: `jt run provider … --status ok --detail` already exists.
 - Provider files: `providers/linkedin.md`, `indeed.md`, `bumeran.md`,

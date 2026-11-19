@@ -267,13 +267,23 @@ def _check(page: Page, url: str) -> None:
                 response.get("retry_after"), time.time()))
 
 
-def _data(page: Page, part: str, url: str) -> dict:
+def _found(page: Page, part: str) -> dict | None:
+    """The site data a page received from `part`; None when none arrived."""
     for response in page.responses:
         if part in response["url"] and response["status"] == 200 \
                 and isinstance(response["body"], dict):
             return response["body"]
-    raise _Stop("error", f"{url} sent no readable data ({part}) within "
-                f"{int(RESPONSE_TIMEOUT)} s: the site may have changed")
+    return None
+
+
+def _data(page: Page, part: str, url: str) -> dict:
+    """The site data of a search page; missing data is a title problem."""
+    found = _found(page, part)
+    if found is None:
+        raise common.TitleProblem(
+            "no_search_data", f"{url} sent no readable data ({part}) within "
+            f"{int(RESPONSE_TIMEOUT)} s: the site may have changed")
+    return found
 
 
 # ── records ───────────────────────────────────────────────────────────────
@@ -348,8 +358,9 @@ def _read(paths: Paths, ctx: common.Context, title: str, open_page: Open,
     max_pages = max(1, ctx.max_results // PAGE_SIZE)
     summary: dict = {"provider": PROVIDER, "title": title, "requests": 0, "pages": 0,
                      "cards": 0, "outside_window": 0, "duplicate_in_run": 0, "already_seen": 0,
-                     "new": 0, "unreadable": [], "unknown_questions": 0, "drafts_path": None,
-                     "stopped": None}
+                     "new": 0, "unreadable": [], "unknown_questions": 0, "without_id": 0,
+                     "drafts_path": None, "stopped": None, "title_problem": None,
+                     "title_retries": 0}
     drafts: list[dict] = []
     seen: list[dict] = []
 
@@ -378,18 +389,32 @@ def _read(paths: Paths, ctx: common.Context, title: str, open_page: Open,
         handled.add(posting_id)
         state["job_ids"].append(posting_id)
 
+    def search_page(url: str, number: int) -> tuple[dict, list[dict]]:
+        """One results page and its results with an id; anything else is a title
+        problem (retried once)."""
+        found = _data(load(url, SEARCH_API), SEARCH_API, url)
+        entries = found.get("content")
+        if not isinstance(entries, list):
+            raise common.TitleProblem("no_search_data", f"{url} sent no result list: the "
+                                      "site may have changed")
+        if found.get("number") not in (None, number - 1):
+            raise common.TitleProblem("paging", f"{url} did not give results page {number}: "
+                                      "the site may have changed")
+        good = [e for e in entries if isinstance(e, dict) and "id" in e]
+        if entries and not good:
+            raise common.TitleProblem("no_search_data", f"no result with an id on {url}: the "
+                                      "site may have changed")
+        summary["without_id"] += len(entries) - len(good)
+        return found, good
+
+    missing = 0   # postings without data in a row
     try:
         for number in range(done_pages + 1, max_pages + 1):
             url = search_url(title, ctx.days, number)
-            found = _data(load(url, SEARCH_API), SEARCH_API, url)
-            entries = found.get("content")
-            if not isinstance(entries, list) or found.get("number") not in (None, number - 1):
-                raise _Stop("error", f"{url} did not give results page {number}: the site "
-                            "may have changed")
+            found, entries = common.retry_title(
+                lambda url=url, number=number: search_page(url, number), summary)
             summary["pages"] += 1
             for entry in entries:
-                if not isinstance(entry, dict) or "id" not in entry:
-                    raise _Stop("error", f"a result without an id on {url}")
                 summary["cards"] += 1
                 posting_id = str(entry["id"])
                 posted = _date(entry.get("fechaPublicacion"))
@@ -404,9 +429,19 @@ def _read(paths: Paths, ctx: common.Context, title: str, open_page: Open,
                     posting_url = BASE_URL + POSTING_PATH.format(id=posting_id)
                     page = load(posting_url, POSTING_API + posting_id)
                     keep(posting_id)   # only now: a throttled posting is opened later
-                    posting = _data(page, POSTING_API + posting_id, posting_url).get("aviso")
+                    posting = (_found(page, POSTING_API + posting_id) or {}).get("aviso")
                     if not isinstance(posting, dict):
-                        raise _Stop("error", f"no posting data on {posting_url}")
+                        summary["unreadable"].append({"external_id": posting_id,
+                                                      "url": posting_url,
+                                                      "reason": "no posting data"})
+                        missing += 1
+                        if missing >= common.POSTING_PROBLEMS_IN_A_ROW:
+                            raise common.TitleProblem(
+                                "no_posting_data", f"{missing} postings in a row without "
+                                f"posting data (last {posting_url}): the site may have "
+                                "changed")
+                        continue
+                    missing = 0
                     if _key(posting.get("estado")) not in ("", "activo"):
                         summary["unreadable"].append({
                             "external_id": posting_id, "url": posting_url,
@@ -423,6 +458,8 @@ def _read(paths: Paths, ctx: common.Context, title: str, open_page: Open,
             common.progress(state, title)["pages"] = number
             if len(entries) < PAGE_SIZE or number * PAGE_SIZE >= int(found.get("total") or 0):
                 break
+    except common.TitleProblem as problem:
+        common.title_problem(summary, problem)
     except _Stop as stop:
         summary["stopped"] = common.stopped(stop)
     return common.finish(paths, ctx, state, summary, drafts, seen, title, now=clock())

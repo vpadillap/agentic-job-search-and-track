@@ -381,19 +381,65 @@ def test_a_hard_block_keeps_what_was_read(workspace, run, fake):
     assert len(fake.posting_requests()) == 2                       # 403 never requested
 
 
-def test_a_changed_posting_page_stops_with_an_error(workspace, run, fake):
-    fake.searches[(TITLE, 0)] = page(card(501))
-    fake.postings["501"] = (200, b"<html><body><p>Nothing here</p></body></html>", None)
-    summary = read(workspace, run, fake)
-    assert summary["stopped"]["reason"] == "error" and "layout changed" in summary["stopped"][
-        "detail"]
-    assert run_provider(workspace, run["run_id"])["reason"] == "error"
+NO_DESCRIPTION = (200, b"<html><body><p>Nothing here</p></body></html>", None)
+CHANGED_SEARCH = (200, b'<div data-entity-urn="urn:li:jobPosting:7">x</div>', None)
 
 
-def test_a_changed_search_page_stops_with_an_error(workspace, run, fake):
-    fake.searches[(TITLE, 0)] = (200, b'<div data-entity-urn="urn:li:jobPosting:7">x</div>', None)
+def test_one_posting_without_a_description_is_unreadable(workspace, run, fake):
+    fake.searches[(TITLE, 0)] = page(card(501), card(502))
+    fake.postings["501"] = NO_DESCRIPTION
     summary = read(workspace, run, fake)
-    assert summary["stopped"]["reason"] == "error"
+    assert summary["stopped"] is None and summary["title_problem"] is None
+    assert [u["external_id"] for u in summary["unreadable"]] == ["501"]
+    assert [d["external_id"] for d in drafts_of(summary)] == ["502"]
+
+
+def test_two_postings_without_a_description_end_only_the_title(workspace, run, fake):
+    fake.searches[(TITLE, 0)] = page(card(501), card(502), card(503))
+    fake.postings["501"] = NO_DESCRIPTION
+    fake.postings["502"] = NO_DESCRIPTION
+    summary = read(workspace, run, fake)
+    assert summary["stopped"] is None
+    assert summary["title_problem"]["kind"] == "no_description"
+    assert not any("/503/" in url for url in fake.requests)
+    assert run_provider(workspace, run["run_id"])["status"] == "pending"
+    fake.searches[("Data Engineer", 0)] = page(card(504))
+    assert read(workspace, run, fake, title="Data Engineer")["new"] == 1
+
+
+def test_a_changed_search_page_is_retried_once(workspace, run, fake):
+    fake.searches[(TITLE, 0)] = [CHANGED_SEARCH, page(card(7))]
+    summary = read(workspace, run, fake)
+    assert summary["title_retries"] == 1 and summary["title_problem"] is None
+    assert summary["new"] == 1
+
+
+def test_a_changed_search_page_ends_only_the_title(workspace, run, fake):
+    fake.searches[(TITLE, 0)] = CHANGED_SEARCH
+    summary = read(workspace, run, fake)
+    assert summary["stopped"] is None and summary["title_retries"] == 1
+    assert summary["title_problem"]["kind"] == "cards_without_data"
+    assert summary["site_may_have_changed"] is False
+    assert run_provider(workspace, run["run_id"])["status"] == "pending"
+
+
+def test_every_title_is_tried_and_a_change_is_reported(workspace, run, fake):
+    titles = ["Senior Data Engineer", "Data Engineer", "Analytics Engineer"]
+    for title in titles:
+        fake.searches[(title, 0)] = CHANGED_SEARCH
+    summaries = [read(workspace, run, fake, title=t) for t in titles]
+    assert [s["stopped"] for s in summaries] == [None, None, None]
+    assert [s["site_may_have_changed"] for s in summaries] == [False, True, True]
+
+
+def test_titles_with_no_results_are_not_problems(workspace, run, fake):
+    titles = ["Senior Data Engineer", "Data Engineer", "Analytics Engineer"]
+    summaries = [read(workspace, run, fake, title=t) for t in titles]   # empty pages
+    assert all(s["title_problem"] is None and s["title_retries"] == 0 for s in summaries)
+    assert len(fake.requests) == 3
+    fake.searches[("Data Scientist", 0)] = CHANGED_SEARCH
+    later = read(workspace, run, fake, title="Data Scientist")
+    assert later["title_problem"] and later["site_may_have_changed"] is False
 
 
 def test_a_removed_posting_is_listed_not_imported(workspace, run, fake):

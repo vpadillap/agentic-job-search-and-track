@@ -318,12 +318,41 @@ def test_refused_requests_stop_greenhouse_for_the_run(workspace, run, fake, tmp_
     assert error.value.code == "provider_stopped"
 
 
-def test_three_unreadable_answers_in_a_row_stop(workspace, run, fake, tmp_path):
+def test_three_unreadable_answers_in_a_row_end_only_the_title(workspace, run, fake, tmp_path):
     for board in ("a1", "a2", "a3"):
         fake.overrides[f"{API}/{board}/jobs?content=true"] = (200, "<html>maintenance</html>")
     summary = read(workspace, run, fake, found=found(
         tmp_path, *(f"https://job-boards.greenhouse.io/{b}" for b in ("a1", "a2", "a3"))))
+    assert summary["stopped"] is None and summary["title_retries"] == 3
+    assert summary["title_problem"]["kind"] == "unreadable_answers"
+    assert len(fake.urls) == 6                       # each answer requested twice
+    second = read(workspace, run, fake, title="Analytics Engineer")
+    assert second["stopped"] is None
+
+
+def test_an_unreadable_answer_readable_on_retry(workspace, run, fake, tmp_path):
+    url = f"{API}/a1/jobs?content=true"
+    answers = [(200, "<html>maintenance</html>"), (200, '{"jobs": []}')]
+
+    def get(asked: str):
+        return answers.pop(0) if asked == url else fake(asked)
+
+    summary = greenhouse.read(workspace, run["run_id"], TITLE, get=get, clock=fake.clock,
+                              sleep=fake.sleep,
+                              found=found(tmp_path, "https://job-boards.greenhouse.io/a1"))
+    assert summary["title_retries"] == 1 and summary["title_problem"] is None
+
+
+def test_no_answer_three_times_stops(workspace, run, fake, tmp_path):
+    def down(url: str):
+        raise OSError("connection refused")
+
+    summary = greenhouse.read(workspace, run["run_id"], TITLE, get=down, clock=fake.clock,
+                              sleep=fake.sleep, found=found(tmp_path, *(
+                                  f"https://job-boards.greenhouse.io/{b}"
+                                  for b in ("a1", "a2", "a3"))))
     assert summary["stopped"]["reason"] == "error"
+    assert "no answer" in summary["stopped"]["detail"]
 
 
 def test_found_file_must_be_a_list(workspace, run, fake, tmp_path):

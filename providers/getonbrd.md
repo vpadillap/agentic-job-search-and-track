@@ -67,8 +67,20 @@ title. **One title at a time, never in parallel** (`reader_busy`).
      recorded it as failed and refuses further calls in this run; go on with
      the next provider.
 
+If `title_problem` is set (`stopped` is empty), the reader ended only that
+title: a page was not what it expects, also when it loaded it once more.
+Import the drafts it wrote, go on with the next title, and remember the title
+and `title_problem.kind` for the report. Get on Board is not stopped: every title
+is tried. When `site_may_have_changed` is true, the same problem ended every
+title that read anything in this run: say in the report that Get on Board has
+probably changed, so the owner can fix its reader. A title with no results
+is never a problem.
+
 When every title is done and Get on Board did not stop, record
-`jt run provider <run_id> getonbrd --status ok`.
+`jt run provider <run_id> getonbrd --status ok`, adding
+`--detail "<n> titles ended early: <title> (<kind>), …"` when titles ended
+with a title problem (and "the site may have changed" when the last summary
+said so).
 
 ### What the reader does
 
@@ -177,9 +189,24 @@ failed for the run, and refuses later calls in that run (`provider_stopped`)
 when:
 
 - the API answers 403: reason `blocked`;
-- three answers in a row are not the expected JSON: reason `error`.
+- three requests in a row get no answer at all (the network): reason `error`.
 
 A search with no results is not an error.
+
+**Title problems** end only that title, never the provider: the reader
+keeps what the title read, sets `title_problem` (`kind`, `detail`), and the
+next title is read normally. A search page that is not what the reader
+expects is loaded once more (after the usual wait) before it counts. They
+are:
+
+- three answers in a row are not the expected JSON, each also on a second
+  try: `unreadable_answers`.
+
+One unreadable answer ends only that search (country or remote).
+
+When the same kind has ended every title that read anything in the run (two
+at least), the summary sets `site_may_have_changed`. One posting that cannot
+be read is listed in `unreadable` and the title goes on.
 
 ## Known pitfalls
 

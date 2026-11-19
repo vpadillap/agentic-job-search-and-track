@@ -291,7 +291,8 @@ def _read(paths: Paths, ctx: common.Context, title: str, location: str | None, f
     handled = set(state["job_ids"])
     summary: dict = {"provider": PROVIDER, "title": title, "requests": 0, "pages": 0,
                      "cards": 0, "outside_window": 0, "duplicate_in_run": 0, "already_seen": 0,
-                     "new": 0, "unreadable": [], "drafts_path": None, "stopped": None}
+                     "new": 0, "unreadable": [], "drafts_path": None, "stopped": None,
+                     "title_problem": None, "title_retries": 0}
     drafts: list[dict] = []
     seen: list[dict] = []
     max_pages = max(1, ctx.max_results // PAGE_SIZE)
@@ -327,22 +328,30 @@ def _read(paths: Paths, ctx: common.Context, title: str, location: str | None, f
         handled.add(job_id)
         state["job_ids"].append(job_id)
 
+    def search_page(url: str) -> list[dict]:
+        """One search page's cards; a page with job ids but no cards is a title problem
+        (retried once), a page with neither is the end of the results."""
+        _, text = checked(url)
+        summary["pages"] += 1
+        found = parse_search(text)
+        if not found["cards"]:
+            if any(marker in text for marker in SIGN_IN_MARKERS):
+                raise _Stop("blocked", f"a sign-in page instead of results on {url}")
+            if found["job_ids"]:
+                raise common.TitleProblem(
+                    "cards_without_data", f"job ids without '{CARD}' cards on {url}: the "
+                    "page layout may have changed")
+        return found["cards"]
+
+    missing = 0   # postings without a description in a row
     try:
         for page in range(done_pages, max_pages):
             query = {"keywords": title, "location": location, "f_TPR": window(ctx.days),
                      "start": page * PAGE_SIZE}
             url = SEARCH_URL + "?" + urllib.parse.urlencode(
                 {k: v for k, v in query.items() if v is not None}, quote_via=urllib.parse.quote)
-            _, text = checked(url)
-            summary["pages"] += 1
-            found = parse_search(text)
-            cards = found["cards"]
+            cards = common.retry_title(lambda url=url: search_page(url), summary)
             if not cards:
-                if any(marker in text for marker in SIGN_IN_MARKERS):
-                    raise _Stop("blocked", f"a sign-in page instead of results on {url}")
-                if found["job_ids"]:
-                    raise _Stop("error", f"job ids without '{CARD}' cards on {url}: the page "
-                                "layout changed")
                 break  # no (more) results for this title
             for card in cards:
                 summary["cards"] += 1
@@ -364,12 +373,22 @@ def _read(paths: Paths, ctx: common.Context, title: str, location: str | None, f
                         continue
                     posting = parse_posting(text)
                     if not posting["description"]:
-                        raise _Stop("error", f"no '{DESCRIPTION}' on {posting_url}: the page "
-                                    "layout changed")
+                        summary["unreadable"].append({"external_id": job_id, "url": posting_url,
+                                                      "reason": f"no '{DESCRIPTION}'"})
+                        missing += 1
+                        if missing >= common.POSTING_PROBLEMS_IN_A_ROW:
+                            raise common.TitleProblem(
+                                "no_description", f"{missing} postings in a row without "
+                                f"'{DESCRIPTION}' (last {posting_url}): the posting page may "
+                                "have changed")
+                        continue
+                    missing = 0
                     drafts.append(_draft(card, posting, ctx))
             common.progress(state, key)["pages"] = page + 1
             if len(cards) < PAGE_SIZE:
                 break
+    except common.TitleProblem as problem:
+        common.title_problem(summary, problem)
     except _Stop as stop:
         summary["stopped"] = common.stopped(stop)
     return common.finish(paths, ctx, state, summary, drafts, seen, key, now=clock())
