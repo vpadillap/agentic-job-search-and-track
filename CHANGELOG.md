@@ -5,6 +5,15 @@ merged into `main`. The agent reads it to tell you what an update brings
 (`/update`); the last three lines of each entry are for it: the job or salary
 sites the change adds, the one-time offers it brings, and anything you must do.
 
+## 2026-11-19 · add-provider-computrabajo
+
+Added
+- Computrabajo is a job site in Peru, Mexico, Colombia, Chile, Argentina, and Ecuador. Republished postings count (a company that republishes is still hiring), with their first publication date noted; confidential postings are read too.
+
+Providers: computrabajo
+Offers: none
+Action: turn it on in /setup (job sites) if you search in one of those countries
+
 ## 2026-11-19 · add-changelog
 
 Added

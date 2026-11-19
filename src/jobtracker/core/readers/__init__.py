@@ -23,6 +23,7 @@ READERS = {"linkedin": "jobtracker.core.readers.linkedin",
            "glassdoor": "jobtracker.core.readers.glassdoor",
            "greenhouse": "jobtracker.core.readers.greenhouse",
            "getonbrd": "jobtracker.core.readers.getonbrd",
+           "computrabajo": "jobtracker.core.readers.computrabajo",
            "agentic-search": "jobtracker.core.readers.agentic_search"}
 SALARY_READERS = {"glassdoor": "jobtracker.core.readers.glassdoor:salary",
                   "indeed": "jobtracker.core.readers.salary_sources:indeed",

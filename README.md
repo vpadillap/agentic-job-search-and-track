@@ -121,7 +121,7 @@ countries, and setup offers you the global ones plus those of your country.
 | Greenhouse | global | Greenhouse's public Job Board API for each company; companies are found through your signed-in MyGreenhouse search when you are present, or through a web search otherwise |
 | Get on Board | global (mostly Latin America and remote) | Get on Board's free public API |
 | Bumeran Perú | local: PE | A headless browser session (no window, no account) |
-| Computrabajo | local: PE, MX, CO, CL, AR, EC; salaries only for now | A headless browser session (no window, no account) that reads its salary pages |
+| Computrabajo | local: PE, MX, CO, CL, AR, EC; also salaries | Its search and posting pages over plain web requests, logged out; its salary pages through a headless browser session (no window, no account) |
 | Payscale | global; salaries only | A headless browser session (no window, no account) that reads its salary pages |
 | Talent.com | global; salaries only | A headless browser session (no window, no account) that reads its salary pages |
 | Web search (company sites) | global | The agent searches the open web for companies' own careers pages and remembers the companies it finds |
@@ -323,7 +323,7 @@ países, y la configuración te ofrece los globales más los de tu país.
 | Greenhouse | global | La API pública de Greenhouse de cada empresa; las empresas se encuentran con tu búsqueda de MyGreenhouse con sesión iniciada cuando estás presente, o con una búsqueda web si no |
 | Get on Board | global (sobre todo Latinoamérica y remotos) | La API pública y gratuita de Get on Board |
 | Bumeran Perú | local: PE | Una sesión de navegador sin ventana ni cuenta |
-| Computrabajo | local: PE, MX, CO, CL, AR, EC; por ahora solo salarios | Una sesión de navegador sin ventana ni cuenta que lee sus páginas de salarios |
+| Computrabajo | local: PE, MX, CO, CL, AR, EC; también salarios | Sus páginas de búsqueda y de avisos con peticiones web simples, sin sesión; sus páginas de salarios con una sesión de navegador sin ventana ni cuenta |
 | Payscale | global; solo salarios | Una sesión de navegador sin ventana ni cuenta que lee sus páginas de salarios |
 | Talent.com | global; solo salarios | Una sesión de navegador sin ventana ni cuenta que lee sus páginas de salarios |
 | Búsqueda web (sitios de empresas) | global | El agente busca en la web las páginas de empleo de las propias empresas y recuerda las empresas que encuentra |

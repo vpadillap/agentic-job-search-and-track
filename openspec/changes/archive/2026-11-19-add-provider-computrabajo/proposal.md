@@ -49,7 +49,20 @@ card ("Presencial y remoto" seen; the label of a fully remote posting is to be
 confirmed while building) as a hint for the agent's reading. Pacing as for the other readers (at least 5 s), with
 the shared throttle handling.
 
-## What Changes (expected; revised after the study)
+### Owner's decisions (2026-11-19)
+
+The route is approved. Republished postings count: a republication means the
+company is still hiring, so the card's latest publication decides the window,
+and the first publication date is kept as a hint.
+
+### Found while building
+
+Confidential postings have no `JobPosting` data: their description comes from
+the page's description block. A posting removed after it was listed answers
+with a normal page ("Esta oferta ya no está disponible"): it is listed as no
+longer available.
+
+## What Changes
 
 - `providers/computrabajo.md` becomes `kind: both` with a search recipe,
   fields, limits, and pitfalls per the study, and a verified row per country.
