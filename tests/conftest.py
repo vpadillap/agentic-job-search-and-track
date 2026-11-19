@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,16 @@ def skills_target(tmp_path, monkeypatch):
     target = tmp_path / "installed-skills"
     monkeypatch.setenv("JOBTRACKER_SKILLS_DIR", str(target))
     return target
+
+
+@pytest.fixture(autouse=True)
+def browsers_folder(monkeypatch):
+    """CLI calls set PLAYWRIGHT_BROWSERS_PATH on Windows; put it back after each test so
+    the panel's browser tests keep Playwright's own folder."""
+    name = "PLAYWRIGHT_BROWSERS_PATH"
+    monkeypatch.setenv(name, os.environ.get(name, "-"))  # remembered for teardown
+    if os.environ[name] == "-":
+        monkeypatch.delenv(name)
 
 
 @pytest.fixture

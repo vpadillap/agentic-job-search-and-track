@@ -13,6 +13,7 @@ from jobtracker.core import (
     answers,
     applications,
     board,
+    browsers,
     companies,
     config,
     context,
@@ -1301,6 +1302,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
+    browsers.configure()  # one browser folder for readers and the installs they need
     try:
         args = build_parser().parse_args(argv)
         result = args.run(args)
