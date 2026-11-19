@@ -7,7 +7,7 @@ import * as Icon from '../components/icons.js';
 import { api } from '../api.js';
 import { WorkModeEditor } from '../components/work-mode.js';
 import { PostingDescription } from '../components/posting-description.js';
-import { CoverageTag, CountryFilter, filterByCountry, defaultCountry, ALL } from '../components/coverage.js';
+import { CoverageTag, CountryFilter, filterByCountry, defaultCountry, ALL, jobSites, SalarySourcesNote } from '../components/coverage.js';
 
 const MODES = ['remote', 'hybrid', 'onsite'];
 const CONTRACTS = ['full-time', 'part-time', 'contractor'];
@@ -210,7 +210,7 @@ function ProvidersDialog({ open, onClose }) {
         ${items && items.length === 0 && html`<p class="muted">${t('providers.empty')}</p>`}
         ${items && items.length > 0 && html`<${CountryFilter} id="providers-country" providers=${items}
           profileCountry=${profileCountry} value=${country} onChange=${setCountry} />`}
-        ${items && filterByCountry(items, country).map((p) => html`
+        ${items && filterByCountry(jobSites(items), country).map((p) => html`
           <div class="provider-row">
             <label>
               <input type="checkbox" checked=${p.enabled} onChange=${(e) => toggle(p.id, e.currentTarget.checked)} />
@@ -219,6 +219,7 @@ function ProvidersDialog({ open, onClose }) {
             <${CoverageTag} provider=${p} />
             ${!p.valid && html`<span class="small">${t('providers.invalid')}</span>`}
           </div>`)}
+        ${items && html`<${SalarySourcesNote} providers=${items} country=${country} />`}
         <div class="menu-actions">
           <button type="button" class="btn" onClick=${onClose}>${t('providers.close')}</button>
         </div>

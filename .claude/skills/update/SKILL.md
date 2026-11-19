@@ -92,8 +92,9 @@ For each id in the `providers` of the entries just installed:
    alone (start the run, read only that provider, finish it). Full search:
    `/job-search` as usual. If the user wants neither, it is used from the
    next search.
-3. A **salary source** (`kind: salary`): ask whether to turn it on the same
-   way; it is used from the next salary research.
+3. A **salary source** (`kind: salary`): salary sources are never switched.
+   Say it is now used for salary research when it serves the user's country,
+   with its terms note, and install its tools (`jt providers install <id>`).
 
 Nothing is turned on or searched without the user's yes.
 

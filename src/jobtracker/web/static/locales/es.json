@@ -87,6 +87,7 @@
   "reason.salary": "Salario",
   "reason.rule": "Tus reglas",
   "providers.title": "Proveedores",
+  "providers.salarySources": "Fuentes de salario, siempre se usan para investigar salarios (sin interruptor): {names}",
   "providers.empty": "Aún no hay proveedores disponibles. Cada sitio se agrega en su propia actualización, después de estudiarlo.",
   "providers.invalid": "Su archivo de instrucciones tiene problemas; las búsquedas lo omiten.",
   "providers.close": "Cerrar",

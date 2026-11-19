@@ -199,3 +199,15 @@ def test_disabling_a_provider(searchable, page):
     with db.session(searchable) as conn:
         run = search.start_run(conn, searchable)
     assert "alpha" not in run["to_search"]
+
+
+def test_salary_sources_have_no_switch(searchable, providers_dir, page):
+    from tests.helpers import provider_text
+
+    (providers_dir / "sueldos.md").write_text(
+        provider_text("sueldos", kind="salary", regions="[global]"), encoding="utf-8")
+    open_board(page, "profile")
+    sites = card(page, "^Job sites")
+    expect(sites.locator(".pa-provider").filter(has_text="Sueldos")).to_have_count(0)
+    expect(sites.locator(".salary-sources")).to_contain_text("Sueldos")
+    expect(sites.locator(".salary-sources")).to_contain_text("always used")

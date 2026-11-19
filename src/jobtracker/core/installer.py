@@ -71,7 +71,11 @@ def install(paths: Paths, provider_id: str | None = None, *, enabled: bool = Fal
     """Install the missing tools of one provider, or of every enabled provider."""
     listed = {str(p["id"]): p for p in providers.list_providers()}
     if enabled:
-        targets = sorted(doctor._enabled_provider_ids(paths) & set(listed))
+        # The job sites the user turned on, and the salary sources of the profile's country
+        # (always used, never switched).
+        targets = sorted((doctor._enabled_provider_ids(paths)
+                          | {str(s["id"]) for s in providers.salary_sources(
+                              doctor.profile_country(paths))}) & set(listed))
     elif provider_id:
         if provider_id not in listed:
             raise JobTrackerError("not_found", f"There is no provider '{provider_id}'")

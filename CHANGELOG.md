@@ -5,6 +5,15 @@ merged into `main`. The agent reads it to tell you what an update brings
 (`/update`); the last three lines of each entry are for it: the job or salary
 sites the change adds, the one-time offers it brings, and anything you must do.
 
+## 2026-11-19 · salary-sources-always-on
+
+Changed
+- Salary sources are no longer switched on or off: the agent uses the ones that serve each posting's country (Glassdoor, Indeed, Computrabajo, Payscale, Talent.com) and installs what they need. The job-site switches are only about searching postings.
+
+Providers: none
+Offers: none
+Action: none
+
 ## 2026-11-19 · add-provider-computrabajo
 
 Added

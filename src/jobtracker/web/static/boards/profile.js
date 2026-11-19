@@ -4,7 +4,7 @@
 import { html, useState, useEffect } from '../vendor/preact-htm.js';
 import { api } from '../api.js';
 import { useUi, CommandChip, CopyButton, Menu } from '../components/shell.js';
-import { CoverageTag, CountryFilter, filterByCountry, defaultCountry } from '../components/coverage.js';
+import { CoverageTag, CountryFilter, filterByCountry, defaultCountry, jobSites, SalarySourcesNote } from '../components/coverage.js';
 
 const ACCESS = ['chrome-extension', 'playwright', 'scrapling', 'http', 'web-search'];
 
@@ -230,7 +230,7 @@ function providerStatus(p, t, fmt) {
 function ProvidersCard({ providers, profileCountry, onToggle }) {
   const { t, fmt } = useUi();
   const [country, setCountry] = useState(defaultCountry(profileCountry));
-  const shown = filterByCountry(providers, country);
+  const shown = filterByCountry(jobSites(providers), country);
   return html`
     <section class="card pa-card" aria-labelledby="pa-providers-title">
       <div class="pa-head">
@@ -261,6 +261,7 @@ function ProvidersCard({ providers, profileCountry, onToggle }) {
               </li>`;
           })}
         </ul>`}
+      <${SalarySourcesNote} providers=${providers} country=${country} />
     </section>`;
 }
 

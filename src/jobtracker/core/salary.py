@@ -707,6 +707,18 @@ def lookup(conn: sqlite3.Connection, posting_id: int, today: date | None = None)
             if not comparability(item, criteria, today):
                 comparable.append(item["id"])
     published = json.loads(row["published_salary"]) if row["published_salary"] else None
+    from . import doctor, providers
+
+    answered: dict[str, list[dict]] = {}
+    for check in checked:
+        answered.setdefault(check["source"].casefold(), []).append(
+            {k: check[k] for k in ("scope", "found", "checked_at")})
+    sources = []
+    for item in providers.salary_sources(row["country"]):
+        name = str(item["name"] or item["id"])
+        sources.append({**item, "ready": all(doctor._tool_available(str(d))
+                                             for d in item["dependencies"]),  # type: ignore[union-attr]
+                        "checked": answered.get(name.casefold(), [])})
     return {
         "posting_id": posting_id,
         "posting": {"title": row["title"], "company": row["company"], "level": row["seniority"],
@@ -719,6 +731,7 @@ def lookup(conn: sqlite3.Connection, posting_id: int, today: date | None = None)
         "evidence": {"company": company_items, "market": market_items, "earlier": [
             e for e in legacy if e["id"] not in {i["id"] for i in company_items + market_items}]},
         "checked": checked,
+        "sources": sources,
         "current": current(conn, posting_id),
         "key": {"company": _posting_key(row)[0], "role": _posting_key(row)[1],
                 "location": _posting_key(row)[2]},
