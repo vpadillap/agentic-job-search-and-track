@@ -23,8 +23,8 @@
 
 - [x] 3.1 `providers/linkedin.md`, `indeed.md`, `bumeran.md`, `getonbrd.md`, `greenhouse.md`: agent steps read `title_problem` and `site_may_have_changed` (continue with the next title, note them); final `ok` record carries `--detail` with the titles that ended early; "Stop conditions" gain a "Title problems" part and lose the old "page no longer matches" stop
 - [x] 3.2 `.claude/skills/job-search/SKILL.md` step 6: a title problem is not a provider failure; the report names the titles that ended early and a probable site change
-- [ ] 3.3 `uv run ruff check .` and `uv run pytest`
+- [x] 3.3 `uv run ruff check .` and `uv run pytest`
 
 ## 4. Close
 
-- [ ] 4.1 `/opsx:verify`, `/opsx:archive`, commit, merge into `main`
+- [x] 4.1 `/opsx:verify`, `/opsx:archive`, commit, merge into `main` (archived by hand: the OpenSpec CLI is not installed here)
