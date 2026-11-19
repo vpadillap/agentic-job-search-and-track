@@ -9,6 +9,7 @@ language, flags, a salary in the text) is left to the agent's reading.
 """
 from __future__ import annotations
 
+import random
 import re
 import time
 import urllib.error
@@ -39,7 +40,8 @@ UNREADABLE = (404, 410)  # the posting was removed: listed, not a reason to stop
 LOCK_FILE = "linkedin.lock"
 STALE_LOCK_SECONDS = common.STALE_LOCK_SECONDS
 
-Fetch = Callable[[str], tuple[int, bytes, "str | None"]]
+# (status, body, where a redirect points[, Retry-After]); the fourth item is optional.
+Fetch = Callable[[str], tuple]
 
 
 # ── HTTP ──────────────────────────────────────────────────────────────────
@@ -49,15 +51,17 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def fetch(url: str) -> tuple[int, bytes, str | None]:
-    """GET without cookies or redirects: (status, body, where a redirect points)."""
+def fetch(url: str) -> tuple[int, bytes, str | None, str | None]:
+    """GET without cookies or redirects: (status, body, where a redirect points,
+    Retry-After)."""
     opener = urllib.request.build_opener(_NoRedirect)
     request = urllib.request.Request(url, headers=HEADERS)
     try:
         with opener.open(request, timeout=TIMEOUT_SECONDS) as response:
-            return response.status, response.read(), None
+            return response.status, response.read(), None, None
     except urllib.error.HTTPError as error:
-        return error.code, error.read(), error.headers.get("Location")
+        return (error.code, error.read(), error.headers.get("Location"),
+                error.headers.get("Retry-After"))
 
 
 def window(days: int) -> str:
@@ -227,10 +231,11 @@ def parse_posting(page: str) -> dict:
 _Stop = common.Stop
 
 
-def _check(status: int, where: str | None, url: str) -> None:
-    """The provider file's stop conditions for any answer that is not a page."""
-    if status in (429, 999):
-        raise _Stop("blocked", f"{status} {url}")
+def _check(status: int, where: str | None, url: str, retry_after: float | None = None) -> None:
+    """The provider file's stop conditions for any answer that is not a page: a throttle
+    (429, 999, 503 with Retry-After) is waited out; anything else stops LinkedIn."""
+    if common.soft_status(status, retry_after):
+        raise common.Throttle(f"{status} {url}", retry_after)
     if 300 <= status < 400:
         raise _Stop("blocked", f"{status} redirect to {where or 'an unknown page'} from {url}")
     if status != 200:
@@ -258,25 +263,31 @@ def _draft(card: dict, posting: dict, ctx: common.Context) -> dict:
 
 def read(paths: Paths, run_id: int, title: str, location: str | None = None, *,
          fetch: Fetch = fetch, clock: Callable[[], float] = time.time,
-         sleep: Callable[[float], None] = time.sleep) -> dict:
+         sleep: Callable[[float], None] = time.sleep,
+         rand: Callable[[], float] = random.random) -> dict:
     """Search one title and write the drafts of its new postings. Returns a summary."""
     title = _line_text(title or "")
     if not title:
         raise JobTrackerError("invalid_title", "give the title to search with --title")
     location = _line_text(location or "") or None
     with db.session(paths) as conn:
-        ctx = common.context(conn, paths, run_id, PROVIDER, LABEL)
+        ctx = common.context(conn, paths, run_id, PROVIDER, LABEL, now=clock())
     ctx.folder.mkdir(parents=True, exist_ok=True)
     lock = common.lock(ctx, LABEL, clock())
     try:
-        return _read(paths, ctx, title, location, fetch, clock, sleep)
+        if common.already_done(ctx, common.title_key(title, location)):
+            return common.done_summary(PROVIDER, title)
+        return _read(paths, ctx, title, location, fetch, clock, sleep, rand)
     finally:
         lock.unlink(missing_ok=True)
 
 
 def _read(paths: Paths, ctx: common.Context, title: str, location: str | None, fetch: Fetch,
-          clock: Callable[[], float], sleep: Callable[[float], None]) -> dict:
+          clock: Callable[[], float], sleep: Callable[[float], None],
+          rand: Callable[[], float]) -> dict:
     state = common.load_state(ctx)
+    key = common.title_key(title, location)
+    done_pages = common.progress(state, key)["pages"]
     handled = set(state["job_ids"])
     summary: dict = {"provider": PROVIDER, "title": title, "requests": 0, "pages": 0,
                      "cards": 0, "outside_window": 0, "duplicate_in_run": 0, "already_seen": 0,
@@ -285,34 +296,44 @@ def _read(paths: Paths, ctx: common.Context, title: str, location: str | None, f
     seen: list[dict] = []
     max_pages = max(1, ctx.max_results // PAGE_SIZE)
 
-    def get(url: str) -> tuple[int, str, str | None]:
+    def get(url: str) -> tuple[int, str, str | None, float | None]:
         wait = state["last_request_at"] + ctx.min_seconds - clock()
         if state["last_request_at"] and wait > 0:
             sleep(wait)
         state["requests"] += 1
         summary["requests"] += 1
         try:
-            status, body, where = fetch(url)
+            status, body, where, *rest = fetch(url)
         except (urllib.error.URLError, OSError) as error:
             raise _Stop("error", f"network error ({error}) on {url}") from error
         finally:
             state["last_request_at"] = clock()
             common.save_state(ctx, state)
         (ctx.folder / f"{PROVIDER}-{state['requests']}.html").write_bytes(body)
-        return status, body.decode("utf-8", "replace"), where
+        retry_after = common.parse_retry_after(rest[0] if rest else None, clock())
+        return status, body.decode("utf-8", "replace"), where, retry_after
+
+    def checked(url: str, passing: tuple[int, ...] = ()) -> tuple[int, str]:
+        """One request and its checks, repeated after a throttle (common.attempt)."""
+        def once() -> tuple[int, str]:
+            status, text, where, retry_after = get(url)
+            if status not in passing:
+                _check(status, where, url, retry_after)
+            return status, text
+        return common.attempt(once, state, min_seconds=ctx.min_seconds, clock=clock,
+                              sleep=sleep, rand=rand)
 
     def keep(job_id: str) -> None:
         handled.add(job_id)
         state["job_ids"].append(job_id)
 
     try:
-        for page in range(max_pages):
+        for page in range(done_pages, max_pages):
             query = {"keywords": title, "location": location, "f_TPR": window(ctx.days),
                      "start": page * PAGE_SIZE}
             url = SEARCH_URL + "?" + urllib.parse.urlencode(
                 {k: v for k, v in query.items() if v is not None}, quote_via=urllib.parse.quote)
-            status, text, where = get(url)
-            _check(status, where, url)
+            _, text = checked(url)
             summary["pages"] += 1
             found = parse_search(text)
             cards = found["cards"]
@@ -335,20 +356,20 @@ def _read(paths: Paths, ctx: common.Context, title: str, location: str | None, f
                     keep(job_id)
                 else:
                     posting_url = POSTING_URL.format(id=job_id)
-                    status, text, where = get(posting_url)
-                    keep(job_id)
+                    status, text = checked(posting_url, UNREADABLE)
+                    keep(job_id)   # only now: a throttled posting is opened after a cool-down
                     if status in UNREADABLE:
                         summary["unreadable"].append({"external_id": job_id, "url": posting_url,
                                                       "reason": f"HTTP {status}"})
                         continue
-                    _check(status, where, posting_url)
                     posting = parse_posting(text)
                     if not posting["description"]:
                         raise _Stop("error", f"no '{DESCRIPTION}' on {posting_url}: the page "
                                     "layout changed")
                     drafts.append(_draft(card, posting, ctx))
+            common.progress(state, key)["pages"] = page + 1
             if len(cards) < PAGE_SIZE:
                 break
     except _Stop as stop:
-        summary["stopped"] = {"reason": stop.reason, "detail": stop.detail}
-    return common.finish(paths, ctx, state, summary, drafts, seen)
+        summary["stopped"] = common.stopped(stop)
+    return common.finish(paths, ctx, state, summary, drafts, seen, key, now=clock())

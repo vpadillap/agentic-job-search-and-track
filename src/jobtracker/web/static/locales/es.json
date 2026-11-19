@@ -58,6 +58,7 @@
   "skip.blocked": "el sitio bloqueó la búsqueda",
   "skip.not_searched": "no se buscó",
   "skip.other_country": "solo funciona en otros países",
+  "skip.throttled": "el sitio pidió bajar el ritmo; la búsqueda terminó antes de que pasara la espera",
   "coverage.global": "Global",
   "coverage.private": "Privado",
   "coverage.privateHint": "Un proveedor que agregaste tú (en tu carpeta privada)",

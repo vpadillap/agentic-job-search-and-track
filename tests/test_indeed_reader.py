@@ -72,7 +72,10 @@ class FakeBrowser:
     def search(self, url: str, select):
         self.actions.append(url)
         self.times.append(self.now)
-        status, html, title = self.pages.get(variant_of(url), page())
+        answer = self.pages.get(variant_of(url), page())
+        if isinstance(answer, list):   # answers in order; the last one is repeated
+            answer = answer.pop(0) if len(answer) > 1 else answer[0]
+        status, html, title = answer
         result = indeed.SearchPage(status, html, title)
         for job_id in select(html):
             self.actions.append(f"open {job_id}")
@@ -293,9 +296,36 @@ def test_a_second_call_while_one_runs_is_refused(workspace, run, fake):
 
 # ── stop conditions ───────────────────────────────────────────────────────
 
+SECURITY_CHECK = (200, "<html></html>", "Security Check - Indeed.com")
+
+
+def test_a_security_check_that_clears_is_waited_out(workspace, run, fake):
+    fake.pages["relevance"] = [SECURITY_CHECK, page()]
+    summary = read(workspace, run, fake)
+    assert summary["stopped"] is None
+    assert 10 <= fake.times[1] - fake.times[0] <= 20
+
+
+def test_a_security_check_that_stays_is_a_cool_down(workspace, run, fake):
+    fake.pages["relevance"] = SECURITY_CHECK
+    summary = read(workspace, run, fake)
+    assert summary["stopped"]["reason"] == "throttled"
+    assert len(fake.actions) == 3
+    with db.session(workspace) as conn:
+        provider = next(p for p in search.summary(conn, run["run_id"])["providers"]
+                        if p["id"] == "indeed")
+    assert provider["status"] == "pending" and provider["cooldown_until"]
+    with pytest.raises(JobTrackerError) as refused:
+        read(workspace, run, fake, title="Analytics Engineer")
+    assert refused.value.code == "provider_cooling" and len(fake.actions) == 3
+    fake.now += 15 * 60
+    fake.pages["relevance"] = page()
+    assert read(workspace, run, fake)["stopped"] is None      # the same run goes on
+
+
 @pytest.mark.parametrize("answer,reason", [
     ((403, "<html></html>", "Blocked - Indeed.com"), "blocked"),
-    ((200, "<html></html>", "Security Check - Indeed.com"), "blocked"),
+    ((200, "<html></html>", "Attention Required! | Cloudflare"), "blocked"),
     ((200, "<html></html>", "Iniciar sesión | Cuentas Indeed"), "blocked"),
     ((200, "<html><body>nothing</body></html>", "Indeed"), "error"),
 ])

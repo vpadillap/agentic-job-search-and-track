@@ -134,6 +134,15 @@ For each provider id in `to_search`, in order:
    `jt run provider <run_id> <id> --status failed --reason error|blocked
    --detail "<what happened>"` and continue with the next provider. One
    provider failing never stops the run.
+7. A reader that answers `stopped.reason: throttled` (the site asked to slow
+   down) has not failed: it is cooling down until `resume_after`, and any
+   call before then is refused with `provider_cooling` without contacting
+   the site. Import what it wrote, go on with the other providers, and then
+   tell the user when that site may go on. If they want to wait, keep the
+   run open and call the reader again after `resume_after` for the titles it
+   did not finish (a finished title answers `already_done`); otherwise
+   finish the run, which records the site as failed with reason
+   `throttled`. Never try to get past a throttle any other way.
 
 Posting record (JSON object; `null` or omit what the site does not show):
 

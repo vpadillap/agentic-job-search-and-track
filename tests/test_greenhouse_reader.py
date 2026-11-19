@@ -308,9 +308,8 @@ def test_a_country_without_place_words_asks_once(workspace, cli, fake, tmp_path)
 
 # ── stops and bad input ───────────────────────────────────────────────────
 
-@pytest.mark.parametrize("status", [403, 429])
-def test_refused_requests_stop_greenhouse_for_the_run(workspace, run, fake, tmp_path, status):
-    fake.overrides[f"{API}/andes/jobs?content=true"] = (status, "refused")
+def test_refused_requests_stop_greenhouse_for_the_run(workspace, run, fake, tmp_path):
+    fake.overrides[f"{API}/andes/jobs?content=true"] = (403, "refused")
     summary = read(workspace, run, fake,
                    found=found(tmp_path, "https://job-boards.greenhouse.io/andes"))
     assert summary["stopped"]["reason"] == "blocked"
@@ -355,3 +354,16 @@ def test_provider_file():
                      "my.greenhouse.io/jobs/search", "site:job-boards.greenhouse.io",
                      "| PE | Peru;", "--place-words", "Never press Apply"):
         assert required in text, required
+
+
+def test_a_throttle_is_waited_out_with_retry_after(workspace, run, fake, tmp_path):
+    url = f"{API}/andes/jobs?content=true"
+    fake.overrides[url] = (429, "slow down", "30")
+    summary = read(workspace, run, fake,
+                   found=found(tmp_path, "https://job-boards.greenhouse.io/andes"))
+    assert summary["stopped"]["reason"] == "throttled"     # still 429 after three attempts
+    board = [t for u, t in zip(fake.urls, fake.times, strict=True) if u == url]
+    assert len(board) == 3 and board[1] - board[0] == pytest.approx(30)
+    with pytest.raises(JobTrackerError) as error:
+        read(workspace, run, fake, title="Data Platform Engineer")
+    assert error.value.code == "provider_cooling"

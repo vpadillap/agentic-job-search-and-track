@@ -206,14 +206,28 @@ def test_pacing(workspace, run, fake):
     assert len(fake.times) == 4 and all(gap >= 5 for gap in gaps), gaps
 
 
-@pytest.mark.parametrize("status", [403, 429])
-def test_refused_requests_stop_get_on_board(workspace, run, fake, status):
-    fake.overrides = [(status, "refused")]
+def test_refused_requests_stop_get_on_board(workspace, run, fake):
+    fake.overrides = [(403, "refused")]
     summary = read(workspace, run, fake)
     assert summary["stopped"]["reason"] == "blocked"
     with pytest.raises(JobTrackerError) as error:
         read(workspace, run, fake, title="Data Platform Engineer")
     assert error.value.code == "provider_stopped"
+
+
+def test_a_throttle_that_clears_goes_on(workspace, run, fake):
+    fake.overrides = [(429, "slow down")]
+    fake.country = [[job("g9")]]
+    summary = read(workspace, run, fake)
+    assert summary["stopped"] is None and summary["new"] == 1
+    assert 10 <= fake.times[1] - fake.times[0] <= 20     # backoff with jitter
+
+
+def test_a_completed_title_is_not_searched_again(workspace, run, fake):
+    read(workspace, run, fake)
+    before = len(fake.urls)
+    again = read(workspace, run, fake)
+    assert again["already_done"] is True and len(fake.urls) == before
 
 
 def test_an_unreadable_answer_ends_that_search_only(workspace, run, fake):

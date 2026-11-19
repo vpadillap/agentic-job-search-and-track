@@ -86,9 +86,17 @@ second call while one is running: `reader_busy`).
    folder (for example `<capture_folder>/glassdoor-readings-1.json`), and
    import: `jt postings import <run_id> <drafts_path> --readings <readings file>`.
    Never copy or retype a description.
-4. If `stopped` is set, stop Glassdoor for this run: the reader already
-   recorded it as failed and refuses further calls in this run. Import what it
-   wrote before stopping, then go on with the next provider.
+4. If `stopped` is set, import the drafts it wrote before stopping, then:
+
+   - reason `throttled`: Glassdoor is cooling down until `resume_after`. Go on
+     with the next provider and tell the user when Glassdoor may go on. After
+     that time, if the user wants to wait, call it again in this run for
+     the titles not done yet; a call before then is refused with
+     `provider_cooling` and sends nothing. If the run is finished first,
+     Glassdoor is recorded as failed with reason `throttled`.
+   - any other reason: stop Glassdoor for this run. The reader already
+     recorded it as failed and refuses further calls in this run; go on with
+     the next provider.
 
 When every title is done and Glassdoor did not stop, record
 `jt run provider <run_id> glassdoor --status ok`.
@@ -193,16 +201,45 @@ figure).
 - At least 5 seconds between page loads and clicks, also between one call and
   the next; at most 150 postings per title; each posting opened once per run.
 - Read-only: never apply, save, follow, message, or sign in.
+- **When Glassdoor asks to slow down** (a soft block, see "Stop conditions"),
+  the reader waits and sends the same request again: as long as the site's
+  `Retry-After` header says when it sends one, otherwise 10–20 seconds, then
+  20–40 seconds. At most 3 tries per request, never more than 2 minutes per
+  wait, at most 6 retries per run. If that does not clear it, Glassdoor cools
+  down for 15 minutes (30 the second time, longer when the site asks) and
+  the same run goes on after that; a third throttle in a run stops Glassdoor
+  for the run. There is no way to end a cool-down early.
+- Waiting is the only answer to a block: never a proxy, a different IP, a
+  changed or rotating user agent or headers, an account, cookies, or a fresh
+  browser identity to get past it.
 
 ### Stop conditions
 
-The reader stops **all** Glassdoor work for the rest of the run, keeps what
-was already read, records Glassdoor as failed for the run, and refuses later
-calls in that run when:
+**Soft blocks** (a throttle: the site asks to slow down):
 
-- a page answers 403 or 429, or its title is a security check ("Security |
-  Glassdoor", "Un momento…", "Just a moment…") that Scrapling did not pass,
-  or a sign-in prompt does not close: reason `blocked`;
+- a page answers HTTP 429, or its title is a security check ("Security |
+  Glassdoor", "Un momento…", "Just a moment…") that Scrapling did not pass.
+
+A salary page that stays throttled answers `{"data": false, "throttled":
+true, "resume_after": …}`: record no Glassdoor evidence for that title and
+do not ask for that salary page again before `resume_after`.
+
+The reader waits and retries as stated in "Limits and etiquette". When the
+throttle does not clear, it ends the call with `stopped.reason: throttled`
+and `resume_after` (the time it may go on), keeps what was already read, and
+records a cool-down on the run; calls before that time are refused without
+any request (`provider_cooling`). The first call after it goes on in the
+same run: a title already completed is not searched again, and postings
+already opened are not opened again (a posting whose page was throttled is
+opened then); the search page itself is loaded again.
+
+**Hard blocks and errors.** The reader stops **all** Glassdoor work for the
+rest of the run, keeps what was already read, records Glassdoor as failed
+for the run, and refuses later calls in that run (`provider_stopped`) when:
+
+- a page answers 403, or its title is a Cloudflare block page ("Attention
+  Required!", "Access denied"), or a sign-in prompt does not close: reason
+  `blocked`;
 - a search page has no postings and does not say 0 results, a "Show more"
   response does not parse, or three postings in a row have no readable
   description: reason `error`, with what is missing;

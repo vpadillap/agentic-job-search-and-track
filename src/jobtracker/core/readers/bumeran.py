@@ -14,20 +14,20 @@ mode and its detail, language, flags, a stated salary) is left to the agent.
 from __future__ import annotations
 
 import json
-import os
+import random
 import re
 import time
 import unicodedata
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from html.parser import HTMLParser
-from pathlib import Path
 
-from .. import db, providers, search
+from .. import db
 from ..errors import JobTrackerError
 from ..paths import Paths
+from . import common
 from .linkedin import plain_text
 
 PROVIDER = "bumeran"
@@ -39,7 +39,6 @@ POSTING_API = "api/candidates/fichaAvisoNormalizada/"
 COUNTRY = "PE"
 LOCALE = "es-PE"
 VIEWPORT = {"width": 1366, "height": 900}
-MIN_SECONDS = 5          # the provider file may ask for more, never for less
 PAGE_SIZE = 20           # list entries per results page
 RESPONSE_TIMEOUT = 30.0  # seconds a page has to receive its data
 # Posting-age windows the site offers (days covered, URL part).
@@ -50,11 +49,8 @@ WINDOWS = ((2, "publicacion-menor-a-2-dias"), (3, "publicacion-menor-a-3-dias"),
 CONTRACT_TYPES = {"full-time": "full-time", "part-time": "part-time"}
 WORK_MODES = {"presencial": "onsite", "hibrido": "hybrid", "remoto": "remote"}
 BLOCK_TITLES = ("attention required", "just a moment", "access denied")
-BLOCK_STATUSES = (403, 429)
 SKIPPED_RESOURCES = ("image", "font", "media")
-STATE_FILE = "bumeran-state.json"
 LOCK_FILE = "bumeran.lock"
-STALE_LOCK_SECONDS = 30 * 60
 INSTALL = "jt providers install bumeran"
 
 
@@ -66,7 +62,8 @@ class Page:
     status: int | None
     title: str
     url: str
-    responses: list[dict] = field(default_factory=list)   # {url, status, body}
+    responses: list[dict] = field(default_factory=list)   # {url, status, body[, retry_after]}
+    retry_after: str | None = None                        # the document's Retry-After
 
 
 Open = Callable[[str, tuple[str, ...]], Page]
@@ -94,7 +91,7 @@ def scrapling_browser() -> Iterator[Open]:
 
     logging.getLogger("scrapling").setLevel(logging.WARNING)  # keep the CLI output clean
     try:
-        session = StealthySession(headless=True, solve_cloudflare=True, locale=LOCALE,
+        session = StealthySession(headless=True, solve_cloudflare=True, locale=LOCALE, retries=1,
                                   timeout=int(RESPONSE_TIMEOUT * 3000), wait=0)
         session.__enter__()
     except Exception as error:  # the browser itself is not installed
@@ -113,7 +110,8 @@ def scrapling_browser() -> Iterator[Open]:
                 except Exception:  # not JSON: kept as missing
                     body = None
                 captured.append({"url": response.url, "status": response.status,
-                                 "body": body})
+                                 "body": body,
+                                 "retry_after": (response.headers or {}).get("retry-after")})
 
         def setup(page):
             page.set_viewport_size(VIEWPORT)
@@ -135,8 +133,10 @@ def scrapling_browser() -> Iterator[Open]:
             answer = session.fetch(url, page_setup=setup, page_action=settle)
         except Exception as error:
             raise _Stop("error", f"the browser could not load {url}: {error}") from error
+        headers = getattr(answer, "headers", None) or {}
         return Page(status=answer.status, title=seen_title["value"],
-                    url=str(getattr(answer, "url", url) or url), responses=captured)
+                    url=str(getattr(answer, "url", url) or url), responses=captured,
+                    retry_after=headers.get("retry-after") or headers.get("Retry-After"))
 
     try:
         yield open_page
@@ -244,105 +244,27 @@ def questions(raw: object) -> tuple[list[dict], int]:
     return result, unknown
 
 
-# ── run context, state, lock ──────────────────────────────────────────────
-
-@dataclass
-class _Context:
-    run_id: int
-    folder: Path
-    since: str
-    days: int
-    max_pages: int
-    min_seconds: int
-    known: set[str]
-
-
-def _context(conn, paths: Paths, run_id: int) -> _Context:
-    run = conn.execute("SELECT * FROM search_runs WHERE id = ?", (run_id,)).fetchone()
-    if run is None:
-        raise JobTrackerError("not_found", f"There is no search run {run_id}")
-    if run["status"] != "running":
-        raise JobTrackerError("run_finished", f"Run {run_id} is already finished")
-    if run["is_demo"] or not run["capture_folder"]:
-        raise JobTrackerError("invalid_run", f"Run {run_id} has no capture folder")
-    item = next((p for p in json.loads(run["providers"]) if p["id"] == PROVIDER), None)
-    if item is None:
-        raise JobTrackerError("not_found", f"'{PROVIDER}' is not a job provider of run {run_id}")
-    if item["status"] == "failed":
-        raise JobTrackerError(
-            "provider_stopped", f"Bumeran is stopped for run {run_id}: "
-            f"{item.get('detail') or item.get('reason')}. Do not try it again in this run.")
-    if item["status"] not in ("pending", "ok"):
-        raise JobTrackerError(
-            "provider_not_searched", f"Bumeran is {item['status']} in run {run_id}")
-    meta = next((p for p in providers.list_providers() if p["id"] == PROVIDER), None)
-    if meta is None or not meta.get("valid"):
-        raise JobTrackerError("invalid_file", f"providers/{PROVIDER}.md is missing or invalid")
-    started = datetime.fromisoformat(run["started_at"].replace("Z", "+00:00")).astimezone().date()
-    days = int(run["posting_age_days"])
-    known = {row["external_id"] for row in conn.execute(
-        "SELECT external_id FROM postings WHERE provider = ?", (PROVIDER,))}
-    return _Context(
-        run_id=run_id, folder=paths.home / run["capture_folder"],
-        since=(started - timedelta(days=days)).isoformat(), days=days,
-        max_pages=max(1, int(meta["max_results_per_query"]) // PAGE_SIZE),
-        min_seconds=max(MIN_SECONDS, int(meta["min_seconds_between_requests"])),
-        known=known,
-    )
-
-
-def _load_state(folder: Path) -> dict:
-    path = folder / STATE_FILE
-    state = {"last_page_at": 0.0, "pages": 0, "ids": [], "drafts": []}
-    if path.is_file():
-        state.update(json.loads(path.read_text(encoding="utf-8")))
-    return state
-
-
-def _save_state(folder: Path, state: dict) -> None:
-    (folder / STATE_FILE).write_text(json.dumps(state, indent=1), encoding="utf-8")
-
-
-def _lock(folder: Path, now: float) -> Path:
-    """One reader call at a time per run (shared pacing state). A lock older than any
-    call can last was left by a crashed call."""
-    path = folder / LOCK_FILE
-    for _ in range(2):
-        try:
-            handle = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError:
-            try:
-                started = float(path.read_text(encoding="utf-8") or 0)
-            except (OSError, ValueError):
-                started = 0.0
-            if now - started < STALE_LOCK_SECONDS:
-                raise JobTrackerError(
-                    "reader_busy", "Another Bumeran read is running for this run. Read the "
-                    "titles one at a time, never in parallel; wait for it to finish.",
-                    lock=str(path)) from None
-            path.unlink(missing_ok=True)
-            continue
-        with os.fdopen(handle, "w", encoding="utf-8") as file:
-            file.write(str(now))
-        return path
-    raise JobTrackerError("reader_busy", "Another Bumeran read is running for this run.")
-
-
-class _Stop(Exception):
-    def __init__(self, reason: str, detail: str) -> None:
-        super().__init__(detail)
-        self.reason, self.detail = reason, detail
+_Stop = common.Stop
+LABEL = "Bumeran"
+HARD_TITLES = ("attention required", "access denied")
 
 
 def _check(page: Page, url: str) -> None:
-    """The provider file's stop conditions for one page load."""
-    if page.status in BLOCK_STATUSES:
+    """The provider file's stop conditions for one page load: a throttle (429, a
+    challenge page that was not passed) is waited out; a block (403, a block page)
+    stops Bumeran for the run."""
+    title = (page.title or "").lower()
+    if page.status == 403 or any(t in title for t in HARD_TITLES):
         raise _Stop("blocked", f"{page.status} on {url} ({page.title or 'no title'})")
-    if any(t in (page.title or "").lower() for t in BLOCK_TITLES):
-        raise _Stop("blocked", f"a Cloudflare page ('{page.title}') instead of {url}")
+    if page.status == 429 or common.is_challenge(title):
+        raise common.Throttle(f"{page.status} on {url} ({page.title or 'no title'})",
+                              common.parse_retry_after(page.retry_after, time.time()))
     for response in page.responses:
-        if response["status"] in BLOCK_STATUSES:
-            raise _Stop("blocked", f"{response['status']} on the site data for {url}")
+        if response["status"] == 403:
+            raise _Stop("blocked", f"403 on the site data for {url}")
+        if response["status"] == 429:
+            raise common.Throttle(f"429 on the site data for {url}", common.parse_retry_after(
+                response.get("retry_after"), time.time()))
 
 
 def _data(page: Page, part: str, url: str) -> dict:
@@ -393,53 +315,37 @@ def _draft(entry: dict, posting: dict) -> tuple[dict, int]:
     return draft, unknown
 
 
-def _seen_records(conn, entries: list[dict]) -> list[dict]:
-    """Postings stored by an earlier run, as import records, with this run's date."""
-    records = []
-    for entry in entries:
-        row = conn.execute("SELECT * FROM postings WHERE provider = ? AND external_id = ?",
-                           (PROVIDER, str(entry["id"]))).fetchone()
-        records.append({
-            "provider": PROVIDER, "external_id": row["external_id"], "url": row["url"],
-            "title": row["title"], "company": row["company"], "location": row["location"],
-            "country": row["country"],
-            "posted_at": _date(entry.get("fechaPublicacion")) or row["posted_at"],
-            "description": row["description"], "seniority": row["seniority"],
-            "contract_type": row["contract_type"], "work_mode": row["work_mode"],
-            "work_mode_detail": row["work_mode_detail"], "language": row["language"],
-            "flags": json.loads(row["flags"]) if row["flags"] else [],
-            "published_salary": json.loads(row["published_salary"])
-            if row["published_salary"] else None,
-        })
-    return records
-
-
 # ── the reader ────────────────────────────────────────────────────────────
 
 def read(paths: Paths, run_id: int, title: str, location: str | None = None, *,
          browser: Callable = scrapling_browser, clock: Callable[[], float] = time.time,
-         sleep: Callable[[float], None] = time.sleep) -> dict:
+         sleep: Callable[[float], None] = time.sleep,
+         rand: Callable[[], float] = random.random) -> dict:
     """Search one title and write the drafts of its new postings. Returns a summary.
     `location` is accepted for the common reader interface and not used."""
     title = " ".join((title or "").split())
     if not title or not slug(title):
         raise JobTrackerError("invalid_title", "give the title to search with --title")
     with db.session(paths) as conn:
-        ctx = _context(conn, paths, run_id)
+        ctx = common.context(conn, paths, run_id, PROVIDER, LABEL, now=clock())
     ctx.folder.mkdir(parents=True, exist_ok=True)
-    lock = _lock(ctx.folder, clock())
+    lock = common.lock(ctx, LABEL, clock())
     try:
+        if common.already_done(ctx, title):   # before any browser starts
+            return common.done_summary(PROVIDER, title)
         with browser() as open_page:   # a missing browser stops here, before any page
-            return _read(paths, ctx, title, open_page, clock, sleep)
+            return _read(paths, ctx, title, open_page, clock, sleep, rand)
     finally:
         lock.unlink(missing_ok=True)
 
 
-def _read(paths: Paths, ctx: _Context, title: str, open_page: Open,
-          clock: Callable[[], float], sleep: Callable[[float], None]) -> dict:
-    run_id = ctx.run_id
-    state = _load_state(ctx.folder)
-    handled = set(state["ids"])
+def _read(paths: Paths, ctx: common.Context, title: str, open_page: Open,
+          clock: Callable[[], float], sleep: Callable[[float], None],
+          rand: Callable[[], float]) -> dict:
+    state = common.load_state(ctx)
+    handled = set(state["job_ids"])
+    done_pages = common.progress(state, title)["pages"]
+    max_pages = max(1, ctx.max_results // PAGE_SIZE)
     summary: dict = {"provider": PROVIDER, "title": title, "requests": 0, "pages": 0,
                      "cards": 0, "outside_window": 0, "duplicate_in_run": 0, "already_seen": 0,
                      "new": 0, "unreadable": [], "unknown_questions": 0, "drafts_path": None,
@@ -447,29 +353,33 @@ def _read(paths: Paths, ctx: _Context, title: str, open_page: Open,
     drafts: list[dict] = []
     seen: list[dict] = []
 
-    def load(url: str, watch: str) -> Page:
-        wait = state["last_page_at"] + ctx.min_seconds - clock()
-        if state["last_page_at"] and wait > 0:
+    def load_once(url: str, watch: str) -> Page:
+        wait = state["last_request_at"] + ctx.min_seconds - clock()
+        if state["last_request_at"] and wait > 0:
             sleep(wait)
-        state["pages"] += 1
+        state["requests"] += 1
         summary["requests"] += 1
         try:
             page = open_page(url, (watch,))
         finally:
-            state["last_page_at"] = clock()
-            _save_state(ctx.folder, state)
-        (ctx.folder / f"{PROVIDER}-{state['pages']}.json").write_text(json.dumps(
+            state["last_request_at"] = clock()
+            common.save_state(ctx, state)
+        (ctx.folder / f"{PROVIDER}-{state['requests']}.json").write_text(json.dumps(
             {"url": url, "status": page.status, "title": page.title, "final_url": page.url,
              "responses": page.responses}, ensure_ascii=False, indent=1), encoding="utf-8")
         _check(page, url)
         return page
 
+    def load(url: str, watch: str) -> Page:
+        return common.attempt(lambda: load_once(url, watch), state,
+                              min_seconds=ctx.min_seconds, clock=clock, sleep=sleep, rand=rand)
+
     def keep(posting_id: str) -> None:
         handled.add(posting_id)
-        state["ids"].append(posting_id)
+        state["job_ids"].append(posting_id)
 
     try:
-        for number in range(1, ctx.max_pages + 1):
+        for number in range(done_pages + 1, max_pages + 1):
             url = search_url(title, ctx.days, number)
             found = _data(load(url, SEARCH_API), SEARCH_API, url)
             entries = found.get("content")
@@ -488,12 +398,12 @@ def _read(paths: Paths, ctx: _Context, title: str, open_page: Open,
                 elif posting_id in handled:
                     summary["duplicate_in_run"] += 1
                 elif posting_id in ctx.known:
-                    seen.append(entry)
+                    seen.append({"external_id": posting_id, "posted_at": posted})
                     keep(posting_id)
                 else:
                     posting_url = BASE_URL + POSTING_PATH.format(id=posting_id)
                     page = load(posting_url, POSTING_API + posting_id)
-                    keep(posting_id)
+                    keep(posting_id)   # only now: a throttled posting is opened later
                     posting = _data(page, POSTING_API + posting_id, posting_url).get("aviso")
                     if not isinstance(posting, dict):
                         raise _Stop("error", f"no posting data on {posting_url}")
@@ -510,26 +420,9 @@ def _read(paths: Paths, ctx: _Context, title: str, open_page: Open,
                         continue
                     summary["unknown_questions"] += unknown
                     drafts.append(draft)
+            common.progress(state, title)["pages"] = number
             if len(entries) < PAGE_SIZE or number * PAGE_SIZE >= int(found.get("total") or 0):
                 break
     except _Stop as stop:
-        summary["stopped"] = {"reason": stop.reason, "detail": stop.detail}
-
-    if drafts:
-        name = f"{PROVIDER}-drafts-{len(state['drafts']) + 1}.json"
-        (ctx.folder / name).write_text(json.dumps(drafts, ensure_ascii=False, indent=1),
-                                       encoding="utf-8")
-        state["drafts"].append(name)
-        summary["drafts_path"] = str(ctx.folder / name)
-    _save_state(ctx.folder, state)
-    summary["new"] = len(drafts)
-    summary["already_seen"] = len(seen)
-    with db.session(paths) as conn:
-        if seen:
-            search.import_postings(conn, run_id, _seen_records(conn, seen))
-        if summary["stopped"]:
-            search.record_provider(conn, run_id, PROVIDER, "failed",
-                                   reason=summary["stopped"]["reason"],
-                                   detail=summary["stopped"]["detail"])
-    return summary
-
+        summary["stopped"] = common.stopped(stop)
+    return common.finish(paths, ctx, state, summary, drafts, seen, title, now=clock())

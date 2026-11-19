@@ -86,6 +86,12 @@ recorded keeps the name `resume-base.<ext>` until it is replaced.
   database on every `jobtracker learning refresh` (one JSON record per line:
   every application with its outcome so far, every tracked or dismissed
   posting, every corrected reading). It is never edited and can be deleted.
+- **Reader state**: each search run's folder also holds `<provider>-state.json`
+  per provider with a reader: the pacing clock, the postings already opened
+  in the run, the drafts files, per title the search pages read and whether
+  it is done, and the retries and throttles of the run. A reader resumes from
+  it after a cool-down; a cool-down itself (`cooldown_until`) is stored on the
+  run's provider entry in the database and shown by `jobtracker run show`.
 
 Structured data is written **only** through the `jobtracker` CLI or the panel
 API. Agents do not edit the database or `config.toml` by hand.

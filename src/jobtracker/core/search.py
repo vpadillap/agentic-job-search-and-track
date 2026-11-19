@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from . import normalize, providers
 from . import profile as profile_service
@@ -23,8 +23,9 @@ FILTER_REASONS = (
 PROVIDER_STATUSES = ("pending", "ok", "skipped", "failed", "disabled")
 SKIP_REASONS = (
     "live_walk", "login_required", "missing_dependency", "invalid_file", "disabled", "error",
-    "blocked", "not_searched", "other_country",
+    "blocked", "not_searched", "other_country", "throttled",
 )
+COOLDOWN_MINUTES = (15, 30)   # the first and second cool-down of a provider in a run
 SITE_HOST = re.compile(r"(?=.{4,253}$)([a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,63}")
 QUESTION_KINDS = ("text", "long_text", "choice", "multi_choice", "number", "yes_no", "file")
 DUPLICATE_DAYS = 7   # publication dates this close make a same company+title a possible duplicate
@@ -103,6 +104,8 @@ def start_run(
                 f"works only in {', '.join(provider['countries'])}; "  # type: ignore[arg-type]
                 f"the profile's country is {country}"))
         run_providers.append(item)
+    if not demo:
+        _inherit_cooldowns(conn, run_providers)
     if demo and demo_providers is not None:
         run_providers = [
             {"id": p["id"], "name": p["name"], "status": "pending", "reason": None,
@@ -178,6 +181,66 @@ def record_provider(
     return summary(conn, run_id)
 
 
+def _iso_at(seconds: float) -> str:
+    return datetime.fromtimestamp(seconds, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _seconds_of(iso: str) -> float:
+    return datetime.fromisoformat(iso.replace("Z", "+00:00")).timestamp()
+
+
+def cooling_until(item: dict, now: float) -> str | None:
+    """The end of a provider's cool-down when it has not passed yet."""
+    until = item.get("cooldown_until")
+    if until and _seconds_of(until) > now:
+        return str(until)
+    return None
+
+
+def record_cooldown(conn: sqlite3.Connection, run_id: int, provider_id: str,
+                    retry_after: float | None, detail: str, now: float) -> dict:
+    """A throttle the retries did not clear: the provider waits before the next call of
+    this run. The k-th cool-down lasts COOLDOWN_MINUTES[k-1] (or longer when the site
+    asked); a throttle past the last one stops the provider for the run."""
+    row = _run_row(conn, run_id)
+    if row["status"] != "running":
+        raise JobTrackerError("run_finished", f"Run {run_id} is already finished")
+    items = _run_providers(row)
+    item = next((i for i in items if i["id"] == provider_id), None)
+    if item is None:
+        raise JobTrackerError("not_found", f"'{provider_id}' is not a job provider of run {run_id}")
+    count = int(item.get("cooldowns") or 0) + 1
+    if count > len(COOLDOWN_MINUTES):
+        item.update(status="failed", reason="blocked", detail=(
+            f"throttled again after {len(COOLDOWN_MINUTES)} cool-downs: {detail}"))
+        item.pop("cooldown_until", None)
+        result = {"reason": "blocked", "detail": item["detail"], "resume_after": None}
+    else:
+        seconds = max(float(retry_after or 0), COOLDOWN_MINUTES[count - 1] * 60)
+        until = _iso_at(now + seconds)
+        item.update(cooldowns=count, cooldown_until=until, cooldown_detail=detail)
+        result = {"reason": "throttled", "detail": detail, "resume_after": until,
+                  "minutes": round(seconds / 60)}
+    _save_run_providers(conn, run_id, items)
+    bump_changes(conn)
+    return result
+
+
+def _inherit_cooldowns(conn: sqlite3.Connection, run_providers: list[dict]) -> None:
+    """A cool-down from the latest earlier run still holds for a new run."""
+    last = conn.execute("SELECT providers FROM search_runs WHERE is_demo = 0 "
+                        "ORDER BY id DESC LIMIT 1").fetchone()
+    if last is None:
+        return
+    now = datetime.now(UTC).timestamp()
+    earlier = {i["id"]: i for i in json.loads(last["providers"] or "[]")}
+    for item in run_providers:
+        before = earlier.get(item["id"])
+        if item["status"] == "pending" and before and cooling_until(before, now):
+            item.update(cooldown_until=before["cooldown_until"],
+                        cooldown_detail=before.get("cooldown_detail"))
+
+
 def finish_run(conn: sqlite3.Connection, run_id: int) -> dict:
     row = _run_row(conn, run_id)
     if row["status"] == "finished":
@@ -185,6 +248,11 @@ def finish_run(conn: sqlite3.Connection, run_id: int) -> dict:
     now = now_iso()
     items = _run_providers(row)
     for item in items:
+        until = cooling_until(item, _seconds_of(now)) if item["status"] == "pending" else None
+        if until:
+            item.update(status="failed", reason="throttled", detail=(
+                f"cooling down until {until} after a throttle: "
+                f"{item.get('cooldown_detail') or 'no detail'}"))
         if item["status"] == "pending":
             item.update(status="skipped", reason="not_searched")
         if item["status"] != "disabled" and not row["is_demo"]:
@@ -250,6 +318,10 @@ def summary(conn: sqlite3.Connection, run_id: int, top: int = 5) -> dict:
             "reason": item["reason"], "detail": item["detail"],
             "found": found.get(item["id"], 0),
         })
+        if item.get("cooldown_until") and item["status"] == "pending":
+            items[-1].update(cooldown_until=item["cooldown_until"],
+                             cooldown_detail=item.get("cooldown_detail"),
+                             cooldowns=int(item.get("cooldowns") or 0))
     top_rows = []
     for result in conn.execute(
         "SELECT p.id, p.title, p.company FROM run_results r JOIN postings p ON p.id = r.posting_id"

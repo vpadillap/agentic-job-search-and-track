@@ -85,13 +85,20 @@ class FakeFetcher:
         self.actions.append(url)
         self.times.append(self.now)
         self.max_cards.append(max_cards)
-        return self.search_result
+        return self._next(self.search_result)
 
     def page(self, url: str) -> tuple:
         self.actions.append(url)
         self.times.append(self.now)
         job_id = url.rsplit("jl=", 1)[-1]
-        return self.pages.get(url, posting_page(job_id))
+        return self._next(self.pages.get(url, posting_page(job_id)))
+
+    @staticmethod
+    def _next(answer):
+        """A list of answers is given out in order; its last one is repeated."""
+        if isinstance(answer, list):
+            return answer.pop(0) if len(answer) > 1 else answer[0]
+        return answer
 
     def close(self) -> None:
         self.closed += 1
@@ -335,7 +342,7 @@ def test_pacing_within_and_across_calls(workspace, run, fake):
 
 @pytest.mark.parametrize("result", [
     search_page(status=403, title="Security | Glassdoor"),
-    search_page(title="Un momento…"),
+    search_page(title="Attention Required! | Cloudflare"),
     search_page("901", wall=True),
 ])
 def test_blocked_stops_glassdoor_for_the_run(workspace, run, fake, result):
@@ -358,6 +365,50 @@ def test_a_blocked_posting_page_stops_and_keeps_what_was_read(workspace, run, fa
     summary = read(workspace, run, fake)
     assert summary["stopped"]["reason"] == "blocked" and summary["new"] == 1
     assert fake.opened() == ["911", "912"]
+
+
+# ── soft blocks (provider-throttling) ────────────────────────────────────
+
+CHALLENGE = search_page(title="Un momento…")
+
+
+def test_a_security_check_that_clears_is_waited_out(workspace, run, fake):
+    fake.search_result = [CHALLENGE, search_page("931")]
+    summary = read(workspace, run, fake)
+    assert summary["stopped"] is None and summary["new"] == 1
+    assert 10 <= fake.times[1] - fake.times[0] <= 20
+
+
+def test_a_security_check_that_stays_is_a_cool_down(workspace, run, fake):
+    fake.search_result = CHALLENGE
+    summary = read(workspace, run, fake)
+    assert summary["stopped"]["reason"] == "throttled" and fake.opened() == []
+    assert len(fake.actions) == 3
+    with pytest.raises(JobTrackerError) as error:
+        read(workspace, run, fake, title="Analytics Engineer")
+    assert error.value.code == "provider_cooling"
+
+
+def test_a_throttled_posting_is_opened_after_the_cool_down(workspace, run, fake):
+    fake.search_result = search_page("941", "942", "943")
+    fake.pages[posting_url("942")] = [(429, "", "")] * 3 + [posting_page("942")]
+    first = read(workspace, run, fake)
+    assert first["stopped"]["reason"] == "throttled" and first["new"] == 1
+    fake.now += 15 * 60
+    before = len(fake.opened())
+    second = read(workspace, run, fake)
+    assert second["stopped"] is None and second["new"] == 2
+    assert fake.opened()[before:] == ["942", "943"]                # 941 not reopened
+
+
+def test_throttled_salary_page(workspace, cli, fake):
+    set_profile(workspace, cli)
+    url = "https://www.glassdoor.com/Salaries/peru-data-engineer-salary-SRCH_IL.0,4_IN189_KO5,18.htm"
+    fake.pages[url] = (429, "", "<html></html>")
+    result = glassdoor.salary(workspace, TITLE, fetcher=fake, clock=fake.clock,
+                              sleep=fake.sleep)
+    assert result["data"] is False and result["throttled"] is True and result["resume_after"]
+    assert len(fake.actions) == 3
 
 
 def test_show_more_that_does_not_parse_is_an_error(workspace, run, fake):

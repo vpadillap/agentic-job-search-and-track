@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 import urllib.parse
 from datetime import date, timedelta
 from pathlib import Path
@@ -62,10 +63,18 @@ class FakeLinkedIn:
         self.times.append(self.now)
         if "seeMoreJobPostings" in url:
             query = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
-            return self.searches.get((query["keywords"][0], int(query["start"][0])),
-                                     (200, b"", None))
+            return self._next(self.searches, (query["keywords"][0], int(query["start"][0])),
+                              (200, b"", None))
         job_id = re.search(r"/jobs/view/(\d+)/$", url).group(1)
-        return self.postings.get(job_id) or posting()
+        return self._next(self.postings, job_id, None) or posting()
+
+    @staticmethod
+    def _next(answers: dict, key, default):
+        """A list of answers is given out in order; its last one is repeated."""
+        value = answers.get(key, default)
+        if isinstance(value, list):
+            return value.pop(0) if len(value) > 1 else value[0]
+        return value
 
     def clock(self) -> float:
         return self.now
@@ -232,16 +241,12 @@ def test_a_posting_stored_by_an_earlier_run_is_not_opened_again(workspace, run, 
 
 # ── stop conditions ───────────────────────────────────────────────────────
 
-@pytest.mark.parametrize("answer,needle", [
-    ((429, b"", None), "429"),
-    ((999, b"", None), "999"),
-    ((302, b"", "https://www.linkedin.com/authwall?trk=x"), "authwall"),
-])
-def test_throttling_or_redirect_blocks_linkedin_for_the_run(workspace, run, fake, answer,
-                                                           needle):
-    fake.searches[(TITLE, 0)] = answer
+def test_a_redirect_blocks_linkedin_for_the_run(workspace, run, fake):
+    fake.searches[(TITLE, 0)] = (302, b"", "https://www.linkedin.com/authwall?trk=x")
     summary = read(workspace, run, fake)
-    assert summary["stopped"]["reason"] == "blocked" and needle in summary["stopped"]["detail"]
+    assert summary["stopped"]["reason"] == "blocked" and "authwall" in summary["stopped"][
+        "detail"]
+    assert len(fake.requests) == 1                                  # a hard block: no retry
     provider = run_provider(workspace, run["run_id"])
     assert (provider["status"], provider["reason"]) == ("failed", "blocked")
     before = len(fake.requests)
@@ -256,9 +261,120 @@ def test_sign_in_page_instead_of_results_is_a_block(workspace, run, fake):
     assert summary["stopped"]["reason"] == "blocked"
 
 
-def test_a_block_keeps_what_was_read(workspace, run, fake):
+# ── soft blocks: retries and cool-downs (provider-throttling) ────────────
+
+THROTTLED = (429, b"", None)
+
+
+def test_a_throttle_that_clears_is_waited_out(workspace, run, fake):
+    fake.searches[(TITLE, 0)] = [THROTTLED, page(card(801))]
+    summary = read(workspace, run, fake)
+    assert summary["stopped"] is None and summary["new"] == 1
+    gap = fake.times[1] - fake.times[0]
+    assert 10 <= gap <= 20                               # backoff with jitter, first retry
+    assert "cooldown_until" not in run_provider(workspace, run["run_id"])
+
+
+def test_retry_after_is_honoured(workspace, run, fake):
+    fake.searches[(TITLE, 0)] = [(429, b"", None, "40"), page(card(802))]
+    summary = read(workspace, run, fake)
+    assert summary["stopped"] is None
+    assert fake.times[1] - fake.times[0] == pytest.approx(40)
+
+
+@pytest.mark.parametrize("status", [429, 999])
+def test_a_throttle_that_stays_is_a_cool_down_not_a_stop(workspace, run, fake, status):
+    fake.searches[(TITLE, 0)] = (status, b"", None)
+    summary = read(workspace, run, fake)
+    stop = summary["stopped"]
+    assert stop["reason"] == "throttled" and str(status) in stop["detail"]
+    assert stop["minutes"] == 15 and stop["resume_after"]
+    assert len(fake.requests) == 3                                  # three attempts
+    provider = run_provider(workspace, run["run_id"])
+    assert provider["status"] == "pending" and provider["cooldown_until"] == stop["resume_after"]
+    before = len(fake.requests)
+    with pytest.raises(JobTrackerError) as refused:
+        read(workspace, run, fake, title="Data Engineer")
+    assert refused.value.code == "provider_cooling" and len(fake.requests) == before
+
+
+def test_a_long_retry_after_cools_down_at_once(workspace, run, fake):
+    fake.searches[(TITLE, 0)] = (429, b"", None, "3600")
+    summary = read(workspace, run, fake)
+    assert len(fake.requests) == 1                     # no retry inside the call
+    assert summary["stopped"]["minutes"] == 60         # the site asked for an hour
+
+
+def test_the_same_run_resumes_after_the_cool_down(workspace, run, fake):
+    fake.searches[(TITLE, 0)] = page(*[card(900 + n) for n in range(10)])
+    fake.searches[(TITLE, 10)] = page(card(910), card(911))
+    fake.postings["911"] = [THROTTLED, THROTTLED, THROTTLED, posting()]
+    first = read(workspace, run, fake)
+    assert first["stopped"]["reason"] == "throttled"
+    assert len(drafts_of(first)) == 11
+    fake.now += 15 * 60
+    opened = list(fake.posting_requests())
+    second = read(workspace, run, fake)
+    assert second["stopped"] is None and [d["external_id"] for d in drafts_of(second)] == [
+        "911"]
+    searched = [u for u in fake.search_requests()]
+    assert "start=0" not in searched[-1] and searched.count(searched[-1]) == 2  # page 2 again
+    reopened = fake.posting_requests()[len(opened):]
+    assert [u.rsplit("/", 2)[-2] for u in reopened] == ["911"]   # nothing else reopened
+    third = read(workspace, run, fake)
+    assert third["already_done"] is True and third["requests"] == 0
+
+
+def test_a_third_throttle_stops_the_provider(workspace, run, fake):
+    fake.searches[(TITLE, 0)] = (429, b"", None, "1")
+    for _ in range(2):
+        assert read(workspace, run, fake)["stopped"]["reason"] == "throttled"
+        fake.now += 31 * 60
+    summary = read(workspace, run, fake)
+    assert summary["stopped"]["reason"] == "blocked"
+    assert "after 2 cool-downs" in summary["stopped"]["detail"]
+    provider = run_provider(workspace, run["run_id"])
+    assert (provider["status"], provider["reason"]) == ("failed", "blocked")
+    with pytest.raises(JobTrackerError) as refused:
+        read(workspace, run, fake)
+    assert refused.value.code == "provider_stopped"
+
+
+def test_the_run_retry_budget(workspace, run, fake):
+    cards = [card(950 + n) for n in range(4)]
+    fake.searches[(TITLE, 0)] = page(*cards)
+    for n in range(4):
+        fake.postings[str(950 + n)] = [THROTTLED, THROTTLED, posting()]  # two retries each
+    summary = read(workspace, run, fake)
+    assert summary["stopped"]["reason"] == "throttled"           # the 7th retry is refused
+    assert len(drafts_of(summary)) == 3
+
+
+def test_finishing_a_run_during_a_cool_down(workspace, run, fake, cli):
+    fake.now = time.time()
+    fake.searches[(TITLE, 0)] = THROTTLED
+    read(workspace, run, fake)
+    code, out, _ = cli("run", "finish", str(run["run_id"]))
+    provider = next(p for p in out["run"]["providers"] if p["id"] == "linkedin")
+    assert (provider["status"], provider["reason"]) == ("failed", "throttled")
+    assert "cooling down until" in provider["detail"]
+
+
+def test_a_new_run_inherits_a_cool_down(workspace, run, fake, cli):
+    fake.now = time.time()
+    fake.searches[(TITLE, 0)] = THROTTLED
+    until = read(workspace, run, fake)["stopped"]["resume_after"]
+    cli("run", "finish", str(run["run_id"]))
+    later = start_run(cli)
+    with pytest.raises(JobTrackerError) as refused:
+        read(workspace, later, fake)
+    assert refused.value.code == "provider_cooling"
+    assert run_provider(workspace, later["run_id"])["cooldown_until"] == until
+
+
+def test_a_hard_block_keeps_what_was_read(workspace, run, fake):
     fake.searches[(TITLE, 0)] = page(card(401), card(402), card(403))
-    fake.postings["402"] = (999, b"", None)
+    fake.postings["402"] = (302, b"", "https://www.linkedin.com/login")
     summary = read(workspace, run, fake)
     assert summary["stopped"]["reason"] == "blocked"
     assert [d["external_id"] for d in drafts_of(summary)] == ["401"]

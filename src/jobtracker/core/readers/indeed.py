@@ -13,6 +13,7 @@ the other readers (`common`). What needs judgment is left to the agent.
 from __future__ import annotations
 
 import json
+import random
 import re
 import time
 import urllib.parse
@@ -32,8 +33,9 @@ FROMAGE = (1, 3, 7, 14)          # posting ages (days) Indeed's search offers
 EMPTY_VARIANTS_IN_A_ROW = 2      # variants adding nothing new: the title is done
 INSTALL = "jt providers install indeed"
 JOBCARDS = 'window.mosaic.providerData["mosaic-provider-jobcards"]'
-BLOCK_MARKERS = ("Blocked", "Security Check", "Just a moment", "Verificación de seguridad",
-                 "Un momento")
+# Security checks that do not clear are throttles (common.CHALLENGE_TITLES); these pages
+# are hard blocks.
+BLOCK_MARKERS = ("Blocked", "Attention Required", "Access denied")
 SIGN_IN_MARKERS = ("Iniciar sesión", "Sign in", "Cuentas Indeed", "Indeed Accounts")
 # Indeed's job types that say the contract type clearly; anything else is left to the agent.
 CONTRACT_TYPES = {"tiempo completo": "full-time", "full-time": "full-time",
@@ -223,7 +225,7 @@ class ScraplingBrowser:
             return page
 
         try:
-            session = self._session_class(headless=True, solve_cloudflare=True,
+            session = self._session_class(headless=True, solve_cloudflare=True, retries=1,
                                           locale=self._locale, timeout=120000, wait=3000)
             session.__enter__()
         except Exception as error:  # the browser itself is not installed
@@ -250,34 +252,41 @@ BrowserFactory = Callable[[str], Browser]
 
 def read(paths: Paths, run_id: int, title: str, location: str | None = None, *,
          browser: BrowserFactory = ScraplingBrowser, clock: Callable[[], float] = time.time,
-         sleep: Callable[[float], None] = time.sleep) -> dict:
+         sleep: Callable[[float], None] = time.sleep,
+         rand: Callable[[], float] = random.random) -> dict:
     """Search one title and write the drafts of its new postings. Returns a summary."""
     title = " ".join((title or "").split())
     if not title:
         raise JobTrackerError("invalid_title", "give the title to search with --title")
     location = " ".join((location or "").split()) or None
     with db.session(paths) as conn:
-        ctx = common.context(conn, paths, run_id, PROVIDER, LABEL)
+        ctx = common.context(conn, paths, run_id, PROVIDER, LABEL, now=clock())
     ctx.folder.mkdir(parents=True, exist_ok=True)
     lock = common.lock(ctx, LABEL, clock())
     try:
-        return _read(paths, ctx, title, location, browser, clock, sleep)
+        if common.already_done(ctx, common.title_key(title, location)):
+            return common.done_summary(PROVIDER, title)
+        return _read(paths, ctx, title, location, browser, clock, sleep, rand)
     finally:
         lock.unlink(missing_ok=True)
 
 
-def _blocked(status: int | None, title: str) -> str | None:
-    """Why a page is not results: a block or a sign-in page; None when it is results."""
-    if status in (403, 429) or any(marker in title for marker in BLOCK_MARKERS):
-        return f"{status} '{title}'"
+def _blocked(status: int | None, title: str) -> tuple[bool, str] | None:
+    """Why a page is not results, and whether it is a throttle (soft: 429, a security
+    check that did not clear) rather than a hard block (403, a block page, a sign-in
+    page); None when it is results."""
+    if status == 403 or any(marker in title for marker in BLOCK_MARKERS):
+        return False, f"{status} '{title}'"
     if any(marker in title for marker in SIGN_IN_MARKERS):
-        return f"a sign-in page ('{title}') instead of results"
+        return False, f"a sign-in page ('{title}') instead of results"
+    if common.soft_status(status) or common.is_challenge(title):
+        return True, f"{status} '{title}'"
     return None
 
 
 def _read(paths: Paths, ctx: common.Context, title: str, location: str | None,
           browser_factory: BrowserFactory, clock: Callable[[], float],
-          sleep: Callable[[float], None]) -> dict:
+          sleep: Callable[[float], None], rand: Callable[[], float]) -> dict:
     state = common.load_state(ctx)
     handled = set(state["job_ids"])
     host = site(ctx.country)
@@ -336,24 +345,36 @@ def _read(paths: Paths, ctx: common.Context, title: str, location: str | None,
                         to_open.append(job_id)
                 return to_open
 
-            pace()
-            try:
-                page = browser.search(url, select)
-            except JobTrackerError:
-                raise
-            except Exception as error:  # the browser could not load the page
-                raise common.Stop("error", f"the browser failed on {url}: {error}") from error
-            finally:
-                state["last_request_at"] = clock()
-            summary["pages"] += 1
-            (ctx.folder / f"{PROVIDER}-{state['requests']}.html").write_text(
-                page.html, encoding="utf-8")
-            common.save_state(ctx, state)
-            why = _blocked(page.status, page.title)
-            if why:
-                if number == 0:
+            def once(url: str = url, select: Callable[[str], list[str]] = select,
+                     first: bool = number == 0) -> SearchPage:
+                assert browser is not None
+                pace()
+                try:
+                    page = browser.search(url, select)
+                except JobTrackerError:
+                    raise
+                except Exception as error:  # the browser could not load the page
+                    raise common.Stop("error", f"the browser failed on {url}: "
+                                      f"{error}") from error
+                finally:
+                    state["last_request_at"] = clock()
+                summary["pages"] += 1
+                (ctx.folder / f"{PROVIDER}-{state['requests']}.html").write_text(
+                    page.html, encoding="utf-8")
+                common.save_state(ctx, state)
+                blocked = _blocked(page.status, page.title)
+                if blocked and first:
+                    soft, why = blocked
+                    if soft:
+                        raise common.Throttle(f"{why} on {url}")
                     raise common.Stop("blocked", f"{why} on {url}")
-                summary["ended_early"] = f"{name}: {why}"   # later variants only: not a block
+                return page
+
+            page = common.attempt(once, state, min_seconds=ctx.min_seconds, clock=clock,
+                                  sleep=sleep, rand=rand)
+            blocked = _blocked(page.status, page.title)
+            if blocked:   # later variants only: not a block, the title ends here
+                summary["ended_early"] = f"{name}: {blocked[1]}"
                 break
             if parse_cards(page.html) is None:
                 if number == 0:
@@ -383,8 +404,9 @@ def _read(paths: Paths, ctx: common.Context, title: str, location: str | None,
             if total is not None and len(in_title) >= total:
                 break
     except common.Stop as stop:
-        summary["stopped"] = {"reason": stop.reason, "detail": stop.detail}
+        summary["stopped"] = common.stopped(stop)
     finally:
         if browser is not None:
             browser.close()
-    return common.finish(paths, ctx, state, summary, drafts, seen)
+    return common.finish(paths, ctx, state, summary, drafts, seen,
+                         common.title_key(title, location), now=clock())

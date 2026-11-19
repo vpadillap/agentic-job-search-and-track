@@ -87,9 +87,17 @@ refuses a call while another one for the same run is still running
    `work_mode`, `work_mode_detail`, `language`, `flags`, and
    `published_salary`. Never copy or retype a description: it is taken from
    the draft as captured.
-5. If `stopped` is set, stop LinkedIn for this run: the reader already
-   recorded it as failed, and it refuses further calls in this run. Import
-   the drafts it wrote before stopping, then go on with the next provider.
+5. If `stopped` is set, import the drafts it wrote before stopping, then:
+
+   - reason `throttled`: LinkedIn is cooling down until `resume_after`. Go on
+     with the next provider and tell the user when LinkedIn may go on. After
+     that time, if the user wants to wait, call it again in this run for
+     the titles not done yet; a call before then is refused with
+     `provider_cooling` and sends nothing. If the run is finished first,
+     LinkedIn is recorded as failed with reason `throttled`.
+   - any other reason: stop LinkedIn for this run. The reader already
+     recorded it as failed and refuses further calls in this run; go on with
+     the next provider.
 
 When every title is done and LinkedIn did not stop, record
 `jt run provider <run_id> linkedin --status ok`.
@@ -197,16 +205,41 @@ apply link.
   one posting page per job id per run; postings stored by an earlier run are
   not opened again.
 - Read-only: never apply, save, follow, message, or sign in.
+- **When LinkedIn asks to slow down** (a soft block, see "Stop conditions"),
+  the reader waits and sends the same request again: as long as the site's
+  `Retry-After` header says when it sends one, otherwise 10–20 seconds, then
+  20–40 seconds. At most 3 tries per request, never more than 2 minutes per
+  wait, at most 6 retries per run. If that does not clear it, LinkedIn cools
+  down for 15 minutes (30 the second time, longer when the site asks) and
+  the same run goes on after that; a third throttle in a run stops LinkedIn
+  for the run. There is no way to end a cool-down early.
+- Waiting is the only answer to a block: never a proxy, a different IP, a
+  changed or rotating user agent or headers, an account, cookies, or a fresh
+  browser identity to get past it.
 
 ### Stop conditions
 
-The reader stops **all** LinkedIn requests for the rest of the run, keeps
-what was already read, records LinkedIn as failed for the run, and refuses
-later calls in that run when:
+**Soft blocks** (a throttle: the site asks to slow down):
 
-- a request answers HTTP 429 or 999, or any redirect (it is never followed;
-  the detail names where it points, for example `authwall` or `login`), or a
-  search page is a sign-in form instead of results: reason `blocked`;
+- a request answers HTTP 429 or 999, or 503 with a `Retry-After`
+  header.
+
+The reader waits and retries as stated in "Limits and etiquette". When the
+throttle does not clear, it ends the call with `stopped.reason: throttled`
+and `resume_after` (the time it may go on), keeps what was already read, and
+records a cool-down on the run; calls before that time are refused without
+any request (`provider_cooling`). The first call after it goes on in the
+same run: a title already completed is not searched again, search pages
+already read are skipped, and postings already opened are not opened again
+(a posting whose request was throttled is opened then).
+
+**Hard blocks and errors.** The reader stops **all** LinkedIn work for the
+rest of the run, keeps what was already read, records LinkedIn as failed for
+the run, and refuses later calls in that run (`provider_stopped`) when:
+
+- any redirect (it is never followed; the detail names where it points,
+  for example `authwall` or `login`), or a search page is a sign-in form
+  instead of results: reason `blocked`;
 - a page no longer matches what the reader expects (job ids without cards
   on a search page, or a posting page without its description): reason
   `error`, with what is missing;

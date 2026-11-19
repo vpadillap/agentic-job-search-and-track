@@ -11,6 +11,7 @@ run's window, and writes drafts. Standard library only.
 from __future__ import annotations
 
 import json
+import random
 import time
 import urllib.error
 import urllib.parse
@@ -36,17 +37,19 @@ SECTIONS = (("description_headline", "description"), (None, "projects"),
             ("functions_headline", "functions"), ("desirable_headline", "desirable"),
             ("benefits_headline", "benefits"))
 
-Getter = Callable[[str], tuple[int, str]]
+# (status, body[, Retry-After]); the third item is optional.
+Getter = Callable[[str], tuple]
 
 
-def http_get(url: str) -> tuple[int, str]:
+def http_get(url: str) -> tuple[int, str, str | None]:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT,
                                                    "Accept": "application/json"})
     try:
         with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
-            return response.status, response.read().decode("utf-8")
+            return response.status, response.read().decode("utf-8"), None
     except urllib.error.HTTPError as error:
-        return error.code, error.read().decode("utf-8", "replace")
+        return (error.code, error.read().decode("utf-8", "replace"),
+                error.headers.get("Retry-After"))
 
 
 def search_url(title: str, *, country: str | None = None, remote: bool = False,
@@ -122,24 +125,28 @@ def _draft(job: dict, ctx: common.Context) -> dict:
 
 def read(paths: Paths, run_id: int, title: str, location: str | None = None, *,
          get: Getter = http_get, clock: Callable[[], float] = time.time,
-         sleep: Callable[[float], None] = time.sleep) -> dict:
+         sleep: Callable[[float], None] = time.sleep,
+         rand: Callable[[], float] = random.random) -> dict:
     """Search one title (the profile's country and remote from anywhere) and write the
     drafts of its new postings. `location` is not used: the API filters by country."""
     title = " ".join((title or "").split())
     if not title:
         raise JobTrackerError("invalid_title", "give the title to search with --title")
     with db.session(paths) as conn:
-        ctx = common.context(conn, paths, run_id, PROVIDER, LABEL)
+        ctx = common.context(conn, paths, run_id, PROVIDER, LABEL, now=clock())
     ctx.folder.mkdir(parents=True, exist_ok=True)
     lock = common.lock(ctx, LABEL, clock())
     try:
-        return _read(paths, ctx, title, get, clock, sleep)
+        if common.already_done(ctx, title):
+            return common.done_summary(PROVIDER, title)
+        return _read(paths, ctx, title, get, clock, sleep, rand)
     finally:
         lock.unlink(missing_ok=True)
 
 
 def _read(paths: Paths, ctx: common.Context, title: str, get: Getter,
-          clock: Callable[[], float], sleep: Callable[[float], None]) -> dict:
+          clock: Callable[[], float], sleep: Callable[[float], None],
+          rand: Callable[[], float]) -> dict:
     state = common.load_state(ctx)
     handled = set(state["job_ids"])
     summary: dict = {"provider": PROVIDER, "title": title, "requests": 0, "searches": [],
@@ -152,20 +159,29 @@ def _read(paths: Paths, ctx: common.Context, title: str, get: Getter,
     since = date.fromisoformat(ctx.since)
 
     def fetch(url: str) -> dict | None:
+        """One API request, paced, saved, and repeated after a throttle."""
+        return common.attempt(lambda: fetch_once(url), state, min_seconds=ctx.min_seconds,
+                              clock=clock, sleep=sleep, rand=rand)
+
+    def fetch_once(url: str) -> dict | None:
         nonlocal failures
         wait = state["last_request_at"] + ctx.min_seconds - clock()
         if state["last_request_at"] and wait > 0:
             sleep(wait)
         state["requests"] += 1
         summary["requests"] += 1
+        rest: list = []
         try:
-            status, body = get(url)
+            status, body, *rest = get(url)
         except (OSError, ValueError) as error:
             status, body = None, str(error)
         state["last_request_at"] = clock()
         (ctx.folder / f"{PROVIDER}-{state['requests']}.json").write_text(body, encoding="utf-8")
         common.save_state(ctx, state)
-        if status in (403, 429):
+        retry_after = common.parse_retry_after(rest[0] if rest else None, clock())
+        if common.soft_status(status, retry_after):
+            raise common.Throttle(f"{status} from {url}", retry_after)
+        if status == 403:
             raise common.Stop("blocked", f"{status} from {url}")
         try:
             data = json.loads(body)
@@ -229,5 +245,6 @@ def _read(paths: Paths, ctx: common.Context, title: str, get: Getter,
             if summary["capped"]:
                 break
     except common.Stop as stop:
-        summary["stopped"] = {"reason": stop.reason, "detail": stop.detail}
-    return common.finish(paths, ctx, state, summary, drafts, seen)
+        summary["stopped"] = common.stopped(stop)
+    return common.finish(paths, ctx, state, summary, drafts, seen, title,
+                         now=clock())

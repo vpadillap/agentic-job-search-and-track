@@ -58,6 +58,7 @@
   "skip.blocked": "the site blocked the search",
   "skip.not_searched": "not searched",
   "skip.other_country": "it works only in other countries",
+  "skip.throttled": "the site asked to slow down; the run ended before the wait was over",
   "coverage.global": "Global",
   "coverage.private": "Private",
   "coverage.privateHint": "A job site you added yourself (in your private folder)",

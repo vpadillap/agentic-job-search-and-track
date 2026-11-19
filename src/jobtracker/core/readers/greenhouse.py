@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import html
 import json
+import random
 import re
 import time
 import urllib.error
@@ -40,17 +41,19 @@ KINDS = {"input_text": "text", "textarea": "long_text", "input_file": "file",
          "multi_value_single_select": "choice", "multi_value_multi_select": "multi_choice"}
 USER_AGENT = "jobtracker (local job-search assistant; Greenhouse Job Board API)"
 
-Getter = Callable[[str], tuple[int, str]]
+# (status, body[, Retry-After]); the third item is optional.
+Getter = Callable[[str], tuple]
 
 
-def http_get(url: str) -> tuple[int, str]:
+def http_get(url: str) -> tuple[int, str, str | None]:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT,
                                                    "Accept": "application/json"})
     try:
         with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
-            return response.status, response.read().decode("utf-8")
+            return response.status, response.read().decode("utf-8"), None
     except urllib.error.HTTPError as error:
-        return error.code, error.read().decode("utf-8", "replace")
+        return (error.code, error.read().decode("utf-8", "replace"),
+                error.headers.get("Retry-After"))
 
 
 # ── links, words, settings ────────────────────────────────────────────────
@@ -190,7 +193,8 @@ def _draft(job: dict, board: str, ctx: common.Context) -> dict:
 def read(paths: Paths, run_id: int, title: str, location: str | None = None, *,
          found: str | None = None, place_words: str | None = None, get: Getter = http_get,
          clock: Callable[[], float] = time.time,
-         sleep: Callable[[float], None] = time.sleep) -> dict:
+         sleep: Callable[[float], None] = time.sleep,
+         rand: Callable[[], float] = random.random) -> dict:
     """Read the found postings and boards (and the remembered ones) for one title and
     write the drafts of its new postings. `location` is not used: Greenhouse postings
     are matched to the profile's country."""
@@ -206,7 +210,7 @@ def read(paths: Paths, run_id: int, title: str, location: str | None = None, *,
         if not isinstance(links, list):
             raise JobTrackerError("invalid_found", "--found must be a JSON list of links")
     with db.session(paths) as conn:
-        ctx = common.context(conn, paths, run_id, PROVIDER, LABEL)
+        ctx = common.context(conn, paths, run_id, PROVIDER, LABEL, now=clock())
     settings = load_settings(paths)
     places, regions = country_words(paths, ctx.country, place_words, settings)
     if place_words:
@@ -214,14 +218,16 @@ def read(paths: Paths, run_id: int, title: str, location: str | None = None, *,
     ctx.folder.mkdir(parents=True, exist_ok=True)
     lock = common.lock(ctx, LABEL, clock())
     try:
-        return _read(paths, ctx, title, links, places, regions, settings, get, clock, sleep)
+        return _read(paths, ctx, title, links, places, regions, settings, get, clock, sleep,
+                     rand)
     finally:
         lock.unlink(missing_ok=True)
 
 
 def _read(paths: Paths, ctx: common.Context, title: str, links: list[object],
           places: list[str], regions: list[str], settings: dict, get: Getter,
-          clock: Callable[[], float], sleep: Callable[[float], None]) -> dict:
+          clock: Callable[[], float], sleep: Callable[[float], None],
+          rand: Callable[[], float]) -> dict:
     state = common.load_state(ctx)
     handled = set(state["job_ids"])
     postings, found_boards, ignored = parse_links(links)
@@ -239,21 +245,29 @@ def _read(paths: Paths, ctx: common.Context, title: str, links: list[object],
     failures = 0
 
     def fetch(url: str, capture: str) -> dict | None:
-        """One API request, paced and saved; None for a 404."""
+        """One API request, paced, saved, and repeated after a throttle; None for a 404."""
+        return common.attempt(lambda: fetch_once(url, capture), state,
+                              min_seconds=ctx.min_seconds, clock=clock, sleep=sleep, rand=rand)
+
+    def fetch_once(url: str, capture: str) -> dict | None:
         nonlocal failures
         wait = state["last_request_at"] + ctx.min_seconds - clock()
         if state["last_request_at"] and wait > 0:
             sleep(wait)
         state["requests"] += 1
         summary["requests"] += 1
+        rest: list = []
         try:
-            status, body = get(url)
+            status, body, *rest = get(url)
         except (OSError, ValueError) as error:
             status, body = None, str(error)
         state["last_request_at"] = clock()
         (ctx.folder / capture).write_text(body, encoding="utf-8")
         common.save_state(ctx, state)
-        if status in (403, 429):
+        retry_after = common.parse_retry_after(rest[0] if rest else None, clock())
+        if common.soft_status(status, retry_after):
+            raise common.Throttle(f"{status} from {url}", retry_after)
+        if status == 403:
             raise common.Stop("blocked", f"{status} from {url}")
         if status == 404:
             return None
@@ -359,7 +373,8 @@ def _read(paths: Paths, ctx: common.Context, title: str, links: list[object],
                 remember(board, company, "web search" if board in found_boards else "remembered",
                          matched)
     except common.Stop as stop:
-        summary["stopped"] = {"reason": stop.reason, "detail": stop.detail}
+        summary["stopped"] = common.stopped(stop)
     finally:
         save_settings(paths, settings)
-    return common.finish(paths, ctx, state, summary, drafts, seen)
+    return common.finish(paths, ctx, state, summary, drafts, seen, None,
+                         now=clock())

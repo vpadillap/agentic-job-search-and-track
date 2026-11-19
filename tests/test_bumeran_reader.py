@@ -71,7 +71,10 @@ class FakeBrowser:
         self.opened.append(url)
         self.times.append(self.now)
         if url in self.overrides:
-            return self.overrides[url]
+            answer = self.overrides[url]
+            if isinstance(answer, list):   # answers in order; the last one is repeated
+                return answer.pop(0) if len(answer) > 1 else answer[0]
+            return answer
         match = re.search(r"/empleos/(\d+)\.html$", url)
         if match:
             body = self.postings.get(match.group(1)) or posting(int(match.group(1)))
@@ -274,12 +277,11 @@ def test_a_posting_stored_by_an_earlier_run_is_not_opened_again(workspace, run, 
 
 @pytest.mark.parametrize("page", [
     bumeran.Page(403, "Attention Required! | Cloudflare", SEARCH_7, []),
-    bumeran.Page(200, "Just a moment...", SEARCH_7, []),
-    bumeran.Page(429, "Too Many Requests", SEARCH_7, []),
+    bumeran.Page(200, "Access denied", SEARCH_7, []),
     bumeran.Page(200, "Empleos | Bumeran Perú", SEARCH_7, [
         {"url": f"{bumeran.BASE_URL}/{bumeran.SEARCH_API}", "status": 403, "body": None}]),
 ])
-def test_a_block_or_challenge_stops_bumeran_for_the_run(workspace, run, fake, page):
+def test_a_block_stops_bumeran_for_the_run(workspace, run, fake, page):
     fake.overrides[SEARCH_7] = page
     summary = read(workspace, run, fake)
     assert summary["stopped"]["reason"] == "blocked"
@@ -289,6 +291,52 @@ def test_a_block_or_challenge_stops_bumeran_for_the_run(workspace, run, fake, pa
         read(workspace, run, fake, title="Data Platform Engineer")
     assert refused.value.code == "provider_stopped"
     assert len(fake.opened) == 1                                   # nothing opened after
+
+
+@pytest.mark.parametrize("page", [
+    bumeran.Page(200, "Just a moment...", SEARCH_7, []),
+    bumeran.Page(429, "Too Many Requests", SEARCH_7, []),
+    bumeran.Page(200, "Empleos | Bumeran Perú", SEARCH_7, [
+        {"url": f"{bumeran.BASE_URL}/{bumeran.SEARCH_API}", "status": 429, "body": None}]),
+])
+def test_a_challenge_or_throttle_that_stays_is_a_cool_down(workspace, run, fake, page):
+    fake.overrides[SEARCH_7] = page
+    summary = read(workspace, run, fake)
+    assert summary["stopped"]["reason"] == "throttled" and summary["stopped"]["resume_after"]
+    assert len(fake.opened) == 3                                   # three attempts
+    status = run_status(workspace, run)
+    assert status["status"] == "pending" and status["cooldown_until"]
+    with pytest.raises(JobTrackerError) as refused:
+        read(workspace, run, fake, title="Data Platform Engineer")
+    assert refused.value.code == "provider_cooling" and len(fake.opened) == 3
+
+
+def test_a_challenge_that_clears_is_waited_out(workspace, run, fake):
+    fake.overrides[SEARCH_7] = [
+        bumeran.Page(200, "Just a moment...", SEARCH_7, []),
+        bumeran.Page(200, "Empleos | Bumeran Perú", SEARCH_7, [
+            {"url": f"{bumeran.BASE_URL}/{bumeran.SEARCH_API}?pageSize=20&page=0",
+             "status": 200, "body": results(entry(980001), total=1)}])]
+    summary = read(workspace, run, fake)
+    assert summary["stopped"] is None and summary["new"] == 1
+    assert 10 <= fake.times[1] - fake.times[0] <= 20
+
+
+def test_a_throttled_posting_is_opened_after_the_cool_down(workspace, run, fake):
+    fake.searches[SEARCH_7] = results(entry(985001), entry(985002), total=2)
+    second = f"{bumeran.BASE_URL}/empleos/985002.html"
+    fake.overrides[second] = [bumeran.Page(429, "Too Many Requests", second, [])] * 3
+    first = read(workspace, run, fake)
+    assert first["stopped"]["reason"] == "throttled" and first["new"] == 1
+    del fake.overrides[second]
+    fake.now += 15 * 60
+    before = len(fake.posting_pages())
+    again = read(workspace, run, fake)
+    assert again["stopped"] is None and [d["external_id"] for d in drafts_of(again)] == [
+        "985002"]
+    assert fake.posting_pages()[before:] == [second]               # 985001 not reopened
+    done = read(workspace, run, fake)
+    assert done["already_done"] is True and fake.started == 2     # no browser started
 
 
 def test_a_block_mid_title_keeps_what_was_read(workspace, run, fake):

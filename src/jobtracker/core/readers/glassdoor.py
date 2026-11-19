@@ -13,12 +13,13 @@ needs judgment is left to the agent.
 from __future__ import annotations
 
 import json
+import random
 import re
 import time
 import urllib.parse
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Protocol
@@ -35,7 +36,9 @@ SITE = "https://www.glassdoor.com"
 FROM_AGE = (1, 3, 7, 14, 30)       # posting ages (days) Glassdoor's search offers
 MIN_DESCRIPTION = 100              # shorter than this: no readable description
 UNREADABLE_IN_A_ROW = 3            # this many unreadable postings in a row stop the reader
-BLOCK_MARKERS = ("Security | Glassdoor", "Un momento", "Just a moment", "Attention Required")
+# Security checks Scrapling did not pass are throttles (common.CHALLENGE_TITLES); these
+# pages are hard blocks.
+BLOCK_MARKERS = ("Attention Required", "Access denied")
 LOCALES = {"PE": "es-PE", "MX": "es-MX", "CO": "es-CO", "CL": "es-CL", "AR": "es-AR",
            "ES": "es-ES", "US": "en-US", "GB": "en-GB", "CA": "en-CA", "PT": "pt-PT",
            "BR": "pt-BR"}
@@ -416,6 +419,7 @@ class ScraplingFetcher:
         logging.getLogger("scrapling").setLevel(logging.WARNING)  # keep the CLI output clean
         try:
             self._session = StealthySession(headless=True, solve_cloudflare=True, locale=locale,
+                                            retries=1,  # retries go through common.attempt
                                             timeout=90000, wait=3000)
             self._session.__enter__()
         except Exception as error:  # the browser itself is not installed
@@ -485,33 +489,40 @@ FetcherFactory = Callable[[str, float], Fetcher]
 
 
 def _blocked(status: int | None, title: str, url: str) -> None:
-    if status in (403, 429) or any(marker in title for marker in BLOCK_MARKERS):
+    """A hard block (403, a block page) stops Glassdoor for the run; a throttle (429, a
+    security check that was not passed) is waited out (common.attempt)."""
+    if status == 403 or any(marker in title for marker in BLOCK_MARKERS):
         raise common.Stop("blocked", f"{status} '{title}' on {url}")
+    if common.soft_status(status) or common.is_challenge(title):
+        raise common.Throttle(f"{status} '{title}' on {url}")
 
 
 def read(paths: Paths, run_id: int, title: str, location: str | None = None, *,
          search_url_given: str | None = None, fetcher: FetcherFactory = ScraplingFetcher,
          clock: Callable[[], float] = time.time,
-         sleep: Callable[[float], None] = time.sleep) -> dict:
+         sleep: Callable[[float], None] = time.sleep,
+         rand: Callable[[], float] = random.random) -> dict:
     """Search one title and write the drafts of its new postings. Returns a summary.
     `location` is not used: Glassdoor is searched for the whole country."""
     title = " ".join((title or "").split())
     if not title:
         raise JobTrackerError("invalid_title", "give the title to search with --title")
     with db.session(paths) as conn:
-        ctx = common.context(conn, paths, run_id, PROVIDER, LABEL)
+        ctx = common.context(conn, paths, run_id, PROVIDER, LABEL, now=clock())
     country = resolve_country(paths, ctx.country, search_url_given)
     ctx.folder.mkdir(parents=True, exist_ok=True)
     lock = common.lock(ctx, LABEL, clock())
     try:
-        return _read(paths, ctx, title, country, fetcher, clock, sleep)
+        if common.already_done(ctx, title):
+            return common.done_summary(PROVIDER, title)
+        return _read(paths, ctx, title, country, fetcher, clock, sleep, rand)
     finally:
         lock.unlink(missing_ok=True)
 
 
 def _read(paths: Paths, ctx: common.Context, title: str, country: dict,
           fetcher_factory: FetcherFactory, clock: Callable[[], float],
-          sleep: Callable[[float], None]) -> dict:
+          sleep: Callable[[float], None], rand: Callable[[], float]) -> dict:
     state = common.load_state(ctx)
     handled = set(state["job_ids"])
     summary: dict = {"provider": PROVIDER, "title": title, "requests": 0, "site_total": None,
@@ -539,10 +550,12 @@ def _read(paths: Paths, ctx: common.Context, title: str, country: dict,
         handled.add(job_id)
         state["job_ids"].append(job_id)
 
-    url = search_url(country["place"], country["id"], title, ctx.days)
-    try:
-        fetcher = fetcher_factory(LOCALES.get((ctx.country or "").upper(), "en-US"),
-                                  float(ctx.min_seconds))
+    def retried(request: Callable[[], object]):
+        return common.attempt(request, state, min_seconds=ctx.min_seconds, clock=clock,
+                              sleep=sleep, rand=rand)
+
+    def search_once(url: str) -> SearchPage:
+        assert fetcher is not None
         pace()
         try:
             found = fetcher.search(url, ctx.max_results)
@@ -555,6 +568,27 @@ def _read(paths: Paths, ctx: common.Context, title: str, country: dict,
             (ctx.folder / f"{PROVIDER}-{state['requests']}-more.json").write_text(
                 "\n".join(found.more), encoding="utf-8")
         _blocked(found.status, found.title, url)
+        return found
+
+    def page_once(url: str) -> tuple[int | None, str, str]:
+        assert fetcher is not None
+        pace()
+        try:
+            status, page_title, html = fetcher.page(url)
+        except Exception as error:
+            raise common.Stop("error", f"the browser failed opening {url}: "
+                              f"{error}") from error
+        finally:
+            state["last_request_at"] = clock()
+        done(html, "html")
+        _blocked(status, page_title, url)
+        return status, page_title, html
+
+    url = search_url(country["place"], country["id"], title, ctx.days)
+    try:
+        fetcher = fetcher_factory(LOCALES.get((ctx.country or "").upper(), "en-US"),
+                                  float(ctx.min_seconds))
+        found = retried(lambda: search_once(url))
         if found.wall:
             raise common.Stop("blocked", f"a sign-in prompt that would not close on {url}")
         details, total = parse_more(found.more)
@@ -564,8 +598,9 @@ def _read(paths: Paths, ctx: common.Context, title: str, country: dict,
         cards = parse_cards(found.html)
         summary["listed"] = len(cards)
         if not cards:
-            if summary["site_total"] == 0:
-                return common.finish(paths, ctx, state, summary, drafts, seen)  # no results
+            if summary["site_total"] == 0:   # no results
+                return common.finish(paths, ctx, state, summary, drafts, seen, title,
+                                     now=clock())
             raise common.Stop("error", f"no postings on {url} ('{found.title}'): the page "
                               "changed")
         unreadable_row = 0
@@ -585,17 +620,8 @@ def _read(paths: Paths, ctx: common.Context, title: str, country: dict,
                 seen.append(card)
                 keep(job_id)
                 continue
-            pace()
-            try:
-                status, page_title, html = fetcher.page(card["url"])
-            except Exception as error:
-                raise common.Stop("error", f"the browser failed opening {card['url']}: "
-                                  f"{error}") from error
-            finally:
-                state["last_request_at"] = clock()
-            keep(job_id)
-            done(html, "html")
-            _blocked(status, page_title, card["url"])
+            _, _, html = retried(lambda card=card: page_once(card["url"]))
+            keep(job_id)   # only now: a throttled posting is opened after a cool-down
             posting = parse_posting(html)
             if posting is None or len(posting["description"]) < MIN_DESCRIPTION:
                 summary["unreadable"].append(job_id)
@@ -611,15 +637,18 @@ def _read(paths: Paths, ctx: common.Context, title: str, country: dict,
                 continue
             drafts.append(_draft(card, posting, extra, ctx))
     except common.Stop as stop:
-        summary["stopped"] = {"reason": stop.reason, "detail": stop.detail}
+        summary["stopped"] = common.stopped(stop)
     finally:
         if fetcher is not None:
             fetcher.close()
-    return common.finish(paths, ctx, state, summary, drafts, seen)
+    return common.finish(paths, ctx, state, summary, drafts, seen, title, now=clock())
 
 
 def salary(paths: Paths, title: str, *, search_url_given: str | None = None,
-           fetcher: FetcherFactory = ScraplingFetcher, today: date | None = None) -> dict:
+           fetcher: FetcherFactory = ScraplingFetcher, today: date | None = None,
+           clock: Callable[[], float] = time.time,
+           sleep: Callable[[float], None] = time.sleep,
+           rand: Callable[[], float] = random.random) -> dict:
     """The salary page for a title in the profile's country, as one evidence draft."""
     title = " ".join((title or "").split())
     if not title:
@@ -630,12 +659,23 @@ def salary(paths: Paths, title: str, *, search_url_given: str | None = None,
     country = resolve_country(paths, code, search_url_given)
     url = salary_url(country["place"], country["id"], title)
     session = fetcher(LOCALES.get(code or "", "en-US"), float(common.MIN_SECONDS))
-    try:
+    state: dict = {"retries": 0}
+
+    def once() -> str:
         status, page_title, html = session.page(url)
+        _blocked(status, page_title, url)
+        return html
+
+    try:
+        html = common.attempt(once, state, min_seconds=common.MIN_SECONDS, clock=clock,
+                              sleep=sleep, rand=rand)
+    except common.Stop as stop:
+        if stop.reason != "throttled":
+            return {"data": False, "blocked": True, "reason": stop.detail, "url": url}
+        wait = max(float(stop.retry_after or 0), 15 * 60)
+        resume = datetime.fromtimestamp(clock() + wait, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return {"data": False, "blocked": False, "throttled": True, "reason": stop.detail,
+                "resume_after": resume, "url": url}
     finally:
         session.close()
-    try:
-        _blocked(status, page_title, url)
-    except common.Stop as stop:
-        return {"data": False, "blocked": True, "reason": stop.detail, "url": url}
     return parse_salary(html, url, code or "", today or date.today())
