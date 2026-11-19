@@ -74,8 +74,7 @@ def install(paths: Paths, provider_id: str | None = None, *, enabled: bool = Fal
         # The job sites the user turned on, and the salary sources of the profile's country
         # (always used, never switched).
         targets = sorted((doctor._enabled_provider_ids(paths)
-                          | {str(s["id"]) for s in providers.salary_sources(
-                              doctor.profile_country(paths))}) & set(listed))
+                          | doctor.salary_source_ids(paths)) & set(listed))
     elif provider_id:
         if provider_id not in listed:
             raise JobTrackerError("not_found", f"There is no provider '{provider_id}'")

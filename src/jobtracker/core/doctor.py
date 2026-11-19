@@ -92,6 +92,13 @@ def profile_country(paths: Paths) -> str | None:
     return str(country).upper() if country else None
 
 
+def salary_source_ids(paths: Paths) -> set[str]:
+    """The salary sources of the profile's country; none until the profile has a country
+    (without it, no source can be chosen, so none is required)."""
+    country = profile_country(paths) if is_initialized(paths) else None
+    return {str(item["id"]) for item in providers.salary_sources(country)} if country else set()
+
+
 def _enabled_provider_ids(paths: Paths) -> set[str]:
     """Providers the user turned on. A provider never chosen is off, so it is not
     checked; without a database nothing is on yet."""
@@ -177,8 +184,7 @@ def run(paths: Paths) -> dict:
         ))
 
     enabled = _enabled_provider_ids(paths)
-    salary_ids = ({str(item["id"]) for item in providers.salary_sources(profile_country(paths))}
-                  if is_initialized(paths) else set())
+    salary_ids = salary_source_ids(paths)
     for provider in providers.list_providers():
         provider_id = str(provider["id"])
         if provider_id not in enabled and provider_id not in salary_ids:
@@ -201,7 +207,8 @@ def run(paths: Paths) -> dict:
                 f"provider:{provider_id}", "fail",
                 f"{provider.get('name', provider_id)} needs {', '.join(missing)}, which is not "
                 f"installed",
-                f"Install it ({how}), or disable the provider.",
+                f"Install it ({how}), or disable the provider." if provider_id in enabled
+                else f"Install it ({how}); salary research skips it until then.",
             ))
         else:
             checks.append(_check(f"provider:{provider_id}", "pass", "requirements available"))

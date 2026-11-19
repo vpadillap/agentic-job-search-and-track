@@ -5,6 +5,15 @@ merged into `main`. The agent reads it to tell you what an update brings
 (`/update`); the last three lines of each entry are for it: the job or salary
 sites the change adds, the one-time offers it brings, and anything you must do.
 
+## 2026-11-19 · fix-salary-sources-without-country
+
+Fixed
+- Before your profile has a country, the diagnosis no longer asks for the tools of every salary source; once the country is set, it checks only the sources of that country.
+
+Providers: none
+Offers: none
+Action: none
+
 ## 2026-11-19 · salary-sources-always-on
 
 Changed
