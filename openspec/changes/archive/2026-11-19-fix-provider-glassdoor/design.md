@@ -42,11 +42,11 @@ titles.
   `lrp-zrp` notice is in the page, or the site total is 0. Never a problem,
   however many titles in a row have none.
 - Unreadable search page: none of the sources answers and there is no sign
-  of "no results". The reader loads the same URL once more, paced
-  (`retries: 1`). If it reads, the title goes on. If not, a local
-  `TitleProblem("no_results_read", …)` ends the title: `title_problem:
-  {kind, detail}` in the summary, `state["title_problems"]` keeps the list,
-  `stopped` stays empty, and the provider is not recorded as failed.
+  of "no results". It raises `common.TitleProblem("no_results_read", …)`,
+  and `common.retry_title` loads the same URL once more, paced
+  (`title_retries: 1`). If it reads, the title goes on. If not, the title
+  ends: `title_problem: {kind, detail}` in the summary, `stopped` stays
+  empty, and the provider is not recorded as failed.
 - Postings: one without a readable description goes to `unreadable`; two
   in a row end the title (`no_description`), keeping the drafts already
   made. No retry: a posting page is opened once per run.

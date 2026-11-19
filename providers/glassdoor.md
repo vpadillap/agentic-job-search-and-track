@@ -80,7 +80,7 @@ second call while one is running: `reader_busy`).
    `listed` (cards loaded), `new`, `already_seen`, `outside_window`,
    `duplicate_in_run`, `unreadable` (postings skipped because their page had
    no readable description), `source` (where the results were read from),
-   `no_results`, `title_problem`, `site_may_have_changed`, `retries`, and
+   `no_results`, `title_problem`, `site_may_have_changed`, `title_retries`, and
    `stopped`. When `listed` is less than
    `site_total`, say so in the run report (the site stopped offering more, or
    the cap of 150 was reached).

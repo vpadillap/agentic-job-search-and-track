@@ -38,7 +38,6 @@ LABEL = "Glassdoor"
 SITE = "https://www.glassdoor.com"
 FROM_AGE = (1, 3, 7, 14, 30)       # posting ages (days) Glassdoor's search offers
 MIN_DESCRIPTION = 100              # shorter than this: no readable description
-UNREADABLE_IN_A_ROW = 2            # unreadable postings in a row that end the title
 SALARY_MIN_SECONDS = 20            # between salary pages, across calls
 SALARY_COOLDOWNS = (15 * 60, 30 * 60, 60 * 60)   # after the 1st, 2nd, 3rd+ refusal in a row
 SALARY_MAX_TITLES = 3
@@ -689,35 +688,13 @@ def read(paths: Paths, run_id: int, title: str, location: str | None = None, *,
         lock.unlink(missing_ok=True)
 
 
-class TitleProblem(Exception):
-    """End this title only: the provider goes on with the next title of the run."""
-
-    def __init__(self, kind: str, detail: str) -> None:
-        super().__init__(detail)
-        self.kind, self.detail = kind, detail
-
-
-def _record_title(state: dict, summary: dict, title: str, problem: TitleProblem | None) -> None:
-    """Remember how a title that read something ended, and flag a likely site change: this
-    title and every earlier one that read something ended with the same problem (two at
-    least). Titles with no results are neither evidence for nor against."""
-    kind = problem.kind if problem else None
-    outcomes = state.setdefault("title_outcomes", [])
-    outcomes.append(kind)
-    if problem:
-        state.setdefault("title_problems", []).append(
-            {"title": title, "kind": kind, "detail": problem.detail})
-        summary["title_problem"] = {"kind": kind, "detail": problem.detail}
-    summary["site_may_have_changed"] = bool(kind) and len(outcomes) >= 2 and all(
-        outcome == kind for outcome in outcomes)
-
 
 def _read(paths: Paths, ctx: common.Context, title: str, country: dict,
           fetcher_factory: FetcherFactory, clock: Callable[[], float],
           sleep: Callable[[float], None], rand: Callable[[], float]) -> dict:
     state = common.load_state(ctx)
     handled = set(state["job_ids"])
-    summary: dict = {"provider": PROVIDER, "title": title, "requests": 0, "retries": 0,
+    summary: dict = {"provider": PROVIDER, "title": title, "requests": 0, "title_retries": 0,
                      "site_total": None, "listed": 0, "cards": 0, "outside_window": 0,
                      "duplicate_in_run": 0, "already_seen": 0, "new": 0, "unreadable": [],
                      "no_results": False, "title_problem": None,
@@ -780,20 +757,23 @@ def _read(paths: Paths, ctx: common.Context, title: str, country: dict,
         return status, page_title, html
 
     def search(url: str) -> tuple[SearchPage, Results]:
+        """The search page and its results; a page with nothing readable and no sign of
+        "no results" is a title problem (common.retry_title loads it once more)."""
         found = retried(lambda: search_once(url))
         if found.wall:
             raise common.Stop("blocked", f"a sign-in prompt that would not close on {url}")
-        return found, parse_results(found.html)
+        results = parse_results(found.html)
+        if not results.cards and not results.empty and site_total(found.title) != 0:
+            raise common.TitleProblem(
+                "no_results_read", f"no results could be read on {url} ('{found.title}'), "
+                f"also after loading it again; the page is saved as {captures[-1]}")
+        return found, results
 
     url = search_url(country["place"], country["id"], title, ctx.days)
     try:
         fetcher = fetcher_factory(LOCALES.get((ctx.country or "").upper(), "en-US"),
                                   float(ctx.min_seconds))
-        found, results = search(url)
-        if not results.cards and not results.empty and site_total(found.title) != 0:
-            # Nothing readable and no sign of "no results": load the page once more.
-            summary["retries"] += 1
-            found, results = search(url)
+        found, results = common.retry_title(lambda: search(url), summary)
         details, total, more_unreadable = parse_more(found.more)
         if more_unreadable:
             summary["show_more_unreadable"] = more_unreadable
@@ -806,15 +786,11 @@ def _read(paths: Paths, ctx: common.Context, title: str, country: dict,
         if results.unlinked:
             summary["unlinked"] = results.unlinked
         if not cards:
-            if results.empty or summary["site_total"] == 0:
-                # Glassdoor's "limited or no results" page can say "1 job" in its title
-                # while it lists none and shows only "Similar jobs".
-                summary["no_results"] = True
-                return common.finish(paths, ctx, state, summary, drafts, seen, title,
-                                     now=clock())
-            raise TitleProblem("no_results_read", f"no results could be read on {url} "
-                               f"('{found.title}'), also after loading it again; the page is "
-                               f"saved as {captures[-1]}")
+            # No results. Glassdoor's "limited or no results" page can say "1 job" in its
+            # title while it lists none and shows only "Similar jobs".
+            summary["no_results"] = True
+            return common.finish(paths, ctx, state, summary, drafts, seen, title,
+                                 now=clock())
         unreadable_row = 0
         for card in cards[:ctx.max_results]:
             summary["cards"] += 1
@@ -838,19 +814,19 @@ def _read(paths: Paths, ctx: common.Context, title: str, country: dict,
             if posting is None or len(posting["description"]) < MIN_DESCRIPTION:
                 summary["unreadable"].append(job_id)
                 unreadable_row += 1
-                if unreadable_row >= UNREADABLE_IN_A_ROW:
-                    raise TitleProblem("no_description", f"{UNREADABLE_IN_A_ROW} postings in a "
-                                       f"row without a readable description (last "
-                                       f"{card['url']})")
+                if unreadable_row >= common.POSTING_PROBLEMS_IN_A_ROW:
+                    raise common.TitleProblem(
+                        "no_description", f"{unreadable_row} postings in a row without a "
+                        f"readable description (last {card['url']}): the page may have "
+                        "changed")
                 continue
             unreadable_row = 0
             if posting["posted_at"] and posting["posted_at"] < ctx.since:
                 summary["outside_window"] += 1
                 continue
             drafts.append(_draft(card, posting, extra, ctx))
-        _record_title(state, summary, title, None)
-    except TitleProblem as problem:
-        _record_title(state, summary, title, problem)
+    except common.TitleProblem as problem:
+        common.title_problem(summary, problem)
     except common.Stop as stop:
         summary["stopped"] = common.stopped(stop)
     finally:

@@ -297,7 +297,7 @@ def test_an_unreadable_search_page_is_loaded_again_then_ends_only_that_title(
         workspace, run, fake):
     fake.search_result = search_page(title="Glassdoor")    # no cards, no total
     summary = read(workspace, run, fake)
-    assert summary["stopped"] is None and summary["retries"] == 1
+    assert summary["stopped"] is None and summary["title_retries"] == 1
     assert summary["title_problem"]["kind"] == "no_results_read"
     assert "glassdoor-2.html" in summary["title_problem"]["detail"]
     assert fake.actions == [SEARCH, SEARCH] and fake.times[1] - fake.times[0] >= 5
@@ -309,7 +309,7 @@ def test_an_unreadable_search_page_is_loaded_again_then_ends_only_that_title(
 def test_a_search_page_that_reads_on_the_second_load_goes_on(workspace, run, fake):
     fake.search_result = [search_page(title="Glassdoor"), search_page("932")]
     summary = read(workspace, run, fake)
-    assert (summary["retries"], summary["new"], summary["title_problem"]) == (1, 1, None)
+    assert (summary["title_retries"], summary["new"], summary["title_problem"]) == (1, 1, None)
 
 
 def test_every_title_is_tried_and_a_likely_site_change_is_reported(workspace, run, fake):

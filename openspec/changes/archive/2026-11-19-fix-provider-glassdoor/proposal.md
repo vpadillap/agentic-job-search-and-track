@@ -100,12 +100,12 @@ None.
 ## Alignment with `end-title-on-page-error`
 
 That change applies the same owner rules to LinkedIn, Indeed, Bumeran, Get
-on Board, and Greenhouse and leaves Glassdoor to this change. This change
-uses its names (`title_problem` with a `kind`, `site_may_have_changed`,
-`retries`) and its rule for a likely site change. Its shared
-`common.TitleProblem` helper does not exist yet, so Glassdoor has a local
-`TitleProblem` with the same shape; whichever change lands second moves
-Glassdoor onto the shared one.
+on Board, and Greenhouse and leaves Glassdoor to this change. It landed
+first; this change is rebased on it and uses its shared helpers:
+`common.TitleProblem`, `common.retry_title` (one more load of a title's
+page), `common.title_problem`, `common.POSTING_PROBLEMS_IN_A_ROW`, and the
+`site_may_have_changed` rule in `common.finish`. The summary keys are the
+same (`title_problem`, `title_retries`, `site_may_have_changed`).
 
 ## Ordering with `retry-soft-blocks-and-browser-choice`
 
