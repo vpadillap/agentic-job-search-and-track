@@ -1,7 +1,7 @@
 ## 1. Study (nothing is built before it)
 
-- [ ] 1.1 Search and posting pages, plain HTTP then Scrapling, logged out: listing, paging, filters, fields, structured data, refusals; robots.txt and terms
-- [ ] 1.2 One real search per country (PE, MX, CO, CL, AR, EC)
+- [x] 1.1 Search and posting pages, plain HTTP then Scrapling, logged out: listing, paging, filters, fields, structured data, refusals; robots.txt and terms
+- [x] 1.2 One real search per country (PE, MX, CO, CL, AR, EC)
 - [ ] 1.3 Results table and recommended route in the proposal; owner approves
 
 ## 2. Provider
