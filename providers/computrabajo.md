@@ -1,38 +1,38 @@
 ---
 id: computrabajo
 name: Computrabajo
-kind: salary
+kind: both
 regions: [PE, MX, CO, CL, AR, EC]
 access: scrapling
 requires_login: false
 live_walk: false
 dependencies: [scrapling]
 domains: [computrabajo.com]
-max_results_per_query: 1
-min_seconds_between_requests: 20
+max_results_per_query: 60
+min_seconds_between_requests: 5
 last_verified: 2026-11-19
 ---
 
 # Computrabajo
 
-A salary source for now: Computrabajo's salary pages, per title and country.
-Searching its job postings is a separate change (its own study); until then
-it is not a job source.
+A job site and a salary source, with one site per country. Postings are read
+over plain HTTP; salary pages through a headless Scrapling session.
 
 ## Access method
 
-A **headless Scrapling stealth session**, logged out: no cookies, no account,
-no sign-in, a new session per call. Every page is opened by the reader
-command, never by you:
+Logged out: no cookies, no account, no sign-in. Every page is opened by the
+reader commands, never by you:
 
 ```
+jt providers read computrabajo <run_id> --title "<title>"
 jt providers salary computrabajo --title "<title>" [--title "<variant>" …]
 ```
 
-A study on 2026-11-19 found that the page's figures are filled in by
-JavaScript: plain HTTP returns the page without them, so a browser session is
-needed. Scrapling's browser is installed with `jt providers install
-computrabajo`.
+- **Postings**: plain HTTP. A study on 2026-11-19 read the search and posting
+  pages in all six countries this way, with no browser check.
+- **Salary pages**: a headless Scrapling session, because their figures are
+  filled in by JavaScript. Scrapling's browser is installed with `jt
+  providers install computrabajo`.
 
 ## Countries
 
@@ -50,15 +50,47 @@ Figures are monthly, in the country's currency.
 
 ## Search recipe
 
-Not a job source yet: no searches. See "Salary data".
+`jt providers read computrabajo <run_id> --title "<title>"`, once per
+included title, in the profile's country (the whole country: `--location` is
+not used). The reader:
+
+1. opens `<cc>.computrabajo.com/trabajo-de-<title>` with `pubdate` (1, 3, 7,
+   15, or 30 days: the smallest that covers the run's window; none beyond 30)
+   and `by=publicationtime` (newest first), then `p=2`, `p=3`… while pages
+   are full (20 cards), up to 60 postings per title;
+2. skips cards outside the window, postings already seen, and repeats;
+3. opens each new posting's page and takes its `JobPosting` data.
+
+Titles are searched in the words people use in that country; Spanish titles
+often bring more results than English ones ("analista de datos").
+
+**Republished postings count.** A company that republishes a posting is still
+hiring. The card shows the latest publication ("Hace 2 horas"), which decides
+the window and becomes `posted_at`; the first publication date, when older,
+comes as `site_first_posted_at`. Add a flag saying it was republished and
+when it was first published (in the panel language).
 
 ## Fields to extract
 
-Salary data only (see "Salary data").
+From the posting's `JobPosting` data (a **confidential** posting, whose
+company shows as "Importante empresa del sector", has none: its description
+and tags come from the page's description block instead, `site_tags` lists
+the tags such as salary, contract, and schedule): title, company, the complete
+description (verbatim), the first publication date, the employment type
+(→ `contract_type`), and the salary when stated (`site_salary`: amount,
+currency, period; `0` on the site means "A convenir" and is left out). From
+the card: the place, the work-mode text (`site_work_mode`, for example
+"Presencial y remoto"), and the latest publication. `site_category` is the
+posting's category on the site (for example "Salud / Medicina"); it is not
+the company's industry, so do not record it as the company's profile without
+checking. Your reading: `work_mode` (from `site_work_mode` and the
+description), `work_mode_detail`, `language`, `flags`, and
+`published_salary` from `site_salary`.
 
 ## Application form questions
 
-Not applicable: no postings are read here yet.
+Applying needs a Computrabajo account: the questions are not visible logged
+out. Leave them empty; never start an application.
 
 ## Salary data
 
@@ -92,11 +124,18 @@ seniority level.
 
 ## Limits and etiquette
 
+- Postings: at least 5 seconds between requests, at most 60 postings per
+  title, each posting opened once per run. A 429 or a 503 with
+  `Retry-After` is waited out (the shared throttle handling); a 403 stops
+  Computrabajo for the run.
 - **Terms of use.** On 2026-11-19 its `robots.txt` did not disallow the
-  salary pages (`/salarios/…`), and its terms pages
+  salary pages (`/salarios/…`), the search pages (`/trabajo-de-…`, with
+  `pubdate`, `by`, and `p`), or posting pages without parameters (it
+  disallows parameters only under `/ofertas-de-trabajo/`, `/empresas/`, and
+  CVs); its terms pages
   (`/condiciones-de-uso`, `/terminos-y-condiciones`) showed no rule on
   automated access in the text a plain request returns; that check is not
-  conclusive. The reader still gets past the site's browser check, so the
+  conclusive. The salary reader gets past the site's browser check, so the
   realistic risk is that Computrabajo limits the user's IP address for a
   while (no account is involved). Tell the user this before turning it on.
 - At least 20 seconds between salary pages, also from one call to the next.
@@ -107,6 +146,13 @@ seniority level.
 
 ## Known pitfalls
 
+- A posting removed after it was listed answers with a normal page saying
+  "Esta oferta ya no está disponible": the reader lists it as "no longer
+  available", not as a page problem.
+- Confidential postings ("Importante empresa del sector") hide the company:
+  never guess it.
+- The card's date can be newer than the posting's own date: that is a
+  republication (see "Search recipe"), not an error.
 - "No hay suficientes datos para mostrar salarios" means no figure for that
   title: the page still names a large number of "fuentes", which is the
   site's total, not this title's sample.

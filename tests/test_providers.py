@@ -340,7 +340,8 @@ def test_every_site_provider_in_the_repository_names_its_domains():
 def test_a_salary_only_provider_does_not_own_job_postings():
     from jobtracker.core import providers
 
-    # Computrabajo is a salary source only for now: the web search may still use its postings.
-    assert {p["id"]: p for p in providers.list_providers()}["computrabajo"]["kind"] == "salary"
-    assert providers.owner_of("pe.computrabajo.com") is None
+    # Payscale is a salary source only: it owns no job postings.
+    assert {p["id"]: p for p in providers.list_providers()}["payscale"]["kind"] == "salary"
+    assert providers.owner_of("www.payscale.com") is None
+    assert providers.owner_of("pe.computrabajo.com") == "computrabajo"
     assert providers.owner_of("pe.indeed.com") == "indeed"
