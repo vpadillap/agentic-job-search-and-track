@@ -62,16 +62,24 @@ The provider SHALL wait at least 5 seconds between opening Bumeran pages,
 including between separate calls of the reader in the same run, SHALL read at
 most 2 result pages per target title, and SHALL open a posting's page at most
 once per posting per run, only for postings published inside the run's window
-and not already stored by an earlier run. It SHALL stop all Bumeran requests
-for the rest of the run on the first block, challenge page, HTTP 403, or HTTP
-429, and record the provider as blocked with what happened. Postings already
-imported in that run are kept, and any later call of the reader in that run
-SHALL be refused. A call SHALL also be refused, without opening any page,
-while another call for the same run is still running.
+and not already stored by an earlier run. HTTP 429 on a page or on the site
+data, and a Cloudflare challenge page ("Just a moment…") that is not passed,
+SHALL be handled by the provider-throttling policy: waiting and repeating the
+page, then a cool-down after which the same run resumes. It SHALL stop all
+Bumeran requests for the rest of the run on HTTP 403 or a Cloudflare block
+page ("Attention Required", "Access denied"), and record the provider as
+blocked with what happened. Postings already imported in that run are kept,
+and any later call of the reader in that run SHALL be refused. A call SHALL
+also be refused, without opening any page, while another call for the same
+run is still running.
 
 #### Scenario: Challenge mid-run
-- **WHEN** Bumeran shows a challenge page while the second title is being read
-- **THEN** no further Bumeran page is opened in that run, the provider is recorded as blocked, and the postings from the first title remain
+- **WHEN** Bumeran keeps showing a challenge page after the retries while the second title is being read
+- **THEN** no further Bumeran page is opened until the cool-down ends, the postings from the first title remain, and the second title resumes in the same run after the cool-down
+
+#### Scenario: Block page mid-run
+- **WHEN** Bumeran shows a Cloudflare "Attention Required" page
+- **THEN** no further Bumeran page is opened in that run and the provider is recorded as blocked
 
 #### Scenario: Calling again after a block
 - **WHEN** the reader is called for another title in a run where Bumeran was blocked
