@@ -144,3 +144,19 @@ def test_published_salaries_are_history(target, searchable, postings, cli):  # n
     assert published[0]["amount_min"] == 14000 and published[0]["same_family"] is True
     _, own, _ = cli("salary", "lookup", str(postings["A-100"]))
     assert own["offered"] == {"min": 14000, "max": 16000, "currency": "PEN", "basis": "gross"}
+
+
+def test_salary_form_currency_follows_the_posting_and_profile(workspace, cli, tmp_path):
+    from jobtracker.core import applications as apps
+
+    with db.session(workspace) as conn:
+        assert apps.currency_hint(conn, {"country": "CL"}) == "CLP"
+        assert apps.currency_hint(conn, {"country": "PE", "published_salary": {
+            "min": 3000, "max": 4000, "currency": "USD"}}) == "USD"     # how this employer pays
+        assert apps.currency_hint(conn, {"country": "ZZ"}) is None      # the user types it
+    path = tmp_path / "p.json"
+    path.write_text(json.dumps({"minimum_salary": {"amount": 4000, "currency": "EUR"}}),
+                    encoding="utf-8")
+    cli("profile", "set", str(path))
+    with db.session(workspace) as conn:
+        assert apps.currency_hint(conn, {"country": "CL"}) == "EUR"

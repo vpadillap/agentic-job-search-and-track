@@ -137,5 +137,5 @@ def test_provider_file():
     # Every other provider file's site is named as one this provider never reads.
     sites = text.split("### Sites you never read here")[1].split("## Search recipe")[0]
     for other in providers.list_providers():
-        if other["id"] != "agentic-search":
+        if other["id"] != "agentic-search" and other.get("kind") != "salary":
             assert f"| {other['id']} |" in sites, other["id"]

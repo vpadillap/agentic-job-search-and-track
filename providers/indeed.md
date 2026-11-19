@@ -1,7 +1,7 @@
 ---
 id: indeed
 name: Indeed
-kind: jobs
+kind: both
 regions: [global]
 access: scrapling
 requires_login: false
@@ -10,7 +10,7 @@ dependencies: [scrapling]
 domains: [indeed.com, indeed.*]
 max_results_per_query: 60
 min_seconds_between_requests: 5
-last_verified: 2026-11-18
+last_verified: 2026-11-19
 ---
 
 # Indeed
@@ -175,6 +175,39 @@ panel language). Such a posting is never excluded for its work mode.
 
 Not visible without applying. Never click "Postularse" / "Apply" or any
 apply link.
+
+## Salary data
+
+Indeed publishes salary pages per occupation and country
+(`<country site>/career/<title>/salaries`), estimated from salaries in its
+postings: a median with the 10th and 90th percentiles and the number of
+salaries behind it. It is **market** data with no seniority level. A study on
+2026-11-19 read them in PE, MX, CO, CL, AR, ES, GB, and BR through a Scrapling
+session (plain HTTP is soon refused).
+
+1. `jt providers salary indeed --title "<title>"` (the profile's country).
+   Titles are occupations in the country's language ("data engineer" in
+   English-speaking countries; "analista de datos", "ingeniero de datos" in
+   Spanish-speaking ones; many Latin American pages also exist for the English
+   title). Give up to three variants; `tried` lists every page opened.
+2. With `"data": true`, the `evidence` draft holds `amount_min`/`amount_max`
+   (the 10th–90th percentile), `currency`, `period`, `sample_size`,
+   `observed_on` (the page's last update), `country`, and a `summary` with the
+   median. **The period comes only from the page's structured data**: its
+   Spanish text says "por mes" for yearly figures.
+3. Judge the figures before you use them: the study found a page updated two
+   years earlier with 2 salaries (AR), and a monthly median far below what
+   the role pays (MX). A small sample, an old update, or an implausible
+   figure is weak evidence; set it aside with the reason. Add `basis` (gross
+   unless the page says otherwise), `level` (all levels: say so in your note),
+   and `posting_id` or `research`; then `jt salary evidence add -`.
+4. `"data": false` → no page or no distribution for those titles: record it
+   as checked with `found: false`. `"throttled": true` → cooling down until
+   `resume_after`; not checked; do not call it again before then.
+
+Salary pages are paced at least 20 seconds apart, also across calls, with a
+cool-down after a refusal (15, 30, then 60 minutes), kept in
+`provider-settings/indeed.json` under `salary`.
 
 ## Limits and etiquette
 

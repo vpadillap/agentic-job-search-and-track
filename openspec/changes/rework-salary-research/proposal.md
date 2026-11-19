@@ -51,6 +51,16 @@ only on the market, at least two comparable sources are needed, as today.
 Without any source: "no reliable data", with what was checked. Nothing comes
 from the model's own knowledge.
 
+### Currency
+
+The project is for every country. A salary is in the currency that fits the
+posting: the one it publishes; otherwise the one this employer pays in for
+that country (usually the local currency, often USD for a foreign employer
+hiring remotely). The agent chooses it for each suggestion and says why in the
+note when it is not the local currency. The user can type any currency code
+for the salary they asked for and were offered; the form starts from the most
+likely one, never from a fixed currency.
+
 ### Company profiles
 
 To compare companies, each company the user meets gets a short profile:
@@ -103,6 +113,25 @@ Recommendation: add **Indeed salaries** first (plain HTTP, sample size, a
 reader is simple; period from the structured data) and **Computrabajo** second
 (Scrapling). Leave SalaryExpert, Levels.fyi, Payscale, and Talent.com out for
 Peru; study the official data later with the browser. The owner chooses.
+
+#### Global study (2026-11-19; "data engineer" and Spanish titles; through Scrapling)
+
+The owner chose Indeed and Computrabajo and asked for more global coverage.
+Plain HTTP is refused by Indeed after a few requests (403), so every salary
+reader uses a Scrapling session, as the job readers do.
+
+| Source | Countries read | What it gives | Notes |
+|---|---|---|---|
+| Indeed salaries | PE, MX, CO, CL, AR, ES, GB, BR (and US) | median, 10th and 90th percentile, currency, period, sample, update date | Period only from structured data. Data quality varies: AR updated in 2024 with 2 salaries; MX shows an implausible monthly median. The agent judges and may set aside |
+| Computrabajo salaries | PE, MX, CO, CL, AR, EC | monthly median, sample, lowest and highest, the median at listed companies | Spanish, common titles only ("analista de datos" yes, "ingeniero de datos" no data in PE and MX). Company medians are company references |
+| Payscale | US, MX (no Peru page) | 10th–90th percentiles, median, currency, period in structured data | Candidate for a later reader |
+| Talent.com | US, ES | percentiles, median, currency, period in structured data | Candidate for a later reader; country address format to confirm |
+| Levels.fyi | — | — | No pages at the addresses tried |
+
+Implemented: the Indeed and Computrabajo salary readers (shared pacing and
+cool-down), checked for real in PE and MX (Indeed) and PE and CO
+(Computrabajo). Payscale and Talent.com wait for the owner's choice.
+
 
 ## Capabilities
 

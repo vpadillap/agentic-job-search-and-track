@@ -16,8 +16,15 @@
 ## 3. More salary sources (study, then the owner chooses)
 
 - [x] 3.1 Study, logged out with real requests: Indeed salaries, Computrabajo, Bumeran, Payscale, Talent.com, SalaryExpert, Levels.fyi, official occupational data, published surveys; company-level or market, sample, recency, level, currency, terms (D5)
-- [ ] 3.2 Results table in the proposal; owner chooses sources (results table and recommendation in the proposal; waiting for the owner's choice)
-- [ ] 3.3 Provider files and salary readers for the chosen sources, tests on fictional pages, a real check each
+- [x] 3.2 Results table in the proposal; the owner chose Indeed salaries and Computrabajo salaries (2026-11-19), and asked to study more global sources: the project is not only for Peru
+- [x] 3.3 Global study: Indeed salaries and Computrabajo salaries in every country they serve (address per country, currency, period, sample); other sources with global or multi-country coverage; results table in the proposal
+- [x] 3.4 Provider files (`kind: salary`) and salary readers for Indeed salaries and Computrabajo salaries, every country they serve, period taken from structured data; tests on fictional pages; a real check per reader in at least two countries
+- [ ] 3.5 Further global sources the study recommends (Payscale, Talent.com), after the owner chooses
+
+## 3b. Currency
+
+- [x] 3b.1 Salary guide: the suggestion's currency is the posting's published one; otherwise how this employer pays for this country (local currency for local employers; often USD for foreign employers hiring remotely); the note says so when it is not the local currency
+- [x] 3b.2 Application form: the currency of asked and offered salary starts from the application's own figures, then the posting's published or suggested currency, then the profile's minimum salary currency, never a fixed one; any ISO code can be typed; tested on the hint (the form only reads it)
 
 ## 4. Wrap-up
 

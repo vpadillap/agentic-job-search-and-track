@@ -53,8 +53,9 @@ In this order, skipping every source listed in `checked`:
    comparable companies. Store with `"scope": "market"` (the default).
 
 Use only the salary sources the enabled provider files describe (`kind:
-salary` or `both`). Some have a **salary reader** (for example
-`jt providers salary glassdoor --title "<title>"`): it returns an `evidence`
+salary` or `both`): today Glassdoor, Indeed, and Computrabajo, each following
+the "Salary data" section of its file. Each has a **salary reader** (for
+example `jt providers salary indeed --title "<title>"`): it returns an `evidence`
 draft from the site's own data. Add only what you decide (`basis`, `level`,
 `scope`, `posting_id` or `research`, context fields), check that it is
 comparable, and store it with `jt salary evidence add -`. Never change its
@@ -97,6 +98,25 @@ Weigh what you have:
 
 A source counts only with the same country, level, currency, and basis, and
 no older than 18 months; the CLI says which ones fail and why.
+
+## Currency
+
+The project serves every country, and salaries are not always in the local
+currency. Choose the currency of each suggestion (`criteria.currency`, any
+ISO code):
+
+1. the currency the posting publishes, when it publishes one;
+2. otherwise the one this employer pays in for this country: the local
+   currency for a local employer; often USD (sometimes EUR) for a foreign
+   employer hiring remotely, or for a contract paid abroad;
+3. when it is not the local currency, say why in the note ("a US company
+   hiring remotely: USD").
+
+Evidence counts only in the same currency: never convert. If the sources are
+in another currency than the one that fits, say so in the note or record
+`salary none`. The user records the salaries they asked for and were offered
+in whatever currency they were discussed; the form prefills the most likely
+one.
 
 ## 5. Record
 

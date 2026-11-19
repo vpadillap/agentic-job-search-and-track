@@ -258,9 +258,10 @@ def host_matches(host: str, domain: str) -> bool:
 
 
 def owner_of(host: str, *, besides: str | None = None) -> str | None:
-    """The provider (other than `besides`) whose `domains` cover `host`, if any."""
+    """The job provider (other than `besides`) whose `domains` cover `host`, if any. A
+    salary-only provider (`kind: salary`) does not own its site's job postings."""
     for item in list_providers():
-        if item["id"] == besides:
+        if item["id"] == besides or item.get("kind") == "salary":
             continue
         if any(host_matches(host, str(d)) for d in item.get("domains") or []):
             return str(item["id"])

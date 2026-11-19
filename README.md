@@ -113,11 +113,12 @@ countries, and setup offers you the global ones plus those of your country.
 | Site | Coverage | How it is read |
 |---|---|---|
 | LinkedIn | global | Public job pages, logged out, never with your account |
-| Indeed | global | A headless browser session (no window, no account); several first pages per title, since Indeed shows only one page of results when logged out |
+| Indeed | global, also salaries | A headless browser session (no window, no account); several first pages per title, since Indeed shows only one page of results when logged out; also reads Indeed's salary pages per country |
 | Glassdoor | global, also salaries | A headless browser session (no window, no account); also reads Glassdoor's salary reports as one source of salary evidence |
 | Greenhouse | global | Greenhouse's public Job Board API for each company; companies are found through your signed-in MyGreenhouse search when you are present, or through a web search otherwise |
 | Get on Board | global (mostly Latin America and remote) | Get on Board's free public API |
 | Bumeran Perú | local: PE | A headless browser session (no window, no account) |
+| Computrabajo | local: PE, MX, CO, CL, AR, EC; salaries only for now | A headless browser session (no window, no account) that reads its salary pages |
 | Web search (company sites) | global | The agent searches the open web for companies' own careers pages and remembers the companies it finds |
 
 Each site's file in [`providers/`](providers/) says exactly how it is read and
@@ -309,11 +310,12 @@ países, y la configuración te ofrece los globales más los de tu país.
 | Portal | Cobertura | Cómo se lee |
 |---|---|---|
 | LinkedIn | global | Páginas públicas de empleos, sin iniciar sesión, nunca con tu cuenta |
-| Indeed | global | Una sesión de navegador sin ventana ni cuenta; varias primeras páginas por título, porque sin sesión Indeed muestra una sola |
+| Indeed | global, también salarios | Una sesión de navegador sin ventana ni cuenta; varias primeras páginas por título, porque sin sesión Indeed muestra una sola; también lee las páginas de salarios de Indeed de cada país |
 | Glassdoor | global, también salarios | Una sesión de navegador sin ventana ni cuenta; también lee los reportes de salario de Glassdoor como una fuente de evidencia |
 | Greenhouse | global | La API pública de Greenhouse de cada empresa; las empresas se encuentran con tu búsqueda de MyGreenhouse con sesión iniciada cuando estás presente, o con una búsqueda web si no |
 | Get on Board | global (sobre todo Latinoamérica y remotos) | La API pública y gratuita de Get on Board |
 | Bumeran Perú | local: PE | Una sesión de navegador sin ventana ni cuenta |
+| Computrabajo | local: PE, MX, CO, CL, AR, EC; por ahora solo salarios | Una sesión de navegador sin ventana ni cuenta que lee sus páginas de salarios |
 | Búsqueda web (sitios de empresas) | global | El agente busca en la web las páginas de empleo de las propias empresas y recuerda las empresas que encuentra |
 
 El archivo de cada portal en [`providers/`](providers/) dice exactamente cómo
