@@ -42,6 +42,22 @@ data" for the same key and source for the same periods.
 
 ## ADDED Requirements
 
+### Requirement: The user's own data as salary evidence
+Salaries offered to the user (recorded on applications) and salaries published
+in the user's stored postings SHALL count as evidence: for the same company,
+in the company's earlier offers; for similar companies and similar positions
+under the same conditions (country, level, currency, gross or net, work mode),
+as market evidence, each with its reference and link, used before web sources
+are searched.
+
+#### Scenario: An offer from a similar company
+- **WHEN** the user recorded an offer from another company for the same role family and level, in the same country, currency, basis, and work mode
+- **THEN** that offer counts as one market source for the new posting, referenced to its application, and only one web source is still needed
+
+#### Scenario: An offer from the same company
+- **WHEN** the user recorded an offer from the same company for a similar role
+- **THEN** it appears in the company's earlier offers, marked as offered to the user
+
 ### Requirement: Three salary figures per posting
 For each posting the system SHALL provide, when they exist: the salary the
 posting offers (monthly), what the same company offered for similar roles in

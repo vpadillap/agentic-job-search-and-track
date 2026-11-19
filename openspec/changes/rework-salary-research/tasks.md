@@ -1,9 +1,9 @@
 ## 1. Three figures and the research order
 
 - [ ] 1.1 Migration: evidence `scope` (company/market), title family and level on evidence, `set_aside` reasons; suggestion `kind` (D1)
-- [ ] 1.2 `core/salary.py`: company history from stored postings; company suggestion (one source allowed, labelled) and market suggestion (two or more); set-aside reports recorded (D1, D2)
+- [ ] 1.2 `core/salary.py`: company history from stored postings and offers recorded on applications; market evidence from the user's own offers and stored postings of similar companies under the same conditions, before web sources; company suggestion (one source allowed, labelled) and market suggestion (two or more); set-aside reports recorded (D1, D2)
 - [ ] 1.3 Keys and reuse: title family, market key (30 days), company key (60 days), "no data" per key and source (D3); `jt salary lookup` returns the three parts and what was already checked
-- [ ] 1.4 Tests: offered, company history, company suggestion with one source, market needs two, outlier recorded, market evidence reused at another company, "no data" not searched again, existing suggestions still shown
+- [ ] 1.4 Tests: offered, company history (published and offered to the user), an offer from a similar company counted as market evidence (and one from different conditions not counted), company suggestion with one source, market needs two, outlier recorded, market evidence reused at another company, "no data" not searched again, existing suggestions still shown
 
 ## 2. Skill and panel
 

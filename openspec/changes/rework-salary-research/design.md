@@ -22,10 +22,13 @@ paid sources or sources that need the user's account.
 
 - **Offered** — the posting's `published_salary`, shown as monthly (yearly ÷
   12, as today). No new storage.
-- **Company history** — computed on demand: the user's stored postings of the
+- **Company history** — computed on demand from the user's own data for the
   same company (normalized name), same title family (D3), level within one
-  step, same country and currency, with a published salary; shown as a range
-  with the number of postings and the latest date. No new storage.
+  step, same country and currency: published salaries of earlier stored
+  postings, and salaries offered to the user (`applications.offered_salary_*`,
+  monthly, with currency and basis) on applications to that company; shown as
+  a range with how many of each kind and the latest date, an offer marked
+  "offered to you". No new storage.
 - **Suggested range** — a `salary_suggestions` row with `kind`:
   `company` (from company references; one source allowed, shown as "1
   source" or "N sources") or `market` (two or more comparable sources, as
@@ -40,6 +43,16 @@ and may set reports aside as outliers, recording each with its reason
 (`set_aside: [{value, reason}]` on the evidence); (b) only if (a) finds
 nothing, market evidence, at least two comparable sources. Both are stored;
 the suggestion records its kind and the evidence used.
+
+**Internal evidence first in (b).** Before any web source, `jt salary lookup`
+lists the user's own comparable data from **other** companies: salaries
+offered to the user on applications, and published salaries of stored
+postings, for the same title family and level, under the same conditions
+(same country, currency, basis, and work mode; industry and company size
+recorded for confidence, as for any evidence). Each is one piece of evidence
+with `scope: market`, `source: "offered to you"` or `"published in posting"`,
+and its reference (application `J0007` or posting id) with the posting's link.
+Web sources are searched only for what is still missing to reach two.
 
 ### D3. Keys and reuse
 
