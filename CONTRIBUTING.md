@@ -67,7 +67,13 @@ claude` for its Claude Code commands, which are gitignored).
 2. **Get it approved** by a maintainer before implementing (open an issue or a
    draft pull request with the proposal).
 3. **Implement** only that change's tasks, with tests.
-4. **Verify** that the code matches the change, **archive** it
+4. **Document**: add the change's entry at the top of
+   [`CHANGELOG.md`](CHANGELOG.md), in plain words for the user (what they can
+   now do, what behaves differently, what was fixed; and the `Providers`,
+   `Offers`, `Action` lines), and update the documentation it affects
+   (README in English and Spanish, provider files, skills, `docs/`). The
+   agent reads the changelog to tell users what an update brings.
+5. **Verify** that the code matches the change, **archive** it
    (`openspec archive <name>`), and open the pull request.
 
 A job site gets its own change, after a study of the site with real requests
@@ -84,7 +90,9 @@ openspec validate <change> --strict
 
 Tests run against a temporary `JOBTRACKER_HOME`; never point them at real
 data. CI runs ruff, the tests on Ubuntu and Windows (Python 3.11 and 3.14),
-and the privacy guard on every pull request.
+the privacy guard, and the changelog check (a pull request that changes
+code, provider files, skills, or aliases needs a `CHANGELOG.md` entry) on
+every pull request.
 
 The pull request template has a checklist; for a new job site it also asks
 for the study and the proving runs.

@@ -54,6 +54,54 @@ def _remote_schema(root: Path) -> int:
     return max(numbers, default=0)
 
 
+CHANGELOG = "CHANGELOG.md"
+ENTRY = re.compile(r"^## (\d{4}-\d{2}-\d{2}) · (.+?)\s*$", re.M)
+KINDS = ("Added", "Changed", "Fixed")
+
+
+def _ids(value: str) -> list[str]:
+    return [] if value.strip().casefold() in ("", "none") else [
+        v.strip() for v in value.split(",") if v.strip()]
+
+
+def parse_changelog(text: str) -> list[dict]:
+    """The entries of CHANGELOG.md, newest first: date, change, the Added / Changed /
+    Fixed lines, and the providers, offers, and action the entry names."""
+    heads = list(ENTRY.finditer(text or ""))
+    entries = []
+    for number, head in enumerate(heads):
+        end = heads[number + 1].start() if number + 1 < len(heads) else len(text)
+        entry = {"date": head.group(1), "change": head.group(2).strip(),
+                 **{kind.lower(): [] for kind in KINDS},
+                 "providers": [], "offers": [], "action": None}
+        kind = None
+        for line in text[head.end():end].splitlines():
+            line = line.strip()
+            if line in KINDS:
+                kind = line.lower()
+            elif line.startswith("- ") and kind:
+                entry[kind].append(line[2:].strip())
+            elif line.startswith("Providers:"):
+                entry["providers"] = _ids(line.split(":", 1)[1])
+            elif line.startswith("Offers:"):
+                entry["offers"] = _ids(line.split(":", 1)[1])
+            elif line.startswith("Action:"):
+                value = line.split(":", 1)[1].strip()
+                entry["action"] = None if value.casefold() == "none" else value
+        entries.append(entry)
+    return entries
+
+
+def _new_entries(root: Path) -> list[dict]:
+    """Entries the remote changelog has and the local one does not, newest first."""
+    local_file = root / CHANGELOG
+    local = (parse_changelog(local_file.read_text(encoding="utf-8"))
+             if local_file.is_file() else [])
+    remote_text = _git(root, "show", f"{UPSTREAM}:{CHANGELOG}", check=False)
+    known = {entry["change"] for entry in local}
+    return [entry for entry in parse_changelog(remote_text) if entry["change"] not in known]
+
+
 def check(paths: Paths, root: Path | None = None) -> dict:
     """Fetch and describe the update. Never changes the working tree or the database."""
     root = root or repo_root()
@@ -85,6 +133,7 @@ def check(paths: Paths, root: Path | None = None) -> dict:
         "fast_forward": branch == BRANCH and ahead == 0,
         "tracked_changes": tracked,
         "new_providers": sorted(p.removesuffix(".md") for p in there - here),
+        "changes": _new_entries(root),
         "schema_from": db.stored_schema_version(paths.database),
         "schema_to": _remote_schema(root),
         "pull": f"git pull --ff-only {REMOTE} {BRANCH}",
