@@ -1,9 +1,8 @@
-## 1. Study (scratch only)
+## 1. Study (short; documented behavior and simulated cases, no reinstall here)
 
-- [ ] 1.1 What `python`, `python3`, `py` resolve to and do in Git Bash, PowerShell, and cmd on this machine (real interpreter, Store alias stub, nothing)
-- [ ] 1.2 Install routes on Windows (winget, Python install manager, Store, python.org installer): where Python lands and whether the current shell sees it without a restart
-- [ ] 1.3 The hook with the project's `.venv` interpreter, and before `.venv` exists
-- [ ] 1.4 Results table in the proposal and design (D2, D3 confirmed or revised); owner approves before section 2
+- [ ] 1.1 Documented behavior of the Store aliases, the Python install manager, winget, and the python.org installer (where Python lands, whether an open shell sees it), with sources and dates
+- [ ] 1.2 Simulated cases for the hook: a failing `python` stub on the PATH, no Python, a project `.venv`
+- [ ] 1.3 Results in the proposal and design (D2, D3 confirmed or revised); owner approves before section 2
 
 ## 2. Privacy guard
 

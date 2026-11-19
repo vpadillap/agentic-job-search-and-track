@@ -11,21 +11,23 @@ guard to work regardless, for example by using the Python inside the
 project's `.venv`, and setup to install Python on Windows in a fixed,
 reliable way.
 
-## Study (first section; nothing is built before it)
+## Study (short; first section)
 
-On this Windows machine and a clean user profile where possible, recorded as a
-table:
+The owner's machine is a development machine with a working global Python, so
+it cannot show what a fresh Windows user meets. The study is short and does
+not reinstall anything here:
 
-1. What `python`, `python3`, and `py` resolve to in Git Bash (the shell git
-   hooks run in), PowerShell, and cmd: real interpreters, the Store app-alias
-   stubs (`%LOCALAPPDATA%\Microsoft\WindowsApps\python*.exe`), or nothing; what
-   each does when run (exit code, opens the Store).
-2. The install routes and where each puts Python and whether the current
-   shell sees it without a restart: `winget install Python.Python.3.13`,
-   the Python install manager (`py install`), the Store package, the
-   python.org installer with "Add to PATH".
-3. Whether the hook can always use the project's `.venv` interpreter
-   (`.venv/Scripts/python.exe`), and what to do before the `.venv` exists.
+1. **Documented behavior** of each route, from the official sources (dates
+   recorded): the Store's `python`/`python3` app-execution aliases (stubs in
+   `%LOCALAPPDATA%\Microsoft\WindowsApps` that open the Store), the Python
+   install manager (`py install`), `winget install Python.Python.3.13
+   --scope user`, and the python.org installer; where each puts Python and
+   whether an already-open shell sees it.
+2. **Simulated cases** for the hook, in tests and in a scratch folder: a PATH
+   whose `python` is a stub that fails, a PATH with no Python, and a project
+   `.venv`; the hook must pick the right interpreter in each.
+3. A real commit on this machine with `python` removed from the hook's PATH
+   (the `.venv` interpreter must be used).
 
 ## What Changes (expected; revised after the study)
 
