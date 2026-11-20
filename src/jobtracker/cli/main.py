@@ -436,6 +436,12 @@ def cmd_postings_filter(args: argparse.Namespace) -> dict:
         return search.filter_postings(conn, args.run_id, records)
 
 
+def cmd_postings_restore(args: argparse.Namespace) -> dict:
+    """Bring filtered-out postings back to the results (the user's decision)."""
+    with db.session(get_paths()) as conn:
+        return {"restored": search.restore_filtered(conn, list(args.ids))}
+
+
 def cmd_postings_flag(args: argparse.Namespace) -> dict:
     with db.session(get_paths()) as conn:
         return {"posting": search.add_flag(conn, args.id, args.text)}
@@ -1026,6 +1032,10 @@ def build_parser() -> argparse.ArgumentParser:
     postings_filter.add_argument("run_id", type=int, metavar="run")
     postings_filter.add_argument("file", help="JSON list of {posting_id, reason, detail}")
     postings_filter.set_defaults(run=cmd_postings_filter)
+    postings_restore = postings_sub.add_parser(
+        "restore", help="bring filtered-out postings back to the results, for good")
+    postings_restore.add_argument("ids", type=int, nargs="+", metavar="posting_id")
+    postings_restore.set_defaults(run=cmd_postings_restore)
     postings_flag = postings_sub.add_parser("flag", help="add a visible doubt to a posting")
     postings_flag.add_argument("id", type=int)
     postings_flag.add_argument("--text", required=True)

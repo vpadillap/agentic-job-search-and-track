@@ -87,3 +87,11 @@ def test_alias_argument_names():
     text = (skills.templates_dir("es") / "preparar-documentos" / "SKILL.md").read_text(
         encoding="utf-8")
     assert "`pendientes` means `pending`" in text and "`todas` means `all`" in text
+
+
+def test_pending_scores_of_restored_postings_are_handled():
+    text = " ".join((REPO / ".claude" / "skills" / "prepare-documents" / "SKILL.md")
+                    .read_text(encoding="utf-8").split())
+    assert "### 3e. Score a restored posting (item `score`)" in text
+    assert ".claude/skills/job-search/batch-worker.md" in text
+    assert "skip its filter step" in text

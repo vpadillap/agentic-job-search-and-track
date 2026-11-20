@@ -30,7 +30,11 @@ language, and the profile.
   in that case).
 - **conditions**: start from the maximum and subtract for each condition that
   only partly fits (for example hybrid when remote is preferred, or a language
-  level above the user's).
+  level above the user's). A posting kept with a place doubt ("City not
+  stated", "District not among yours") loses some points for it, and the note
+  says where the doubt is. A posting the user restored from the filtered-out
+  list is scored like any other: the user's decision to keep it is not a
+  reason to raise or lower its points.
 
 Notes are one or two plain sentences in the panel language, specific to this
 posting. Do not repeat the points in words.

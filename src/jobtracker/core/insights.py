@@ -192,7 +192,8 @@ def decisions(conn: sqlite3.Connection) -> list[dict]:
 
 
 def corrections(conn: sqlite3.Connection) -> list[dict]:
-    """Agent readings the user corrected (today: work mode and its detail)."""
+    """Agent readings the user corrected: work mode and its detail, and postings the user
+    restored from the filtered-out list (`field: filter`)."""
     result = []
     for row in conn.execute(
         "SELECT e.entity_id, e.data, e.created_at, p.provider, p.title, p.company"
@@ -210,6 +211,22 @@ def corrections(conn: sqlite3.Connection) -> list[dict]:
             if before.get("source", "agent") == "agent" else None,
             "from": {"mode": before.get("mode"), "detail": before.get("detail")},
             "to": {"mode": after.get("mode"), "detail": after.get("detail")},
+            "on": row["created_at"][:10],
+        })
+    # Postings the user restored from the filtered-out list: the agent's filter was wrong.
+    for row in conn.execute(
+        "SELECT e.entity_id, e.data, e.created_at, p.provider, p.title, p.company"
+        " FROM events e JOIN postings p ON CAST(p.id AS TEXT) = e.entity_id"
+        " WHERE e.entity_type = 'posting' AND e.kind = 'filter_restored' ORDER BY e.id"
+    ):
+        data = json.loads(row["data"])
+        result.append({
+            "posting_id": int(row["entity_id"]), "field": "filter",
+            "provider": row["provider"], "title": row["title"], "company": row["company"],
+            "agent_value": None,
+            "from": {"outcome": "filtered", "reason": data.get("reason"),
+                     "detail": data.get("detail")},
+            "to": {"outcome": "new"},
             "on": row["created_at"][:10],
         })
     return result

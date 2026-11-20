@@ -84,12 +84,16 @@ function sortValue(row, key) {
 
 // ── run summary ───────────────────────────────────────────────────────────
 
-function ProviderChips({ run, onOpenProviders }) {
-  const { t } = useUi();
+function ProviderChips({ run, onOpenProviders, multiDay }) {
+  const { t, fmt } = useUi();
+  // When the site was last searched on this page (day too when the page spans days).
+  const when = (iso) => (multiDay ? `${fmt.localDayMonth(iso)} ${fmt.time(iso)}` : fmt.time(iso));
   return html`
     <div class="chips">
       ${run.providers.filter((p) => p.status === 'ok').map((p) => html`
-        <span class="chip">${t('provider.found', { name: p.name, count: p.found })}</span>`)}
+        <span class="chip" data-testid=${'provider-' + p.id}>${p.last_searched_at
+          ? t('provider.foundAt', { name: p.name, count: p.found, time: when(p.last_searched_at) })
+          : t('provider.found', { name: p.name, count: p.found })}</span>`)}
       ${run.providers.filter((p) => p.status === 'disabled').map((p) => html`
         <span class="chip off">${t('provider.off', { name: p.name })}</span>`)}
       <button type="button" class="link-btn" onClick=${onOpenProviders}>${t('run.providers')}</button>
@@ -159,7 +163,7 @@ function RunSummary({ data, runId, onRunChange, showFiltered, onToggleFiltered, 
             ${showFiltered ? t('run.hideFiltered') : t('run.showFiltered')}</button>
         </div>
         ${run.status === 'running' && html`<${RunProgress} run=${run} />`}
-        <${ProviderChips} run=${run} onOpenProviders=${onOpenProviders} />
+        <${ProviderChips} run=${run} onOpenProviders=${onOpenProviders} multiDay=${multiDay} />
       </div>
       <div class="run-side">
         <${CommandChip} label=${t('run.newSearch')} command=${commandFor(commands, 'job-search')} />
@@ -177,7 +181,7 @@ function RunSummary({ data, runId, onRunChange, showFiltered, onToggleFiltered, 
     </section>`;
 }
 
-function FilteredList({ data }) {
+function FilteredList({ data, onRestore }) {
   const { t } = useUi();
   const run = data.run;
   return html`
@@ -193,6 +197,9 @@ function FilteredList({ data }) {
               ${p.reason_detail && html`<span>${p.reason_detail}</span>`}
               ${safeHref(p.url) && html`<a href=${safeHref(p.url)} target="_blank" rel="noopener noreferrer">
                 ${t('detail.open')}</a>`}
+              <button type="button" class="link-btn" onClick=${() => onRestore([p.id])}
+                aria-label=${`${t('filtered.restore')}: ${p.title} · ${p.company}`}>
+                ${t('filtered.restore')}</button>
             </li>`)}
         </ul>`}
     </section>`;
@@ -631,6 +638,12 @@ export function SearchBoard({ data, runId, onRunChange, commands, setupRequired,
       undo: async () => { await api.undismiss(ids); return t('toast.undone'); },
     };
   });
+  // A filtered-out posting the user brings back: never filtered again, scored by the
+  // running search or, once it is finished, with the pending work.
+  const restoreFiltered = (ids) => onAction(async () => {
+    await api.restoreFiltered(ids);
+    return { message: t(running ? 'toast.restoredFilteredRunning' : 'toast.restoredFiltered') };
+  });
   const restore = (ids) => onAction(async () => {
     await api.undismiss(ids);
     return { message: t('toast.restored') };
@@ -687,7 +700,7 @@ export function SearchBoard({ data, runId, onRunChange, commands, setupRequired,
     <${RunSummary} data=${data} runId=${runId} onRunChange=${(id) => { setExpanded(new Set()); onRunChange(id); }}
       showFiltered=${showFiltered} onToggleFiltered=${() => setShowFiltered(!showFiltered)}
       commands=${commands} onOpenProviders=${() => setProvidersOpen(true)} />
-    ${showFiltered && html`<${FilteredList} data=${data} />`}
+    ${showFiltered && html`<${FilteredList} data=${data} onRestore=${restoreFiltered} />`}
     <${FilterBar} sorts=${SORTS.filter((key) => (key !== 'chance' || results.some((r) => r.estimate))
       && (key !== 'fit' || results.some((r) => r.fit)))} filters=${filters} setFilters=${changeFilters} sort=${sort} setSort=${setSort}
       providers=${providers} selectedCount=${selected.size} onBulk=${(applied) => track([...selected], applied)} />

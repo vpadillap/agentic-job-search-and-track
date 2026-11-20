@@ -55,8 +55,10 @@ def test_skill_explains_the_work_mode_and_its_detail():
     assert "`work_mode_detail`" in text
     assert "reading the title and the complete description" in text
     assert "`jt postings work-mode" in text
-    worker = (SKILL / "batch-worker.md").read_text(encoding="utf-8")
-    assert "work mode is not stated is never excluded" in worker
+    worker = " ".join((SKILL / "batch-worker.md").read_text(encoding="utf-8").split())
+    assert ("A posting that never says it is remote is treated as having some on-site"
+            " presence") in worker
+    assert "Its `work_mode` stays as captured" in worker
 
 
 def test_skill_explains_how_to_turn_a_site_on_without_doing_it():
@@ -108,3 +110,37 @@ def test_helpers_never_search_or_finish_the_run():
     assert "Never search or open a job site" in worker
     assert "never start or finish a run" in worker
     assert "never start helpers of your own" in worker
+
+
+# ── location filter and restored postings (job-search-location-filter) ────
+
+def _worker() -> str:
+    return " ".join((SKILL / "batch-worker.md").read_text(encoding="utf-8").split())
+
+
+def test_remote_only_profiles_filter_postings_that_do_not_say_remote():
+    assert ("the profile accepts remote only and the posting does not say it is remote"
+            in _worker())
+
+
+def test_places_are_compared_by_meaning():
+    worker = _worker()
+    assert "A district or neighbourhood belongs to its city" in worker
+    assert '"San Isidro, Lima"' in worker
+    assert "A region or province that shares a city's name is not that city" in worker
+    assert '"Huaral, Lima"' in worker
+    assert "naming the place in `detail`" in worker
+
+
+def test_place_doubts_keep_the_posting_with_a_flag():
+    worker = _worker()
+    assert "When you cannot tell, keep it with a flag" in worker
+    assert '"City not stated"' in worker and '"District not among yours"' in worker
+    assert "A remote posting is never filtered out for its location" in worker
+
+
+def test_restored_postings_are_never_filtered():
+    worker = _worker()
+    assert "`restored: true`" in worker and "never filter it" in worker
+    guide = (SKILL / "scoring-guide.md").read_text(encoding="utf-8")
+    assert "place doubt" in guide
