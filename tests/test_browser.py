@@ -347,6 +347,47 @@ def test_filtered_out_list_with_reasons(seeded, page):
     expect(items.filter(has_text="Andes Minería")).to_contain_text("Arequipa")
 
 
+def _pending_count(page) -> int:
+    button = page.get_by_role("button", name=re.compile("pending for the agent"))
+    return int(re.search(r"\d+", button.inner_text()).group())
+
+
+def test_restoring_a_filtered_out_posting(seeded, page):
+    open_board(page)
+    before = _pending_count(page)
+    page.get_by_role("button", name="See filtered out and why").click()
+    items = page.locator("#filtered-list li")
+    andes = items.filter(has_text="Andes Minería")
+    andes.get_by_role("button", name=re.compile("^Restore")).click()
+    expect(page.get_by_text("Restored: it will be scored with the pending work")).to_be_visible()
+    expect(items).to_have_count(2)
+    expect(row(page, "Andes Minería").locator(".score.none")).to_have_text("–")
+    expect(page.get_by_role("button", name=re.compile("pending for the agent"))).to_contain_text(
+        str(before + 1))
+
+
+def test_restoring_during_a_running_search(seeded, page):
+    run_id = _running_search(seeded)
+    with db.session(seeded) as conn:
+        posting = conn.execute("SELECT id FROM postings WHERE company = 'Pradera Datos'").fetchone()
+        search.filter_postings(conn, run_id, [{"posting_id": posting["id"], "reason": "location",
+                                               "detail": "Onsite in Chiclayo"}])
+    open_board(page)
+    expect(page.locator("tbody tr")).to_have_count(1)
+    page.get_by_role("button", name="See filtered out and why").click()
+    page.locator("#filtered-list li").filter(has_text="Pradera Datos").get_by_role(
+        "button", name=re.compile("^Restore")).click()
+    expect(page.get_by_text("Restored: this search will score it")).to_be_visible()
+    expect(row(page, "Pradera Datos").locator(".score.pending")).to_have_text("Scoring…")
+
+
+def test_site_chip_shows_when_it_was_last_searched(seeded, page):
+    _running_search(seeded)
+    open_board(page)
+    expect(page.get_by_test_id("provider-linkedin")).to_have_text(
+        re.compile(r"^LinkedIn · 2 · \d{1,2}:\d{2}"))
+
+
 def test_salary_without_reliable_data(seeded, page):
     open_board(page)
     cell = row(page, "Nortia Seguros")

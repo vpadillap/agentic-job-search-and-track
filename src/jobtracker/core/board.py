@@ -103,6 +103,28 @@ def counts(conn: sqlite3.Connection) -> dict:
     return {"search": new, "applications": active, "learning": proposed}
 
 
+def _restored_to_score(conn: sqlite3.Connection) -> list[dict]:
+    """Postings the user restored from the filtered-out list that still have no score, on
+    the latest page, once their search is finished (a running search scores them)."""
+    group = search.latest_group_id(conn)
+    if group is None:
+        return []
+    return [{"kind": "score", "posting_id": row["posting_id"], "job_id": row["job_id"],
+             "title": row["title"], "company": row["company"],
+             "reason": "the user restored it from the filtered-out list"}
+            for row in conn.execute(
+        "SELECT DISTINCT r.posting_id, p.title, p.company, a.job_id FROM run_results r"
+        " JOIN search_runs sr ON sr.id = r.run_id JOIN postings p ON p.id = r.posting_id"
+        " LEFT JOIN applications a ON a.posting_id = r.posting_id"
+        " WHERE sr.group_id = ? AND sr.status = 'finished' AND r.outcome = 'new'"
+        " AND EXISTS (SELECT 1 FROM events e WHERE e.entity_type = 'posting'"
+        "      AND e.entity_id = CAST(r.posting_id AS TEXT) AND e.kind = 'filter_restored')"
+        " AND NOT EXISTS (SELECT 1 FROM scores sc WHERE sc.posting_id = r.posting_id"
+        "      AND sc.is_current = 1)"
+        " AND NOT EXISTS (SELECT 1 FROM dismissals d WHERE d.posting_id = r.posting_id)"
+        " ORDER BY r.posting_id", (group,))]
+
+
 def pending(conn: sqlite3.Connection) -> list[dict]:
     """Work items for the agent, derived from the data (nothing is stored)."""
     from . import resume
@@ -195,6 +217,7 @@ def pending(conn: sqlite3.Connection) -> list[dict]:
         if held is None or kind > rank.get((held.get("resume") or {}).get("kind"), 0):
             best[item["posting_id"]] = item
     items = [item for item in items if best[item["posting_id"]] is item]
+    items.extend(_restored_to_score(conn))
     items.extend(_document_items(conn))
     return items
 

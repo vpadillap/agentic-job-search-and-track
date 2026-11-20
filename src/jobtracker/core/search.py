@@ -216,8 +216,11 @@ def latest_group_id(conn: sqlite3.Connection, season: int | None = None) -> int 
     return group_of_run(conn, run_id) if run_id is not None else None
 
 
-# Worst first: a provider's status on a page is the worst of its runs.
-_STATUS_RANK = {"failed": 4, "pending": 3, "skipped": 2, "ok": 1, "disabled": 0}
+def _tried(item: dict) -> bool:
+    """A run tried this provider: searched, failed, waiting, or skipped for a reason
+    other than not being searched (switched off or left out of the run never counts)."""
+    return item["status"] != "disabled" and not (
+        item["status"] == "skipped" and item.get("reason") == "not_searched")
 
 
 def group_summary(conn: sqlite3.Connection, group_id: int, top: int = 5) -> dict:
@@ -227,6 +230,8 @@ def group_summary(conn: sqlite3.Connection, group_id: int, top: int = 5) -> dict
         raise JobTrackerError("not_found", f"There is no search group {group_id}")
     runs = [summary(conn, run_id, top=10_000) for run_id in run_ids]
     counts = {key: sum(r["counts"][key] for r in runs) for key in runs[0]["counts"]}
+    # A provider's status on a page is its latest attempt (oldest run first, so a later
+    # attempt replaces an earlier one); found postings add up over the page's runs.
     merged: dict[str, dict] = {}
     for run in runs:
         for item in run["providers"]:
@@ -235,9 +240,13 @@ def group_summary(conn: sqlite3.Connection, group_id: int, top: int = 5) -> dict
                 merged[item["id"]] = dict(item)
                 continue
             found = held["found"] + item["found"]
-            if _STATUS_RANK.get(item["status"], 0) > _STATUS_RANK.get(held["status"], 0):
+            last_searched = item["last_searched_at"] or held["last_searched_at"]
+            if _tried(item) or not _tried(held):
+                for key in ("cooldown_until", "cooldown_detail", "cooldowns"):
+                    held.pop(key, None)
                 held.update(item)
             held["found"] = found
+            held["last_searched_at"] = last_searched
     titles: list[str] = []
     for run in runs:
         titles.extend(t for t in run["titles"] if t not in titles)
@@ -501,6 +510,8 @@ def summary(conn: sqlite3.Connection, run_id: int, top: int = 5) -> dict:
             "id": item["id"], "name": item["name"], "status": item["status"],
             "reason": item["reason"], "detail": item["detail"],
             "found": found.get(item["id"], 0),
+            # When this run read the site; on a page, the latest such time is kept.
+            "last_searched_at": row["started_at"] if item["status"] == "ok" else None,
         })
         if item.get("cooldown_until") and item["status"] == "pending":
             items[-1].update(cooldown_until=item["cooldown_until"],
@@ -858,6 +869,12 @@ def filter_postings(conn: sqlite3.Connection, run_id: int, records: object) -> d
                 "invalid_filter",
                 f"{where}: posting {record['posting_id']} is not a new result of run {run_id}",
             )
+        if is_restored(conn, record["posting_id"]):
+            raise JobTrackerError(
+                "restored_by_user",
+                f"{where}: the user restored posting {record['posting_id']} from the filtered-out"
+                " list; it is never filtered again, only scored",
+            )
         detail = record.get("detail")
         checked.append((row["id"], record["reason"], str(detail).strip() if detail else None))
     for result_id, reason, detail in checked:
@@ -867,6 +884,46 @@ def filter_postings(conn: sqlite3.Connection, run_id: int, records: object) -> d
         )
     bump_changes(conn)
     return {"filtered": len(checked), "summary": summary(conn, run_id)}
+
+
+def is_restored(conn: sqlite3.Connection, posting_id: int) -> bool:
+    """The user brought this posting back from the filtered-out list (for good)."""
+    return conn.execute(
+        "SELECT 1 FROM events WHERE entity_type = 'posting' AND entity_id = ?"
+        " AND kind = 'filter_restored'", (str(posting_id),)).fetchone() is not None
+
+
+def restore_filtered(conn: sqlite3.Connection, posting_ids: object) -> list[int]:
+    """Bring filtered-out postings back to the results as new and unscored. Each keeps a
+    `filter_restored` event with the run, reason, and detail it had: it marks the posting
+    as restored for good (never filtered again) and is a correction of the filter."""
+    if not isinstance(posting_ids, list) or not posting_ids or not all(
+            isinstance(i, int) and not isinstance(i, bool) for i in posting_ids):
+        raise JobTrackerError("invalid_ids", "expected a non-empty list of posting ids")
+    rows = {}
+    for posting_id in posting_ids:
+        found = conn.execute(
+            "SELECT id, run_id, reason, reason_detail FROM run_results"
+            " WHERE posting_id = ? AND outcome = 'filtered' ORDER BY id", (posting_id,),
+        ).fetchall()
+        if not found:
+            raise JobTrackerError("not_filtered", f"Posting {posting_id} is not filtered out")
+        rows[posting_id] = found
+    now = now_iso()
+    for posting_id, found in rows.items():
+        for row in found:
+            conn.execute("UPDATE run_results SET outcome = 'new', reason = NULL,"
+                         " reason_detail = NULL WHERE id = ?", (row["id"],))
+        last = found[-1]
+        conn.execute(
+            "INSERT INTO events (entity_type, entity_id, kind, data, created_at)"
+            " VALUES ('posting', ?, 'filter_restored', ?, ?)",
+            (str(posting_id), json.dumps({"run_id": last["run_id"], "reason": last["reason"],
+                                          "detail": last["reason_detail"]},
+                                         ensure_ascii=False), now),
+        )
+    bump_changes(conn)
+    return list(rows)
 
 
 def work_mode_detail(value: object, where: str = "work_mode_detail") -> str | None:
@@ -1029,6 +1086,7 @@ def list_postings(
                     reason_detail=row["reason_detail"], found_on=row["provider"],
                     score=score["total"] if score else None,
                     salary_status=suggestion["status"] if suggestion else None,
+                    restored=is_restored(conn, row["posting_id"]),
                     possible_duplicates=possible_duplicates(conn, row["posting_id"], run_id))
         result.append(item)
     return result

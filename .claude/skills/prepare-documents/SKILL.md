@@ -21,7 +21,7 @@ anywhere else.
 
 | Argument | What to do |
 |---|---|
-| `pending` or nothing | everything in `jt pending`: resumes, cover letters, form answers, rescores |
+| `pending` or nothing | everything in `jt pending`: resumes, cover letters, form answers, rescores, and scores of postings the user restored |
 | `ids=J0007,J0012` | the same, only for those applications (`jt pending --ids J0007 J0012`) |
 | `all` | only tailored resumes, for every application not yet applied to that has none |
 
@@ -94,6 +94,8 @@ If there is nothing to do, say so and stop.
 Group the items by application and handle one application at a time, in the
 order above: resume first, then cover letter, then form answers, then the
 rescore. If one application fails, note why and continue with the next.
+Items of kind `score` (postings the user restored from the filtered-out list,
+usually not tracked) are handled after the applications, in step 3e.
 
 ## 3. For each application
 
@@ -166,6 +168,15 @@ Do not re-judge the whole posting more strictly or more generously: the panel
 shows the difference as the effect of the resume. A translated resume with the
 same content normally keeps the same score. History is kept.
 
+### 3e. Score a restored posting (item `score`)
+
+The user brought this posting back from the search's filtered-out list, so it
+has no score yet. Follow `.claude/skills/job-search/batch-worker.md`, job
+`score`, for this posting only: read what it says to read before you start,
+skip its filter step (a restored posting is never filtered again; the CLI
+refuses it), and score it with `jt score set <posting_id> -`. If it fails
+with `no_resume_for_language`, report it and leave it pending.
+
 ## 4. Report
 
 Run `jt pending` (with the same `--ids`) once more. Then report to the user,
@@ -175,7 +186,8 @@ per application (job id, title, company):
   required" with the reason, number of answers),
 - the gaps you did not claim,
 - answers left for them and what each needs,
-- the new score, if it changed,
+- the new score, if it changed, and the score of each restored posting
+  (title, company, score),
 - anything that failed and why.
 
 End with what is still pending (should be nothing but what needs the user) and

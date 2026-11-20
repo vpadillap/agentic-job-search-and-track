@@ -41,15 +41,27 @@ fix the cause, and retry; never work around it. Below, `jt` means
 
 ### 1. First-pass filter
 
-`jt postings list --run <run_id> --outcome new` and keep only your ids.
+`jt postings list --run <run_id> --outcome new` and keep only your ids. A
+posting with `restored: true` was brought back by the user from the
+filtered-out list: never filter it (the CLI refuses with `restored_by_user`);
+only score it.
+
+**Remote or not.** A posting is remote only when its title or description
+says so or lets you conclude it is fully remote ("100% remoto", "trabajo
+desde casa", "home office todos los días"). A posting that never says it is
+remote is treated as having some on-site presence for this filter, even when
+its work mode is not stated. Its `work_mode` stays as captured (`null` with
+the flag "work mode not stated"): this changes how you filter, not what is
+stored.
+
 Exclude a posting only when it clearly violates a hard constraint:
 
 | Reason | When |
 |---|---|
 | `title` | its title is one of the profile's excluded titles, or clearly another role |
-| `work_mode` | its stated work mode is not among the accepted ones (a posting whose work mode is not stated is never excluded for this) |
+| `work_mode` | its stated work mode is not among the accepted ones; or the profile accepts remote only and the posting does not say it is remote (detail: "Does not state that it is remote", in the panel language) |
 | `contract_type` | its contract type is not among the accepted ones |
-| `location` | onsite or hybrid outside the accepted locations |
+| `location` | onsite, hybrid, or not stated (and not concluded remote), and the place where the work is done is clearly outside every accepted location (see "Places" below; name the place in `detail`) |
 | `language` | it requires a language the user lacks |
 | `company` | the company is excluded in the profile |
 | `salary` | its published salary is below the stated minimum (same currency and basis) |
@@ -61,6 +73,28 @@ what exactly did not fit.
 
 When in doubt, keep the posting and add a flag instead:
 `jt postings flag <posting_id> --text "Seniority appears lower than yours"`.
+
+**Places.** For the `location` check, read where the work is done: the
+posting's `location`, and the description when it names the workplace ("sede
+en Arequipa", "oficina en Miraflores"; when the two disagree, the
+description wins and you add a flag saying so). Compare it with the
+profile's `locations` by meaning, not by text:
+
+- A district or neighbourhood belongs to its city: with "Lima" saved, "San
+  Isidro, Lima" or "Miraflores" is inside. Keep it, with no flag.
+- A region or province that shares a city's name is not that city: with
+  "Lima" saved, "Huaral, Lima" or "Cañete, Lima" is outside.
+- Another city is outside: with "Lima" saved, "Arequipa, Arequipa" or
+  "Chiclayo" is outside. Filter it out with reason `location`, naming the
+  place in `detail`.
+- When you cannot tell, keep it with a flag (in the panel language): only
+  the country ("Perú") or no place at all → "City not stated"; a place
+  inside a saved city but not among the districts the user listed (saved
+  "Miraflores" and "San Isidro", posting in "Surco, Lima") → "District not
+  among yours".
+- A remote posting is never filtered out for its location.
+- The profile has no `locations` (it accepts remote only): the `work_mode`
+  rule above already decides; there is no place to compare.
 
 ### 2. Score what is left
 

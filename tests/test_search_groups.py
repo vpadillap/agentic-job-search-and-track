@@ -209,3 +209,54 @@ def test_existing_runs_keep_their_own_pages_after_the_migration(searchable, cli,
         runs = conn.execute("SELECT COUNT(*) FROM search_runs").fetchone()[0]
         assert pages == runs == 2
         assert _offer().applies(conn, searchable)
+
+
+# ── a site's latest result on a page (job-search-location-filter) ─────────
+
+def _search_with(cli, statuses: dict[str, tuple]) -> dict:
+    """One search of the day: each provider recorded as given, the rest not searched."""
+    run = _start(cli)
+    for provider, (status, reason) in statuses.items():
+        extra = ["--reason", reason] if reason else []
+        code, out, _ = cli("run", "provider", str(run["run_id"]), provider, "--status", status,
+                           *extra)
+        assert code == 0, out
+    cli("run", "finish", str(run["run_id"]))
+    return run
+
+
+def _page_provider(client, provider: str) -> dict:
+    page = client.get("/api/search").json()["run"]
+    return next(p for p in page["providers"] if p["id"] == provider)
+
+
+def _started(searchable, run: dict) -> str:
+    with db.session(searchable) as conn:
+        return search.summary(conn, run["run_id"])["started_at"]
+
+
+def test_failure_then_success_shows_the_success(searchable, cli, client):
+    _search_with(cli, {"alpha": ("failed", "missing_dependency")})
+    later = _search_with(cli, {"alpha": ("ok", None)})
+    alpha = _page_provider(client, "alpha")
+    assert alpha["status"] == "ok" and alpha["reason"] is None
+    assert alpha["last_searched_at"] == _started(searchable, later)
+    page = client.get("/api/search").json()["run"]
+    assert "alpha" not in [p["id"] for p in page["skipped"]]
+
+
+def test_success_then_failure_shows_the_failure_and_the_earlier_success(
+        searchable, cli, client):
+    earlier = _search_with(cli, {"alpha": ("ok", None)})
+    _search_with(cli, {"alpha": ("failed", "blocked")})
+    alpha = _page_provider(client, "alpha")
+    assert alpha["status"] == "failed" and alpha["reason"] == "blocked"
+    assert alpha["last_searched_at"] == _started(searchable, earlier)
+
+
+def test_a_later_search_that_did_not_try_the_site_keeps_its_result(searchable, cli, client):
+    earlier = _search_with(cli, {"alpha": ("ok", None), "beta": ("ok", None)})
+    _search_with(cli, {"beta": ("ok", None)})                  # alpha not searched
+    alpha = _page_provider(client, "alpha")
+    assert alpha["status"] == "ok"
+    assert alpha["last_searched_at"] == _started(searchable, earlier)

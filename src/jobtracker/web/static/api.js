@@ -49,6 +49,7 @@ export const api = {
   untrack: (ids) => request('POST', '/api/actions/untrack', { posting_ids: ids }),
   dismiss: (ids, reason, note) => request('POST', '/api/actions/dismiss', { posting_ids: ids, reason, note }),
   undismiss: (ids) => request('POST', '/api/actions/undismiss', { posting_ids: ids }),
+  restoreFiltered: (ids) => request('POST', '/api/actions/restore-filtered', { posting_ids: ids }),
   applications: (season) => request('GET', '/api/applications' + query({ season })),
   profileBoard: () => request('GET', '/api/profile-board'),
   decideSuggestedTitle: (title, state) => request('POST', '/api/profile/suggested-title', { title, state }),

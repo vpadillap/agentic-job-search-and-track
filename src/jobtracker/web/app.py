@@ -253,6 +253,11 @@ def create_app() -> FastAPI:
         with db.session(get_paths()) as conn:
             return {"ok": True, "posting_ids": tracking.undismiss(conn, body.posting_ids)}
 
+    @app.post("/api/actions/restore-filtered")
+    def restore_filtered(body: PostingIds) -> dict:
+        with db.session(get_paths()) as conn:
+            return {"ok": True, "posting_ids": search.restore_filtered(conn, body.posting_ids)}
+
     @app.post("/api/postings/{posting_id}/work-mode")
     def set_work_mode(posting_id: int, body: WorkModeRequest) -> dict:
         with db.session(get_paths()) as conn:

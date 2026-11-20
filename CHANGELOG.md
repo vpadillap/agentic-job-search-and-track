@@ -5,6 +5,20 @@ merged into `main`. The agent reads it to tell you what an update brings
 (`/update`); the last three lines of each entry are for it: the job or salary
 sites the change adds, the one-time offers it brings, and anything you must do.
 
+## 2026-11-20 · job-search-location-filter
+
+Changed
+- The search filters by city: a posting in another city than yours (Arequipa when you search in Lima) is filtered out, also when it does not say whether it is remote, onsite, or hybrid. Districts count as part of their city (San Isidro is Lima); a region with the city's name does not (Huaral is not Lima). When the city cannot be told, the posting stays with a note.
+- A posting that does not say it is remote is treated as having some office time. If you accept remote only, it is filtered out with that reason.
+- On a page with several searches of the same day, each job site shows its latest result and when it was last searched, instead of an earlier failure.
+
+Added
+- Restore a filtered-out posting from "See filtered out and why": it comes back to the results and is never filtered again. It is scored with the pending work (or by the search, if it is still running).
+
+Providers: none
+Offers: none
+Action: none
+
 ## 2026-11-20 · job-search-live-results
 
 Changed

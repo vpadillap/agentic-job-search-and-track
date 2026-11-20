@@ -22,7 +22,7 @@ Everything below works today.
 | Area | What you get |
 |---|---|
 | Setup (`/setup`) | Requirements, panel language, your resume in each language you apply in, the job-needs questionnaire, target titles researched with you, job sites, your standing rules |
-| Job search (`/job-search`) | Seven job sources (below), filtering with reasons, scoring, salary evidence with links, the Search tab |
+| Job search (`/job-search`) | Seven job sources (below), filtering with reasons (by city, district included, and work mode; any filtered-out posting can be restored), scoring, salary evidence with links, the Search tab |
 | Applications | Statuses, tags, details, the resume you sent, history, the Applications tab |
 | Documents (`/prepare-documents`, `/form-answers`) | Tailored resumes, cover letters, and application-form answers, in each posting's language |
 | Learning (`/analyze-results`) | What is working, lessons you apply or ignore, interview-chance estimates once your own results validate them |
@@ -246,8 +246,9 @@ Todo lo personal se queda en tu computadora, en una sola carpeta que git ignora.
 
 ## Estado
 
-Todo funciona hoy: configuración, búsqueda en siete fuentes con puntaje y
-evidencia salarial, seguimiento de postulaciones, documentos y formularios,
+Todo funciona hoy: configuración, búsqueda en siete fuentes con filtro por ciudad
+(los distritos cuentan como parte de su ciudad, y cualquier oferta descartada
+se puede restaurar), puntaje y evidencia salarial, seguimiento de postulaciones, documentos y formularios,
 aprendizaje, temporadas, el panel con sus cuatro pestañas y la posibilidad de
 agregar tus propios portales.
 
