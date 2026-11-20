@@ -36,7 +36,9 @@ function emptyFilters(minScore) {
   return { q: '', modes: [], contracts: [], minScore: minScore ?? null, providers: [], hasSalary: false };
 }
 
-function filterChecks(filters, t) {
+// While the search runs, a new posting without a score is still being scored: no
+// minimum-score filter hides it until it has one.
+function filterChecks(filters, t, running) {
   const checks = [];
   if (filters.q.trim()) {
     const needle = fold(filters.q.trim());
@@ -53,7 +55,7 @@ function filterChecks(filters, t) {
   }
   if (filters.minScore !== null) {
     checks.push({ id: 'minScore', label: t('filters.minScore', { value: filters.minScore }),
-      test: (r) => r.score && r.score.total >= filters.minScore });
+      test: (r) => (running && !r.score) || Boolean(r.score && r.score.total >= filters.minScore) });
   }
   if (filters.providers.length) {
     checks.push({ id: 'providers', label: t('filters.provider', { value: filters.providers.join(', ') }),
@@ -101,6 +103,21 @@ function ProviderChips({ run, onOpenProviders }) {
     </div>`;
 }
 
+// Progress of a running search: sites done, postings scored, and sites cooling down.
+function RunProgress({ run }) {
+  const { t, fmt } = useUi();
+  const searched = run.providers.filter((p) => p.status !== 'disabled');
+  const done = searched.filter((p) => p.status !== 'pending').length;
+  const cooling = run.providers.filter((p) => p.cooldown_until && Date.parse(p.cooldown_until) > Date.now());
+  return html`
+    <p class="run-meta run-progress" data-testid="run-progress" aria-live="polite">
+      <span>${t('run.progressSites', { done, total: searched.length })}</span>
+      <span>${t('run.progressScored', { scored: run.counts.scored ?? 0, total: run.counts.new })}</span>
+      ${cooling.map((p) => html`
+        <span>${t('run.progressCooling', { name: p.name, time: fmt.time(p.cooldown_until) })}</span>`)}
+    </p>`;
+}
+
 // A page holds the searches of one day (or the days the user joined): "14 Nov", or
 // "14 Nov – 15 Nov".
 function pageDate(fmt, page) {
@@ -141,6 +158,7 @@ function RunSummary({ data, runId, onRunChange, showFiltered, onToggleFiltered, 
             aria-controls="filtered-list" onClick=${onToggleFiltered}>
             ${showFiltered ? t('run.hideFiltered') : t('run.showFiltered')}</button>
         </div>
+        ${run.status === 'running' && html`<${RunProgress} run=${run} />`}
         <${ProviderChips} run=${run} onOpenProviders=${onOpenProviders} />
       </div>
       <div class="run-side">
@@ -560,6 +578,7 @@ export function SearchBoard({ data, runId, onRunChange, commands, setupRequired,
 
   const results = data ? data.results : [];
   const run = data && data.run;
+  const running = Boolean(run && run.status === 'running');
   const providers = useMemo(() => {
     const ids = [...new Set(results.map((r) => r.provider))];
     return ids.map((id) => ({ id, name: providerName(id, run) }));
@@ -568,7 +587,7 @@ export function SearchBoard({ data, runId, onRunChange, commands, setupRequired,
   const view = useMemo(() => {
     const dismissed = results.filter((r) => r.dismissal);
     const base = showDismissed ? results : results.filter((r) => !r.dismissal);
-    const checks = filterChecks(filters, t);
+    const checks = filterChecks(filters, t, running);
     const shown = base.filter((row) => checks.every((check) => check.test(row)));
     const hidden = checks.map((check) => ({ label: check.label, count: base.filter((r) => !check.test(r)).length }))
       .filter((h) => h.count > 0);
@@ -579,7 +598,7 @@ export function SearchBoard({ data, runId, onRunChange, commands, setupRequired,
       return (x < y ? -1 : x > y ? 1 : 0) * dir || a.id - b.id;
     });
     return { shown, hidden, total: base.length, dismissed: dismissed.length };
-  }, [results, filters, sort, showDismissed, t]);
+  }, [results, filters, sort, showDismissed, t, running]);
 
   // Keep the selection to rows that still exist and can be acted on.
   useEffect(() => {
@@ -622,6 +641,7 @@ export function SearchBoard({ data, runId, onRunChange, commands, setupRequired,
     { key: 'score', label: t('column.score'), sortable: true, width: withEstimates ? '84px' : '72px',
       render: (r) => html`<div class="stack chance-fit">
         ${r.score ? html`<span class=${'score ' + tone(r.score.total)}>${r.score.total}</span>`
+          : running ? html`<span class="score pending">${t('row.scoring')}</span>`
           : html`<span class="score none">–</span>`}
         ${r.estimate && html`<${ChanceCell} estimate=${r.estimate} compact />`}
         ${r.fit && html`<${FitCell} fit=${r.fit} compact />`}

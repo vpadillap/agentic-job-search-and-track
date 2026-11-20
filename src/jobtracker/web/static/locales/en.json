@@ -41,6 +41,9 @@
   "run.showFiltered": "See filtered out and why",
   "run.hideFiltered": "Hide filtered out",
   "run.running": "Still running",
+  "run.progressSites": "Sites done: {done} of {total}",
+  "run.progressScored": "Scored: {scored} of {total} new",
+  "run.progressCooling": "{name} resumes at {time}",
   "run.select": "Search shown",
   "run.option": "{date} · {count} new",
   "run.optionPage": "{date} · {searches} · {count} new",
@@ -139,6 +142,7 @@
     "one": "Form · {count} question",
     "other": "Form · {count} questions"
   },
+  "row.scoring": "Scoring…",
   "row.possibleDuplicate": "Possible duplicate",
   "row.possibleDuplicateOf": "Possible duplicate of: {list}",
   "row.duplicateTracked": "{site} (tracked as {job})",

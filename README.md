@@ -79,7 +79,7 @@ loads the right command and asks only for what is missing.
 | Command | What it does | You can also say |
 |---|---|---|
 | `/setup` | First run, and later changes to your profile, titles, sites, or rules | "change my target titles", "turn on Get on Board" |
-| `/job-search days=7` | Searches the job sites you turned on and updates the panel | "do a job search for this week", "any new postings?" |
+| `/job-search days=7` | Searches the job sites you turned on; results reach the panel, scored, while the search goes on | "do a job search for this week", "any new postings?" |
 | `/prepare-documents pending` | Tailored resumes, cover letters, and form answers that tracked jobs lack (or `ids=J0007,J0012`, or `all`) | "complete the missing documents for J0007" |
 | `/form-answers ids=J0007` | Answers to a posting's application form (`alternative` for another version) | "answer the form for J0007" |
 | `/analyze-results` | Reviews your results and proposes lessons | "how am I doing?", "why does nobody call me?" |
@@ -284,7 +284,7 @@ el agente carga el comando correcto y solo te pregunta lo que falte.
 | Comando | En inglés | Qué hace | También puedes decir |
 |---|---|---|---|
 | `/configurar` | `/setup` | Primera vez, y cambios a tu perfil, títulos, portales o reglas | "cambia mis títulos", "activa Get on Board" |
-| `/buscar-empleos dias=7` | `/job-search days=7` | Busca en los portales que activaste y actualiza el panel | "busca trabajo de esta semana", "¿hay avisos nuevos?" |
+| `/buscar-empleos dias=7` | `/job-search days=7` | Busca en los portales que activaste; los resultados llegan al panel, puntuados, mientras la búsqueda sigue | "busca trabajo de esta semana", "¿hay avisos nuevos?" |
 | `/preparar-documentos pendientes` | `/prepare-documents pending` | CV, cartas y respuestas de formulario que falten (o `ids=J0007,J0012`, o `todas`) | "completa los documentos faltantes de la J0007" |
 | `/formulario ids=J0007` | `/form-answers ids=J0007` | Respuestas del formulario de un aviso (`alternativa` para otra versión) | "responde el formulario de la J0007" |
 | `/analizar-resultados` | `/analyze-results` | Revisa tus resultados y propone lecciones | "¿cómo me está yendo?", "¿por qué no me llaman?" |

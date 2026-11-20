@@ -5,6 +5,17 @@ merged into `main`. The agent reads it to tell you what an update brings
 (`/update`); the last three lines of each entry are for it: the job or salary
 sites the change adds, the one-time offers it brings, and anything you must do.
 
+## 2026-11-20 · job-search-live-results
+
+Changed
+- Search results reach the panel while the search goes on: each batch of postings is filtered and scored right away, so you can start reviewing and tracking postings long before a long search ends. Postings still being scored show "Scoring…", and the search summary shows how many sites are done, how many postings are scored, and when a paused site resumes.
+- A site that asks the agent to slow down no longer holds up the others: the agent goes on with the rest and comes back to it when its pause ends.
+- The agent uses at most 3 helpers at the same time, however many titles and sites you have, so a large search does not use up your usage limit.
+
+Providers: none
+Offers: none
+Action: none
+
 ## 2026-11-19 · fix-salary-sources-without-country
 
 Fixed

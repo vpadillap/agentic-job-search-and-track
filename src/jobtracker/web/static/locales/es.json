@@ -41,6 +41,9 @@
   "run.showFiltered": "Ver descartadas y por qué",
   "run.hideFiltered": "Ocultar descartadas",
   "run.running": "Aún en curso",
+  "run.progressSites": "Portales listos: {done} de {total}",
+  "run.progressScored": "Puntuadas: {scored} de {total} nuevas",
+  "run.progressCooling": "{name} se reanuda a las {time}",
   "run.select": "Búsqueda mostrada",
   "run.option": "{date} · {count} nuevas",
   "run.optionPage": "{date} · {searches} · {count} nuevas",
@@ -139,6 +142,7 @@
     "one": "Formulario · {count} pregunta",
     "other": "Formulario · {count} preguntas"
   },
+  "row.scoring": "Puntuando…",
   "row.possibleDuplicate": "Posible duplicado",
   "row.possibleDuplicateOf": "Posible duplicado de: {list}",
   "row.duplicateTracked": "{site} (en seguimiento como {job})",

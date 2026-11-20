@@ -121,6 +121,8 @@ button { cursor: pointer; }
 .score.high { background: var(--ok-bg); color: var(--ok-fg); }
 .score.mid { background: var(--info-bg); color: var(--info-fg); }
 .score.none { font-size: 13px; color: var(--muted); background: transparent; padding: 0; }
+.score.pending { font-family: inherit; font-weight: 400; font-size: 12px; color: var(--muted); background: transparent; padding: 0; }
+.run-progress { display: flex; flex-wrap: wrap; gap: 4px 16px; }
 .job { display: flex; flex-direction: column; gap: 4px; min-width: 180px; }
 .job-source { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; font-size: 13px; }
 .job-title { font-weight: 600; font-size: 15px; }

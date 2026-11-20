@@ -7,7 +7,9 @@ description: "Searches the enabled job sites for new postings that match the use
 
 You run one search for the person in front of you. The browsing and the
 judgement are yours; storage, de-duplication, validation, and counting belong
-to the CLI. Follow the steps in order.
+to the CLI. Follow the steps in order; steps 3 and 4 run together: batches
+are filtered and scored while you go on searching, so the user can start
+reviewing results in the panel long before the search ends.
 
 **The CLI.** From the repository root run `python scripts/jt.py <command>`
 (`python3` if `python` is missing). It prints JSON: `{"ok": true, ...}` or
@@ -106,6 +108,17 @@ countries): do not search it, and name it in the report. If every enabled site
 was skipped this way, say that the user can turn on the global sites or the
 sites of their country in the panel.
 
+## 2b. Refresh learning once
+
+Learning feeds on results, so it is refreshed once per run, here, before any
+posting is scored, and never again during the search: `jt learning refresh`.
+It recomputes what the user's results show, refits the estimates only when
+enough new outcomes arrived, writes the complete history file, and lists
+`effects`, `active_lessons`, and `candidates`. Keep `history.path`, the
+effects, and the active lessons: every batch of this run is judged with them
+(step 4). Candidates are not rules: never act on them; they are for
+`/analyze-results` and the panel's Learning tab.
+
 ## 3. Search each provider
 
 For each provider id in `to_search`, in order:
@@ -126,7 +139,9 @@ For each provider id in `to_search`, in order:
    query, named `<provider>-<n>.txt` or `.json`. These are for audit only.
 5. For each posting build a record (fields below) and send them in batches:
    `jt postings import <run_id> -`. The command decides what is new, a
-   duplicate, or already seen. Do not de-duplicate yourself. When the
+   duplicate, or already seen. Do not de-duplicate yourself. Import each
+   title as soon as it is read, and add its new postings to the queue of
+   step 4 before going on. When the
    provider file uses a reader (`jt providers read <id> …`), the reader
    writes the records as drafts: read them, write only your reading of each
    one, and import with `jt postings import <run_id> <drafts> --readings
@@ -157,12 +172,16 @@ For each provider id in `to_search`, in order:
 7. A reader that answers `stopped.reason: throttled` (the site asked to slow
    down) has not failed: it is cooling down until `resume_after`, and any
    call before then is refused with `provider_cooling` without contacting
-   the site. Import what it wrote, go on with the other providers, and then
-   tell the user when that site may go on. If they want to wait, keep the
-   run open and call the reader again after `resume_after` for the titles it
-   did not finish (a finished title answers `already_done`); otherwise
-   finish the run, which records the site as failed with reason
-   `throttled`. Never try to get past a throttle any other way.
+   the site. Import what it wrote and queue it, and go on with the other
+   providers and titles while the helpers keep working on the queue; a
+   cool-down never holds up the rest of the search. Once its `resume_after`
+   has passed, call the reader again for the titles it did not finish (a
+   finished title answers `already_done`), in the same run. If nothing else
+   is left to search before that time, tell the user when that site may go
+   on and ask whether to wait. If they want to wait, keep the run open and
+   resume it then; otherwise finish the run once step 5 is done, which
+   records the site as failed with reason `throttled`. Never try to get past
+   a throttle any other way.
 
 Posting record (JSON object; `null` or omit what the site does not show):
 
@@ -178,96 +197,72 @@ Posting record (JSON object; `null` or omit what the site does not show):
 | `description` | verbatim, complete, never summarized or translated |
 | `published_salary` | only when the posting states it: `{min, max, currency, period, basis}` |
 | `language` | language of the posting (es, en…) |
-| `flags` | doubts to show the user (see step 4) |
+| `flags` | doubts to show the user (see `batch-worker.md`) |
 | `form_questions` | only if visible without starting an application: `[{text, kind, options, required}]` |
 
 The same job on two sites is two postings. The panel marks them as possible
 duplicates and the user picks the site; do not merge or drop either.
 
-## 4. First-pass filter (new postings only)
+## 4. Filter, score, and price each batch while you search
 
-`jt postings list --run <run_id> --outcome new`. Exclude a posting only when it
-clearly violates a hard constraint:
+A **batch** is what one import brought in: the new postings of one title on
+one site (`outcome: new` in the import report). The user watches the panel
+while you search, so every batch is filtered and scored right away, not
+after the last site. The panel shows imported postings as "Scoring…" until
+they have a score.
 
-| Reason | When |
-|---|---|
-| `title` | its title is one of the profile's excluded titles, or clearly another role |
-| `work_mode` | its stated work mode is not among the accepted ones (a posting whose work mode is not stated is never excluded for this) |
-| `contract_type` | its contract type is not among the accepted ones |
-| `location` | onsite or hybrid outside the accepted locations |
-| `language` | it requires a language the user lacks |
-| `company` | the company is excluded in the profile |
-| `salary` | its published salary is below the stated minimum (same currency and basis) |
-| `rule` | an active rule excludes it (name the rule in `detail`) |
+Keep a **queue** of batches in import order. After each import, add its new
+posting ids to the queue and go on searching. The work on the queue is done
+by background helpers that follow `batch-worker.md` in this folder:
 
-Send them in one call: `jt postings filter <run_id> -` with
-`[{"posting_id", "reason", "detail"}]`, where `detail` says in one sentence
-what exactly did not fit.
+- **At most 3 helpers at the same time**, whatever the number of titles and
+  sites. This cap protects the user's usage limit: never go over it, and
+  never start a helper per batch just because batches are waiting.
+- A **score** helper takes every batch waiting in the queue when it starts,
+  up to 25 postings in all, oldest first. When a helper finishes and the
+  queue is not empty, start the next one.
+- At most **one salary helper** at a time, counted in the 3. It takes the
+  scored postings at or above the minimum shown in the panel (an active rule
+  may set it; otherwise all), best score first, at most 15 postings per run
+  in all, and never a posting it or an earlier salary helper already took.
+  Start it when enough scored postings wait for it, or when the search is
+  done.
+- Start each helper with your background-agent tool (in Claude Code, the
+  Agent tool with `run_in_background: true`), and give it in its message:
+  the path `.claude/skills/job-search/batch-worker.md` to read and follow,
+  its job (`score` or `salary`), the `run_id`, the posting ids it takes, the
+  panel language, and from step 2b the history file's path with the
+  `effects` and `active_lessons`. Do not wait for it: you are told when it
+  finishes, and you go on searching meanwhile.
+- Read each helper's report. Postings it left unscored with
+  `no_resume_for_language` are collected for step 5. A posting left
+  unscored for another reason goes back to the queue once.
 
-When in doubt, keep the posting and add a flag instead:
-`jt postings flag <posting_id> --text "Seniority appears lower than yours"`.
+**Without background helpers** (your tools cannot start agents that run on
+their own): do the same work yourself, in the same order. Right after each
+import, follow `batch-worker.md` (job `score`) for that batch, then go on
+with the next title. Research salary between sites and while a site is
+cooling down (job `salary`, with the same limits).
 
 If the user tells you a posting's real work mode (for example after opening it),
 record it with `jt postings work-mode <posting_id> --mode remote|hybrid|onsite|none
 --detail "..."`. It is kept as the user's and no later search overwrites it.
 
-## 5. Refresh learning, then score what is left
+## 5. Before finishing
 
-Learning feeds on results, so it is refreshed here, after filtering and before
-scoring, never during the search itself:
+1. Wait until the queue is empty and no helper is running. Then
+   `jt postings list --run <run_id> --outcome new`: any new posting without a
+   score that was not left aside for `no_resume_for_language` goes through
+   the queue once more.
+2. Start the salary helper for the scored postings it has not taken yet, if
+   any remain within the run's 15, and wait for it.
+3. If postings were left unscored with `no_resume_for_language`, the user has
+   no resume in that language: ask the user once per language whether to
+   give you a resume in it or to translate one of theirs (follow
+   `.claude/skills/setup/resume-translation.md`), and score them after that
+   (job `score`).
 
-1. `jt learning refresh`. It recomputes what the user's results show, refits
-   the estimates only when enough new outcomes arrived, writes the complete
-   history file, and lists `effects`, `active_lessons`, and `candidates`.
-   Follow the active lessons and effects (they are the user's decisions).
-   Candidates are not rules: never act on them; they are for `/analyze-results`
-   and the panel's Learning tab.
-2. Read the history file at `history.path` completely. It holds every
-   application with its outcome so far, every posting the user tracked or
-   dismissed (with the reason), and every work-mode reading the user corrected.
-   Nothing is left out; decide yourself what is relevant. For a posting you are
-   scoring, `jt learning refresh --posting <id>` orders the same complete
-   history by similarity to it (most similar first) and adds the posting's
-   interview estimate and fit when they are available.
-3. Corrections of your own readings (records of type `correction`) tell you
-   how this site's postings mislead you; read work modes more carefully where
-   the user had to correct them.
-
-For each remaining new posting, judge it against the user's resume and profile
-with the rubric in `scoring-guide.md` (read it before the first score), then
-`jt score set <posting_id> - --run <run_id>`. The CLI rejects inconsistent
-scores; fix and resubmit. History is added by the system. When similar past
-cases or an applied lesson informed your judgement, say so in the note in one
-plain phrase (for example "Similar postings you applied to reached interview
-3 of 4 times" or "Applied lesson: …"); never cite a pattern the history does not
-show.
-
-`score set` judges a posting against the user's resume in the posting's
-language. If it fails with `no_resume_for_language`, the user has no resume in
-that language: do not score those postings and do not translate on your own.
-Collect them, and after the run ask the user once per language whether to give
-you a resume in it or to translate one of theirs (follow
-`.claude/skills/setup/resume-translation.md`); score them after that.
-
-## 6. Research salary
-
-For new postings with a score at or above the minimum shown in the panel (an
-active rule may set it; otherwise all), best score first, at most 15 postings
-per run, follow `salary-guide.md`:
-
-1. Group the postings by role family, level, and country: research each such
-   market key once per run, and each company once.
-2. For each posting, `jt salary lookup <posting_id>` gathers everything
-   available: the offered salary, the user's history (offers they received and
-   salaries published in stored postings, with company profiles), fresh stored
-   evidence, and what was already checked. If `recently_without_data` is true
-   and nothing new is in the history, do not research again.
-3. Record missing company profiles, search only what is missing, analyse (the
-   same company first; otherwise similar companies), and record either
-   `jt salary set <posting_id> -` with the range, its inputs, and a short note,
-   or `jt salary none <posting_id> --checked "..."`.
-
-## 7. Finish and report
+## 6. Finish and report
 
 `jt run finish <run_id>` and report to the user from its `run` output, using
 the same numbers: found, new, filtered out, duplicates or already seen,
