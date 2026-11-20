@@ -113,7 +113,7 @@ def test_two_searches_of_one_day_show_on_one_page(searchable, cli, client, tmp_p
     page = board["run"]
     assert page["run_count"] == 2 and [r["id"] for r in page["runs"]] == [
         first["run_id"], second["run_id"]]
-    for key in ("found", "new", "filtered", "duplicate_or_seen"):
+    for key in ("found", "new", "filtered", "duplicate_or_seen", "scored"):
         assert page["counts"][key] == one["counts"][key] + two["counts"][key]
     assert len(ids) == one["counts"]["new"] + two["counts"]["new"]
     for item in page["providers"]:

@@ -440,3 +440,20 @@ def test_work_mode_command(searchable, cli, write_json):
     assert code == 1 and out["error"]["code"] == "not_found"
     code, _, _ = cli("postings", "work-mode", str(posting_id), "--mode", "moon")
     assert code != 0
+
+
+# ── progress while the run is running (job-search-live-results) ───────────
+
+def test_running_run_counts_the_new_postings_already_scored(searchable, cli, write_json):
+    from tests.test_scoring import submission
+    run = start(cli)
+    _, report, _ = cli("postings", "import", str(run["run_id"]), write_json(captures()))
+    new = [p["posting_id"] for p in report["postings"] if p["outcome"] == "new"]
+    assert len(new) >= 3
+    code, out, _ = cli("score", "set", str(new[0]), write_json(submission(), "score.json"),
+                       "--run", str(run["run_id"]))
+    assert code == 0, out
+    with db.session(searchable) as conn:
+        shown = search.summary(conn, run["run_id"])
+    assert shown["status"] == "running"
+    assert shown["counts"]["new"] == len(new) and shown["counts"]["scored"] == 1

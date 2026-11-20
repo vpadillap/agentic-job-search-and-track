@@ -516,6 +516,9 @@ def summary(conn: sqlite3.Connection, run_id: int, top: int = 5) -> dict:
                          "company": result["company"],
                          "score": score["total"] if score else None})
     top_rows.sort(key=lambda r: (r["score"] is None, -(r["score"] or 0), r["posting_id"]))
+    counts = _counts(conn, run_id)
+    # New postings already scored: the search board's progress while the run is running.
+    counts["scored"] = sum(1 for r in top_rows if r["score"] is not None)
     return {
         "id": row["id"],
         "started_at": row["started_at"],
@@ -524,7 +527,7 @@ def summary(conn: sqlite3.Connection, run_id: int, top: int = 5) -> dict:
         "posting_age_days": row["posting_age_days"],
         "titles": json.loads(row["titles"]),
         "title_count": len(json.loads(row["titles"])),
-        "counts": _counts(conn, run_id),
+        "counts": counts,
         "providers": items,
         "skipped": [i for i in items if i["status"] in ("skipped", "failed")],
         "top": top_rows[:top],

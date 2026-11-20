@@ -191,6 +191,101 @@ def test_two_searches_of_one_day_on_one_page(seeded, page):
     expect(page.get_by_test_id("page-searches")).to_contain_text("2 searches on this page")
 
 
+def _running_search(home, scored: bool = False) -> int:
+    """A search still running, on its own page: two sites, one done and one cooling
+    down, and two new postings, the first one scored when asked."""
+    from jobtracker.core import scoring
+    from tests.test_scoring import submission
+    with db.session(home) as conn:
+        run = search.start_run(conn, home, 7, demo=True, new_group=True,
+                               demo_providers=[{"id": "linkedin", "name": "LinkedIn"},
+                                               {"id": "bumeran", "name": "Bumeran"}],
+                               demo_titles=["Data Engineer"])
+        report = search.import_postings(conn, run["run_id"], [{
+            "provider": "linkedin", "external_id": f"live-{number}",
+            "url": f"https://example.com/demo/live-{number}", "title": "Staff Data Engineer",
+            "company": company, "location": "Lima", "country": "PE", "work_mode": "remote",
+            "contract_type": "full-time", "posted_at": datetime.now().date().isoformat(),
+            "description": "Fictional."} for number, company in
+            ((1, "Ondina Analytics"), (2, "Pradera Datos"))])
+        search.record_provider(conn, run["run_id"], "linkedin", "ok")
+        search.record_cooldown(conn, run["run_id"], "bumeran", None, "429", time.time())
+        if scored:
+            first = report["postings"][0]["posting_id"]
+            scoring.set_score(conn, first, submission(), run_id=run["run_id"])
+    return run["run_id"]
+
+
+def _score_live_posting(home, run_id: int, company: str) -> None:
+    from jobtracker.core import scoring
+    from tests.test_scoring import submission
+    with db.session(home) as conn:
+        posting = conn.execute("SELECT id FROM postings WHERE company = ?", (company,)).fetchone()
+        scoring.set_score(conn, posting["id"], submission(), run_id=run_id)
+
+
+def test_running_search_shows_unscored_postings_as_scoring(seeded, page):
+    _running_search(seeded, scored=True)
+    open_board(page)
+    expect(page.locator("tbody tr")).to_have_count(2)
+    expect(row(page, "Ondina Analytics").locator(".score")).to_have_text("86")
+    expect(row(page, "Pradera Datos").locator(".score.pending")).to_have_text("Scoring…")
+
+
+def test_minimum_score_keeps_postings_being_scored(seeded, page):
+    run_id = _running_search(seeded)
+    open_board(page)
+    page.get_by_role("button", name="Score: any").click()
+    page.get_by_role("radio", name="≥ 80").check()
+    expect(page.locator("tbody tr")).to_have_count(2)            # both still being scored
+    _score_live_posting(seeded, run_id, "Ondina Analytics")       # 86: stays
+    expect(row(page, "Ondina Analytics").locator(".score")).to_have_text("86", timeout=10000)
+    expect(page.locator("tbody tr")).to_have_count(2)
+    with db.session(seeded) as conn:                              # 66: now hidden by the filter
+        from jobtracker.core import scoring
+        from tests.test_scoring import submission
+        posting = conn.execute("SELECT id FROM postings WHERE company = 'Pradera Datos'").fetchone()
+        scoring.set_score(conn, posting["id"], submission(skills={"points": 7}), run_id=run_id)
+    expect(page.locator("tbody tr")).to_have_count(1, timeout=10000)
+
+
+def test_score_arrives_without_reloading(seeded, page):
+    run_id = _running_search(seeded)
+    open_board(page)
+    expect(row(page, "Pradera Datos").locator(".score.pending")).to_be_visible()
+    _score_live_posting(seeded, run_id, "Pradera Datos")
+    expect(row(page, "Pradera Datos").locator(".score")).to_have_text("86", timeout=10000)
+
+
+def test_tracking_during_a_running_search(seeded, page):
+    run_id = _running_search(seeded, scored=True)
+    open_board(page)
+    row(page, "Ondina Analytics").get_by_role("button", name="Track", exact=True).click()
+    expect(row(page, "Ondina Analytics").locator("a.tracked")).to_have_text(re.compile("Tracked"))
+    with db.session(seeded) as conn:
+        assert search.summary(conn, run_id)["status"] == "running"   # the search goes on
+    expect(page.get_by_test_id("run-progress")).to_be_visible()
+
+
+def test_finished_search_shows_a_dash_for_an_unscored_posting(seeded, page):
+    run_id = _running_search(seeded)
+    with db.session(seeded) as conn:
+        search.finish_run(conn, run_id)
+    open_board(page)
+    expect(row(page, "Pradera Datos").locator(".score.none")).to_have_text("–")
+    expect(page.locator(".score.pending")).to_have_count(0)
+    expect(page.get_by_test_id("run-progress")).to_have_count(0)
+
+
+def test_progress_of_a_running_search(seeded, page):
+    _running_search(seeded, scored=True)
+    open_board(page)
+    progress = page.get_by_test_id("run-progress")
+    expect(progress).to_contain_text("Sites done: 1 of 2")
+    expect(progress).to_contain_text("Scored: 1 of 2 new")
+    expect(progress).to_contain_text(re.compile(r"Bumeran resumes at \d"))
+
+
 def test_change_while_typing_keeps_input_and_offers_to_load(seeded, page):
     open_board(page)
     box = page.get_by_role("searchbox", name="Search results")
