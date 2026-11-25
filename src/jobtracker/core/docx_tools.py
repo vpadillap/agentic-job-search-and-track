@@ -202,3 +202,46 @@ def layout_check(base: Path, proposed: Path) -> dict:
                        if base_chars else None},
         "same_shape": len(base_paragraphs) == len(new_paragraphs),
     }
+
+
+# ── Markdown to Word, for downloads ───────────────────────────────────────
+
+def _add_runs(paragraph, text: str) -> None:
+    """Add `text` to a paragraph, with `**bold**` spans as bold runs."""
+    for index, part in enumerate(text.split("**")):
+        if part:
+            paragraph.add_run(part).bold = index % 2 == 1
+
+
+def markdown_to_docx(text: str) -> bytes:
+    """A Word document with the headings, paragraphs, bullet items, and bold of `text`."""
+    import io
+    import re
+
+    docx, _ = _docx()
+    document = docx.Document()
+    pending: list[str] = []
+
+    def flush() -> None:
+        if pending:
+            _add_runs(document.add_paragraph(), " ".join(pending))
+            pending.clear()
+
+    for raw in text.splitlines():
+        line = raw.strip()
+        heading = re.match(r"^(#{1,3})\s+(.*)$", line)
+        bullet = re.match(r"^(?:[-*•])\s+(.*)$", line)
+        if not line:
+            flush()
+        elif heading:
+            flush()
+            _add_runs(document.add_heading(level=len(heading.group(1))), heading.group(2))
+        elif bullet:
+            flush()
+            _add_runs(document.add_paragraph(style="List Bullet"), bullet.group(1))
+        else:
+            pending.append(line)
+    flush()
+    buffer = io.BytesIO()
+    document.save(buffer)
+    return buffer.getvalue()

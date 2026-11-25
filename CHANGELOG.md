@@ -5,6 +5,20 @@ merged into `main`. The agent reads it to tell you what an update brings
 (`/update`); the last three lines of each entry are for it: the job or salary
 sites the change adds, the one-time offers it brings, and anything you must do.
 
+## 2026-11-25 · download-file-names
+
+Changed
+- Resumes and cover letters you download from the Applications tab are named after you and the job, so you can tell them apart: `Your Name - J0007.docx` for the resume and `Your Name - J0007 - Cover letter.docx` (or `Carta de presentación` when the letter is in Spanish). Cover letters now download as Word documents. The files the agent keeps are not renamed.
+- A posting that does not say its work mode shows one orange "Work mode not stated" chip, which you click to set it. The separate orange note under the title is gone, and once you set the mode the chip looks like the other conditions.
+
+Added
+- "Remove from tracking" on each application, for a posting you tracked by mistake. The panel asks first; the application and its documents are deleted, and the posting goes back to the search results.
+- `/setup` asks for your full name once, to name the documents you download; it is also protected by the privacy guard.
+
+Providers: none
+Offers: none
+Action: tell the agent your full name ("set my full name to …", or /setup, privacy step) so your downloads carry it; until then they are named by the job id.
+
 ## 2026-11-20 · job-search-location-filter
 
 Changed

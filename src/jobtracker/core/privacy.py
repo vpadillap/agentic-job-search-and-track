@@ -1,6 +1,7 @@
 """Private terms: the user's identifying strings, checked by the privacy guard."""
 from __future__ import annotations
 
+from . import config
 from .errors import JobTrackerError
 from .paths import Paths
 
@@ -42,3 +43,21 @@ def add_terms(paths: Paths, terms: list[str]) -> dict:
         added += 1
     paths.private_terms.write_text(HEADER + "\n".join(existing) + "\n", encoding="utf-8")
     return {"added": added, "skipped_too_short": too_short, "total": len(existing)}
+
+
+def set_full_name(paths: Paths, name: object) -> dict:
+    """Record the user's full name and register it as a private term, in one step.
+
+    The name is never echoed back. An earlier name stays a registered term.
+    """
+    if not paths.home.is_dir():
+        raise JobTrackerError("not_initialized", "The workspace is not initialized. Run /setup.")
+    clean = config.clean_full_name(name)
+    terms = add_terms(paths, [clean])
+    config.save_full_name(paths.config, clean)
+    return {"full_name_recorded": True, "private_term_added": terms["added"] == 1}
+
+
+def full_name(paths: Paths) -> str | None:
+    """The recorded full name, or None."""
+    return config.load_full_name(paths.config)

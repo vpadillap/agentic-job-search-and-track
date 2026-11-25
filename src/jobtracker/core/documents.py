@@ -332,3 +332,42 @@ def diff(conn: sqlite3.Connection, paths: Paths, job_id: str,
         "stats": {"base_lines": len(old), "proposed_lines": len(new),
                   "added": added, "removed": removed},
     }
+
+
+# ── download names ────────────────────────────────────────────────────────
+
+DOWNLOAD_KINDS = ("resume_proposed", "cover_letter")
+LETTER_LABELS = {"es": "Carta de presentación"}
+LETTER_LABEL_DEFAULT = "Cover letter"
+_FORBIDDEN_IN_NAMES = re.compile(r'[\/:*?"<>|\x00-\x1f\x7f]')
+
+
+def _safe_name(text: str) -> str:
+    return " ".join(_FORBIDDEN_IN_NAMES.sub("", text).split()).strip(" .")
+
+
+def download(conn: sqlite3.Connection, paths: Paths, job_id: str,
+             document_id: int) -> dict:
+    """How a document is downloaded: its file, the name it gets, and whether to convert it.
+
+    Agent-made resumes and cover letters are named after the user and the job
+    (`<Full Name> - J0007.docx`) and always arrive as Word documents; any other
+    document keeps its stored name. Stored files are never renamed.
+    """
+    from . import privacy  # local import: privacy reads config, not the database
+
+    path = applications.document_path(conn, paths, job_id, document_id)
+    row = conn.execute(
+        "SELECT d.kind, d.language, p.language AS posting_language FROM documents d"
+        " JOIN applications a ON a.id = d.application_id"
+        " JOIN postings p ON p.id = a.posting_id WHERE d.id = ?", (document_id,),
+    ).fetchone()
+    if row["kind"] not in DOWNLOAD_KINDS:
+        return {"path": path, "name": path.name, "convert": False}
+    full_name = _safe_name(privacy.full_name(paths) or "")
+    parts = [full_name, job_id] if full_name else [job_id]
+    if row["kind"] == "cover_letter":
+        language = (row["language"] or row["posting_language"] or "").lower()[:2]
+        parts.append(LETTER_LABELS.get(language, LETTER_LABEL_DEFAULT))
+    return {"path": path, "name": " - ".join(parts) + ".docx",
+            "convert": path.suffix.lower() == ".md"}

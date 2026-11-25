@@ -457,3 +457,43 @@ def test_running_run_counts_the_new_postings_already_scored(searchable, cli, wri
         shown = search.summary(conn, run["run_id"])
     assert shown["status"] == "running"
     assert shown["counts"]["new"] == len(new) and shown["counts"]["scored"] == 1
+
+
+# ── one mark for a missing work mode (search-results-board "Results table") ──
+
+@pytest.mark.parametrize("flag", ["Modalidad no indicada", "Modalidad de trabajo no indicada",
+                                  "Work mode not stated.", "work mode not stated",
+                                  "MODALIDAD NO INDICADA", "Modalidad no especificada"])
+def test_flags_that_only_say_not_stated_are_recognized(flag):
+    assert search.is_work_mode_not_stated(flag)
+
+
+@pytest.mark.parametrize("flag", [
+    "Ciudad no indicada en detalle: dice Lima; modalidad no indicada",
+    "La modalidad solo la indica Bumeran; la descripción no la menciona",
+    "Employment type: Temporary", "Seniority appears lower than yours"])
+def test_flags_that_say_more_are_kept(flag):
+    assert not search.is_work_mode_not_stated(flag)
+
+
+def test_import_does_not_store_the_not_stated_flag(searchable, cli, write_json):
+    run = start(cli)
+    records = captures()
+    records[0]["flags"] = ["Modalidad de trabajo no indicada", "Employment type: Temporary"]
+    _, report, _ = cli("postings", "import", str(run["run_id"]), write_json(records))
+    posting_id = by_external(report)[records[0]["external_id"]]["posting_id"]
+    with db.session(searchable) as conn:
+        stored = conn.execute("SELECT flags FROM postings WHERE id = ?",
+                              (posting_id,)).fetchone()[0]
+    assert json.loads(stored) == ["Employment type: Temporary"]
+
+
+def test_a_stored_not_stated_flag_is_not_shown(searchable, cli, write_json):
+    run = start(cli)
+    _, report, _ = cli("postings", "import", str(run["run_id"]), write_json(captures()))
+    posting_id = by_external(report)["A-100"]["posting_id"]
+    with db.session(searchable) as conn:
+        conn.execute("UPDATE postings SET flags = ? WHERE id = ?",
+                     (json.dumps(["Modalidad no indicada", "Kept flag"]), posting_id))
+    _, shown, _ = cli("postings", "show", str(posting_id))
+    assert shown["posting"]["flags"] == ["Kept flag"]

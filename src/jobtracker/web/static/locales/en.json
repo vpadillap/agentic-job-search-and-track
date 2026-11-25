@@ -783,5 +783,11 @@
   "detail.publishedInput": "Published by {company} for {title}",
   "detail.weight.main": "main",
   "detail.weight.supporting": "supporting",
-  "detail.setAside": "Set aside"
+  "detail.setAside": "Set aside",
+  "remove.label": "Remove from tracking",
+  "remove.menuLabel": "Remove {job} from tracking",
+  "remove.confirmText": "Remove {job} from tracking? Its status, tags, details, and form answers are dropped, and its documents (tailored resumes, cover letters, the sent resume) are deleted. This cannot be undone. The posting goes back to the search results.",
+  "remove.confirm": "Remove {job}",
+  "remove.cancel": "Cancel",
+  "remove.done": "{job} was removed from tracking"
 }

@@ -128,12 +128,19 @@ of this project, which git ignores; a guard also refuses any commit containing
 their name, email, or phone.
 
 Ask for their full name, email, and phone number as they appear on the resume
-(they may skip any). Register them, one argument per term:
+(they may skip any). Record the full name; it also names the resumes and cover
+letters they download from the panel (`<Full Name> - J0007.docx`), and the
+command registers it for the guard in the same step:
 
-`jt privacy terms add "<full name>" "<email>" "<phone>"`
+`jt privacy name set "<full name>"`
 
-More terms can be added at any time with the same command, and
-`jt privacy terms list` shows what is registered if the user asks.
+Then register the email and phone, one argument per term:
+
+`jt privacy terms add "<email>" "<phone>"`
+
+More terms can be added at any time with `jt privacy terms add`, and
+`jt privacy terms list` shows what is registered if the user asks. The name is
+changed with `jt privacy name set` again (`jt privacy name show` shows it).
 
 ## 5. Resume (`resume`)
 

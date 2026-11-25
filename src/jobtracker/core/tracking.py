@@ -6,11 +6,14 @@ arrive with application tracking). Every action can be undone right after it.
 from __future__ import annotations
 
 import json
+import shutil
 import sqlite3
 from datetime import date, datetime, timedelta
+from pathlib import Path
 
 from .db import bump_changes, now_iso
 from .errors import JobTrackerError
+from .paths import Paths
 
 DISMISS_REASONS = ("industry", "low_salary", "location", "stack", "other")
 UNDO_WINDOW = timedelta(minutes=10)
@@ -125,6 +128,48 @@ def untrack(conn: sqlite3.Connection, posting_ids: object) -> list[int]:
                {"job_id": existing["job_id"]}, stamp)  # type: ignore[index]
     bump_changes(conn)
     return ids
+
+
+def remove(conn: sqlite3.Connection, paths: Paths, job_ids: object) -> dict:
+    """Remove applications from tracking at any time; their postings become untracked.
+
+    The rows go (status, tags, details, answers, document records); the job ids
+    are never given to another application. The folders to delete are returned:
+    the caller deletes them with `delete_folders` once this transaction is
+    committed, so no application is ever left pointing at deleted files.
+    """
+    from . import applications  # local import: applications builds on this module's records
+
+    if not isinstance(job_ids, list) or not job_ids or any(
+            not isinstance(j, str) for j in job_ids):
+        raise JobTrackerError("invalid_action", "expected a non-empty list of job ids")
+    ids = list(dict.fromkeys(job_ids))
+    rows = [applications._editable_row(conn, job_id) for job_id in ids]
+    folders = [str(applications.folder(conn, paths, job_id)) for job_id in ids]
+    stamp = now_iso()
+    for row in rows:
+        conn.execute("DELETE FROM applications WHERE id = ?", (row["id"],))
+        _event(conn, "posting", str(row["posting_id"]), "untracked",
+               {"job_id": row["job_id"], "removed": True}, stamp)
+    bump_changes(conn)
+    return {"job_ids": ids, "folders": folders}
+
+
+def delete_folders(paths: Paths, folders: list[str]) -> int:
+    """Delete removed applications' folders; only direct children of applications/."""
+    base = paths.applications.resolve()
+    deleted = 0
+    for folder in folders:
+        path = Path(folder)
+        resolved = path.resolve()
+        if (resolved.parent != base or not resolved.is_relative_to(paths.home.resolve())
+                or path.is_symlink()):
+            raise JobTrackerError("forbidden_path",
+                                  "That folder is outside the applications folder")
+        if resolved.is_dir():
+            shutil.rmtree(resolved)
+            deleted += 1
+    return deleted
 
 
 def dismiss(conn: sqlite3.Connection, posting_ids: object, reason: str,

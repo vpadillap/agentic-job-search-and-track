@@ -58,6 +58,7 @@ export const api = {
   setStatus: (jobIds, status, ends = null) => request('POST', '/api/applications/status',
     { job_ids: jobIds, status, ends }),
   setDetails: (job, fields) => request('POST', `/api/applications/${encodeURIComponent(job)}/details`, fields),
+  removeApplications: (jobs) => request('POST', '/api/applications/remove', { job_ids: jobs }),
   setTags: (job, add = [], remove = []) => request('POST', `/api/applications/${encodeURIComponent(job)}/tags`, { add, remove }),
   documentText: (job, id) => request('GET', `/api/applications/${encodeURIComponent(job)}/documents/${id}/text`),
   documentUrl: (job, id) => `/api/applications/${encodeURIComponent(job)}/documents/${id}`,

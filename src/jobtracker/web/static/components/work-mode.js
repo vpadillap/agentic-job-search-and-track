@@ -26,7 +26,7 @@ export function WorkModeEditor({ posting, onAction, extra = null }) {
     <span class="wm-text" title=${shown || t('workMode.notStated')}>${shown || t('workMode.notStated')}</span>
     ${edited && html`<span class="wm-edited" title=${t('workMode.editedTitle')}>${t('workMode.edited')}</span>`}`;
   return html`
-    <${Menu} label=${label} buttonClass=${'cond wm-chip' + (text ? '' : ' empty')}
+    <${Menu} label=${label} buttonClass=${'cond wm-chip' + (posting.work_mode ? '' : ' warn')}
       menuLabel=${t('workMode.edit', { value: text || t('workMode.notStated') })}>
       ${(close) => html`
         <form class="wm-form" onSubmit=${(e) => {

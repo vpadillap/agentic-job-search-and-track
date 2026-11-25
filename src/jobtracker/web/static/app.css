@@ -17,6 +17,7 @@ button { cursor: pointer; }
 .btn-sm { min-height: var(--control-h-sm); }
 .btn-primary { border-color: transparent; background: var(--accent); color: #FFFFFF; font-weight: 600; padding: 0 14px; }
 .btn-dark { border-color: var(--ink); background: var(--ink); color: #FFFFFF; }
+.btn-danger { border-color: var(--warn-fg); background: var(--warn-fg); color: #FFFFFF; }
 .btn-ghost { border-color: transparent; background: transparent; color: var(--muted); }
 .btn-icon { width: var(--control-h-sm); padding: 0; justify-content: center; border-color: transparent; background: transparent; color: var(--muted); }
 .btn-chip { min-height: var(--control-h-sm); padding: 0 10px; border: 1px dashed var(--line-dashed); border-radius: 18px; background: transparent; font-size: 12px; color: var(--text-2); }
@@ -135,7 +136,12 @@ button { cursor: pointer; }
 .cond { font-size: 13px; padding: 3px 8px; border-radius: var(--radius-sm); border: 1px solid var(--line-chip); white-space: nowrap; }
 .wm-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 260px; background: transparent; color: inherit; cursor: pointer; text-align: left; }
 .wm-chip:hover { background: var(--chip); }
-.wm-chip.empty { color: var(--muted); border-style: dashed; }
+.wm-chip.warn { background: var(--warn-bg); color: var(--warn-fg); border-color: transparent; }
+.wm-chip.warn:hover { background: var(--warn-bg); filter: brightness(0.96); }
+.remove-app { color: var(--muted); font-weight: 400; }
+.remove-confirm { width: 320px; padding: 6px; display: flex; flex-direction: column; gap: 8px; }
+.remove-confirm p { margin: 0; font-size: 13px; line-height: 1.45; white-space: normal; }
+.remove-confirm .menu-form { justify-content: flex-end; }
 .wm-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wm-edited { flex: none; font-size: 11px; color: var(--muted); }
 .wm-form .menu-form input[type="text"] { flex-basis: 220px; }
