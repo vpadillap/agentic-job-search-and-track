@@ -533,6 +533,23 @@ function ApplicationDetail({ app, version, onUpload, onSaved, statusName }) {
     </div>`;
 }
 
+// "Remove from tracking", confirmed inside the panel (never a browser dialog).
+function RemoveApplication({ app, onRemove }) {
+  const { t } = useUi();
+  return html`
+    <${Menu} label=${t('remove.label')} buttonClass="link-btn small remove-app"
+      menuLabel=${t('remove.menuLabel', { job: app.job_id })}>
+      ${(close) => html`<div class="remove-confirm" role="group" aria-label=${t('remove.menuLabel', { job: app.job_id })}>
+        <p>${t('remove.confirmText', { job: app.job_id })}</p>
+        <div class="menu-form">
+          <button type="button" class="btn btn-sm" onClick=${close}>${t('remove.cancel')}</button>
+          <button type="button" class="btn btn-sm btn-danger"
+            onClick=${() => { close(); onRemove(app); }}>${t('remove.confirm', { job: app.job_id })}</button>
+        </div>
+      </div>`}
+    </${Menu}>`;
+}
+
 // ── board ─────────────────────────────────────────────────────────────────
 
 export function ApplicationsBoard({ data, version, commands, onAction, onReload }) {
@@ -596,6 +613,10 @@ export function ApplicationsBoard({ data, version, commands, onAction, onReload 
     return { message: created ? t('toast.statusCreated', { name })
       : t('toast.statusChanged', { count: jobIds.length, job: jobIds[0], status: name }) };
   });
+  const removeApp = (app) => onAction(async () => {
+    await api.removeApplications([app.job_id]);
+    return { message: t('remove.done', { job: app.job_id }) };
+  });
   const changeTags = (app, add, remove) => onAction(async () => { await api.setTags(app.job_id, add, remove); return null; });
   const upload = (app, file) => onAction(async () => {
     await api.uploadSentResume(app.job_id, file);
@@ -627,6 +648,7 @@ export function ApplicationsBoard({ data, version, commands, onAction, onReload 
         <${WorkModeEditor} posting=${a.posting} onAction=${onAction} />
         <${PostingLink} url=${a.posting.url} site=${providerName(a.posting.provider)} className="source small-link" />
         <span class="small mono">${a.job_id}</span>
+        ${!a.earlier_season && html`<${RemoveApplication} app=${a} onRemove=${removeApp} />`}
       </div>` },
     { key: 'status', label: t('col.statusTags'), sortable: true, className: 'col-full col-labelled', render: (a) => html`
       <${StatusTagMenu} app=${a} statuses=${statuses} onStatus=${changeStatus}

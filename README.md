@@ -23,7 +23,7 @@ Everything below works today.
 |---|---|
 | Setup (`/setup`) | Requirements, panel language, your resume in each language you apply in, the job-needs questionnaire, target titles researched with you, job sites, your standing rules |
 | Job search (`/job-search`) | Seven job sources (below), filtering with reasons (by city, district included, and work mode; any filtered-out posting can be restored), scoring, salary evidence with links, the Search tab |
-| Applications | Statuses, tags, details, the resume you sent, history, the Applications tab |
+| Applications | Statuses, tags, details, the resume you sent, history, removing one you tracked by mistake, the Applications tab; resumes and cover letters download as Word files named after you and the job (`Your Name - J0007.docx`) |
 | Documents (`/prepare-documents`, `/form-answers`) | Tailored resumes, cover letters, and application-form answers, in each posting's language |
 | Learning (`/analyze-results`) | What is working, lessons you apply or ignore, interview-chance estimates once your own results validate them |
 | Seasons (`/new-season`) | Start a new campaign; earlier seasons stay viewable; export; full reset to an archive |
@@ -170,8 +170,9 @@ data. The rules are in [`providers/CONTRIBUTING.md`](providers/CONTRIBUTING.md).
 - To back up your data, copy `user-data/`, or ask for an export. To keep it
   somewhere else, set the `JOBTRACKER_HOME` environment variable to another
   folder before running setup.
-- Nothing is deleted by the tool. A full reset moves your data into
-  `user-data/archive/`.
+- Nothing is deleted by the tool, except the documents of an application you
+  remove from tracking (the panel asks first). A full reset moves your data
+  into `user-data/archive/`.
 
 The exact layout of the private folder is documented in
 [`docs/workspace-layout.md`](docs/workspace-layout.md).
@@ -376,8 +377,9 @@ reglas están en [`providers/CONTRIBUTING.md`](providers/CONTRIBUTING.md).
 - Para respaldar tus datos, copia `user-data/` o pide una exportación. Para
   guardarlos en otro lugar, define la variable de entorno `JOBTRACKER_HOME`
   antes de configurar.
-- La herramienta no borra nada. Un reinicio completo mueve tus datos a
-  `user-data/archive/`.
+- La herramienta no borra nada, salvo los documentos de una postulación que
+  quitas del seguimiento (el panel lo pregunta antes). Un reinicio completo
+  mueve tus datos a `user-data/archive/`.
 
 ## Problemas frecuentes
 

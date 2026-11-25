@@ -823,6 +823,25 @@ def test_user_fills_in_a_missing_work_mode(seeded, page):
         "Remote · Early Friday")
 
 
+def test_missing_work_mode_is_one_warning_chip(seeded, page):
+    with db.session(seeded) as conn:  # flags stored before they stopped being stored
+        conn.execute("UPDATE postings SET flags = ? WHERE company = 'Cobre Logística'",
+                     (json.dumps(["Modalidad de trabajo no indicada",
+                                  "La modalidad solo la indica Bumeran"]),))
+    open_board(page)
+    cobre = row(page, "Cobre Logística")
+    expect(cobre.locator(".tag.warn")).to_have_count(1)
+    expect(cobre.locator(".tag.warn")).to_have_text("La modalidad solo la indica Bumeran")
+    chip = cobre.locator(".wm-chip")
+    expect(chip).to_have_class(re.compile(r"\bwarn\b"))
+    assert chip.evaluate("e => getComputedStyle(e).paddingTop") == "3px"
+    chip.click()
+    page.get_by_role("radio", name="Hybrid").check()
+    page.get_by_role("button", name="Save").click()
+    expect(cobre.locator(".wm-chip")).to_contain_text("Hybrid")
+    expect(cobre.locator(".wm-chip")).not_to_have_class(re.compile(r"\bwarn\b"))
+
+
 def test_work_mode_corrected_in_applications_shows_everywhere(seeded, page):
     open_board(page, "applications")
     app_row(page, "Huaral Minerals").get_by_role(
@@ -1007,3 +1026,34 @@ def test_salary_cell_shows_offered_and_the_suggestion_with_its_note(seeded, page
     detail = page.locator(".detail")
     expect(detail.locator(".salary-note")).to_contain_text("Close to what a similar company")
     expect(detail).to_contain_text(f"({offer})")
+
+
+# ── remove an application from tracking ───────────────────────────────────
+
+def test_removing_an_application_deletes_it_and_returns_the_posting(seeded, page):
+    folder = next(seeded.applications.glob("*-huaral-minerals"))
+    assert (folder / "resume-proposed-v1.docx").is_file()
+    open_board(page, "applications")
+    huaral = app_row(page, "Huaral Minerals")
+    job_id = huaral.locator(".job .mono").first.inner_text()
+    huaral.get_by_role("button", name=f"Remove {job_id} from tracking").click()
+    expect(page.locator(".remove-confirm")).to_contain_text("cannot be undone")
+    page.get_by_role("button", name=f"Remove {job_id}", exact=True).click()
+    expect(page.locator(".toast")).to_contain_text(f"{job_id} was removed from tracking")
+    expect(app_row(page, "Huaral Minerals")).to_have_count(0)
+    assert not folder.exists()
+    open_board(page)
+    expect(page.get_by_label("Search shown").locator("option")).to_have_count(3)
+    page.get_by_label("Search shown").select_option(index=2)  # the demo's first search
+    expect(row(page, "Huaral Minerals").get_by_role("button", name="Track", exact=True)) \
+        .to_be_visible()
+
+
+def test_cancelling_the_removal_keeps_the_application(seeded, page):
+    open_board(page, "applications")
+    huaral = app_row(page, "Huaral Minerals")
+    job_id = huaral.locator(".job .mono").first.inner_text()
+    huaral.get_by_role("button", name=f"Remove {job_id} from tracking").click()
+    page.get_by_role("button", name="Cancel").click()
+    expect(page.locator(".remove-confirm")).to_have_count(0)
+    expect(app_row(page, "Huaral Minerals")).to_have_count(1)

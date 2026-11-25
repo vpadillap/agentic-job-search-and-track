@@ -8,9 +8,10 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Annotated, Literal
+from urllib.parse import quote
 
 from fastapi import FastAPI, File, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -22,6 +23,7 @@ from jobtracker.core import (
     config,
     db,
     documents,
+    docx_tools,
     learning,
     profile,
     providers,
@@ -92,6 +94,10 @@ class StatusChange(BaseModel):
     ends: bool | None = None  # only to create the status: does an application end with it
 
 
+class JobIds(BaseModel):
+    job_ids: list[str] = Field(min_length=1, max_length=500)
+
+
 class TagChange(BaseModel):
     add: list[str] = Field(default_factory=list, max_length=50)
     remove: list[str] = Field(default_factory=list, max_length=50)
@@ -122,6 +128,17 @@ class StatusEdit(BaseModel):
 
 def _language() -> str:
     return str(config.load(get_paths().config)["language"])
+
+
+DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+
+def _attachment(name: str) -> str:
+    """A Content-Disposition header for `name`, encoded the way FileResponse does it."""
+    quoted = quote(name)
+    if quoted != name:
+        return f"attachment; filename*=utf-8''{quoted}"
+    return f'attachment; filename="{name}"'
 
 
 def create_app() -> FastAPI:
@@ -337,6 +354,14 @@ def create_app() -> FastAPI:
             return {"ok": True, "job_ids": applications.set_status(
                 conn, body.job_ids, body.status, ends=body.ends)}
 
+    @app.post("/api/applications/remove")
+    def remove_applications(body: JobIds) -> dict:
+        paths = get_paths()
+        with db.session(paths) as conn:
+            removed = tracking.remove(conn, paths, body.job_ids)
+        deleted = tracking.delete_folders(paths, removed["folders"])
+        return {"ok": True, "job_ids": removed["job_ids"], "folders_deleted": deleted}
+
     @app.post("/api/applications/{job_id}/details")
     def change_details(job_id: str, body: dict) -> dict:
         with db.session(get_paths()) as conn:
@@ -376,12 +401,16 @@ def create_app() -> FastAPI:
                 conn, paths, job_id, file.filename or "", data)}
 
     @app.get("/api/applications/{job_id}/documents/{document_id}")
-    def download(job_id: str, document_id: int) -> FileResponse:
+    def download(job_id: str, document_id: int) -> Response:
         paths = get_paths()
         with db.session(paths) as conn:
-            path = applications.document_path(conn, paths, job_id, document_id)
-        return FileResponse(path, media_type="application/octet-stream", filename=path.name,
-                            content_disposition_type="attachment")
+            found = documents.download(conn, paths, job_id, document_id)
+        if not found["convert"]:
+            return FileResponse(found["path"], media_type="application/octet-stream",
+                                filename=found["name"], content_disposition_type="attachment")
+        data = docx_tools.markdown_to_docx(found["path"].read_text(encoding="utf-8"))
+        return Response(data, media_type=DOCX_MEDIA_TYPE,
+                        headers={"Content-Disposition": _attachment(found["name"])})
 
     @app.get("/api/applications/{job_id}/documents/{document_id}/text")
     def document_text(job_id: str, document_id: int) -> dict:

@@ -492,7 +492,7 @@ def test_readings_are_merged_into_the_drafts(workspace, run, drafts, cli, tmp_pa
         {"external_id": "701", "work_mode": "hybrid",
          "work_mode_detail": "Híbrido: 2 días por semana en la oficina", "language": "es"},
         {"external_id": "702", "work_mode": None, "language": "es",
-         "flags": ["Work mode not stated"]},
+         "flags": ["Work mode not stated", "Employment type: Temporary"]},
     ], tmp_path)
     assert code == 0, report
     assert report["new"] == 2
@@ -501,7 +501,8 @@ def test_readings_are_merged_into_the_drafts(workspace, run, drafts, cli, tmp_pa
     assert (rows["701"]["work_mode"], rows["701"]["work_mode_detail"], rows["701"]["language"]
             ) == ("hybrid", "Híbrido: 2 días por semana en la oficina", "es")
     assert rows["702"]["work_mode"] is None
-    assert json.loads(rows["702"]["flags"]) == ["Work mode not stated"]
+    # the work-mode chip already says it is not stated: that flag is not stored
+    assert json.loads(rows["702"]["flags"]) == ["Employment type: Temporary"]
 
 
 def test_every_draft_needs_a_reading(workspace, run, drafts, cli, tmp_path):

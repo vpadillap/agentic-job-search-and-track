@@ -783,5 +783,11 @@
   "detail.publishedInput": "Publicado por {company} para {title}",
   "detail.weight.main": "principal",
   "detail.weight.supporting": "de apoyo",
-  "detail.setAside": "Descartados"
+  "detail.setAside": "Descartados",
+  "remove.label": "Quitar del seguimiento",
+  "remove.menuLabel": "Quitar {job} del seguimiento",
+  "remove.confirmText": "¿Quitar {job} del seguimiento? Se pierden su estado, etiquetas, detalles y respuestas de formulario, y se borran sus documentos (CV adaptados, cartas, el CV enviado). No se puede deshacer. El aviso vuelve a los resultados de búsqueda.",
+  "remove.confirm": "Quitar {job}",
+  "remove.cancel": "Cancelar",
+  "remove.done": "{job} se quitó del seguimiento"
 }

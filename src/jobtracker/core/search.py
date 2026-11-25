@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import unicodedata
 from datetime import UTC, date, datetime, timedelta
 
 from . import normalize, providers
@@ -663,7 +664,7 @@ def _validate_record(record: object, index: int, reference: date) -> dict:
         "description": description,
         "published_salary": _published_salary(record.get("published_salary"), where),
         "language": _text(record, "language", where, required=False),
-        "flags": [f.strip() for f in flags],
+        "flags": [f.strip() for f in flags if not is_work_mode_not_stated(f)],
         "form_questions": _questions(record.get("form_questions"), where),
     }
 
@@ -686,6 +687,28 @@ def _seen_reason(conn: sqlite3.Connection, posting_id: int) -> str:
     if conn.execute("SELECT 1 FROM applications WHERE posting_id = ?", (posting_id,)).fetchone():
         return "tracked"
     return "earlier_run"
+
+
+_NOT_STATED = re.compile(
+    r"(?:work[ -]?mode|modality|modalidad(?: de trabajo)?)"
+    r" (?:not stated|not specified|no indicada|no especificada)")
+
+
+def is_work_mode_not_stated(flag: str) -> bool:
+    """Whether a flag only says the work mode is not stated.
+
+    The work-mode chip already shows that, so such a flag is neither stored nor
+    shown. Only a whole-text match counts: a flag that says more stays.
+    """
+    plain = "".join(c for c in unicodedata.normalize("NFKD", flag)
+                    if not unicodedata.combining(c))
+    text = " ".join(plain.casefold().split()).strip(" .;:!")
+    return bool(_NOT_STATED.fullmatch(text))
+
+
+def shown_flags(stored: str) -> list[str]:
+    """The stored flags the panel shows."""
+    return [f for f in json.loads(stored) if not is_work_mode_not_stated(f)]
 
 
 READING_FIELDS = ("work_mode", "work_mode_detail", "language", "flags", "published_salary")
@@ -1013,7 +1036,7 @@ def posting(conn: sqlite3.Connection, posting_id: int, *, detail: bool = True) -
         "posted_at": row["posted_at"], "captured_at": row["captured_at"],
         "published_salary": json.loads(row["published_salary"])
         if row["published_salary"] else None,
-        "language": row["language"], "flags": json.loads(row["flags"]),
+        "language": row["language"], "flags": shown_flags(row["flags"]),
         "source_site": row["source_site"],
         "form_question_count": conn.execute(
             "SELECT COUNT(*) FROM form_questions WHERE posting_id = ?", (posting_id,)

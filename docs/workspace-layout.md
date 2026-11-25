@@ -22,7 +22,7 @@ personal lives anywhere else.**
 
 ```
 user-data/                                  private home (gitignored)
-├── config.toml                             panel language (en|es), host, port
+├── config.toml                             panel language (en|es), host, port, and the user's full name (`jt privacy name set`)
 ├── jobtracker.db                           SQLite: the source of truth for all structured data
 ├── .private-terms                          one term per line (name, email, phone…) for the privacy guard
 ├── providers/                              job sites the user added (see providers/CONTRIBUTING.md)
@@ -37,7 +37,7 @@ user-data/                                  private home (gitignored)
 │   ├── resume-base-<lang>.md               extracted text of that base resume
 │   └── resume-base-<lang>-v<N>.<ext>       earlier versions in that language, kept on update
 ├── applications/
-│   └── <job-id>-<company-slug>/            one folder per tracked job, e.g. J0007-altamar-retail
+│   └── <job-id>-<company-slug>/            one folder per tracked job, e.g. J0007-altamar-retail; deleted when the user removes the job from tracking
 │       ├── posting.md                      job description verbatim, as captured
 │       ├── resume-proposed-v<N>.<ext>      resume tailored by the agent (never overwritten; bump N)
 │       ├── resume-sent.<ext>               the resume the user actually sent (panel upload or agent copy)
@@ -70,6 +70,12 @@ recorded keeps the name `resume-base.<ext>` until it is replaced.
 | Search run folder | local time `YYYYMMDD-HHMM` | `20261115-0912` |
 | Dates in the DB | ISO 8601 UTC (`2026-11-15T14:12:00Z`); the panel localizes | |
 | Money | integer amount + ISO 4217 currency + period (`month`) + `gross`/`net` | `15000 PEN month gross` |
+
+Download names are not storage names. The panel downloads a tailored resume as
+`<Full Name> - <Job id>.docx` and a cover letter as `<Full Name> - <Job id> -
+Cover letter.docx` (`Carta de presentación` when the letter is in Spanish),
+converting Markdown to Word; without a recorded full name the name starts with
+the job id. The files on disk keep the names above.
 
 ## What goes in the database vs on disk
 

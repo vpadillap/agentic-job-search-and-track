@@ -39,6 +39,7 @@ from jobtracker.core import (
     seasons,
     setup,
     skills,
+    tracking,
     workspace,
 )
 from jobtracker.core.errors import JobTrackerError
@@ -195,6 +196,19 @@ def cmd_privacy_terms_add(args: argparse.Namespace) -> dict:
 
 def cmd_privacy_terms_list(args: argparse.Namespace) -> dict:
     return {"terms": privacy.list_terms(get_paths())}
+
+
+def cmd_privacy_name_set(args: argparse.Namespace) -> dict:
+    paths = get_paths()
+    result = privacy.set_full_name(paths, args.name)
+    if workspace.is_initialized(paths):
+        with db.session(paths) as conn:
+            db.bump_changes(conn)
+    return result
+
+
+def cmd_privacy_name_show(args: argparse.Namespace) -> dict:
+    return {"full_name": privacy.full_name(get_paths())}
 
 
 def cmd_skills_sync(args: argparse.Namespace) -> dict:
@@ -609,6 +623,14 @@ def cmd_applications_show(args: argparse.Namespace) -> dict:
         return {"application": applications.detail(conn, args.job_id, _language())}
 
 
+def cmd_applications_remove(args: argparse.Namespace) -> dict:
+    paths = get_paths()
+    with db.session(paths) as conn:
+        removed = tracking.remove(conn, paths, args.job_ids)
+    deleted = tracking.delete_folders(paths, removed["folders"])
+    return {"job_ids": removed["job_ids"], "folders_deleted": deleted}
+
+
 def cmd_applications_set_status(args: argparse.Namespace) -> dict:
     with db.session(get_paths()) as conn:
         changed = applications.set_status(conn, args.job_ids, _status_ref(args.to),
@@ -916,6 +938,14 @@ def build_parser() -> argparse.ArgumentParser:
     terms_add.set_defaults(run=cmd_privacy_terms_add)
     terms_sub.add_parser("list", help="show the registered terms").set_defaults(
         run=cmd_privacy_terms_list)
+    name = privacy_sub.add_parser("name", help="the full name that names downloaded documents")
+    name_sub = name.add_subparsers(dest="name_action", required=True, parser_class=_Parser)
+    name_set = name_sub.add_parser(
+        "set", help="record the full name and register it as a private term")
+    name_set.add_argument("name")
+    name_set.set_defaults(run=cmd_privacy_name_set)
+    name_sub.add_parser("show", help="show the recorded full name").set_defaults(
+        run=cmd_privacy_name_show)
 
     skills_parser = sub.add_parser("skills", help="agent commands and their aliases")
     skills_sub = skills_parser.add_subparsers(dest="action", required=True, parser_class=_Parser)
@@ -1147,6 +1177,10 @@ def build_parser() -> argparse.ArgumentParser:
                              help="create the status if it does not exist: does an"
                                   " application end with it")
     apps_status.set_defaults(run=cmd_applications_set_status)
+    apps_remove = apps_sub.add_parser(
+        "remove", help="remove applications from tracking and delete their folders")
+    apps_remove.add_argument("job_ids", nargs="+")
+    apps_remove.set_defaults(run=cmd_applications_remove)
     apps_update = apps_sub.add_parser("update", help="change application details")
     apps_update.add_argument("job_id")
     apps_update.add_argument("file", help="JSON object with the fields to change, or -")
